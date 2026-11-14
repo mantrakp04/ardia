@@ -19,6 +19,7 @@ import {
   Favicon,
   FloatingMenu,
   font,
+  useSheetFrame,
   isSymbolName,
   PROFILE_PRESETS,
   space,
@@ -49,6 +50,7 @@ type RowMenu = { items: MenuItem[]; y: number; anchor?: RefObject<View | null> }
 export function SpacesView() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const frame = useSheetFrame();
   const status = useSyncStatus();
   const view = useSyncView();
   const shown = useSelectedProfile();
@@ -67,7 +69,7 @@ export function SpacesView() {
   return (
     <View style={StyleSheet.absoluteFill}>
       <Backdrop colors={tone} />
-      <View style={[styles.column, { paddingTop: insets.top }]}>
+      <View style={[styles.column, { paddingTop: frame ? 0 : insets.top }]}>
         <View style={styles.header}>
           <Text accessibilityRole="header" style={[font.title2, styles.bold, styles.fill, { color: theme.label }]} numberOfLines={1}>
             {profile?.name ?? "Spaces"}
@@ -121,6 +123,7 @@ function SpacePage({ profile, onMenu, bottom }: { profile: SyncedProfile; onMenu
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
+  const frame = useSheetFrame();
   const rows = useMemo(() => spaceRows(profile, open, expanded), [profile, open, expanded]);
   const toggle = (key: string) => setOpen((now) => (now.has(key) ? new Set([...now].filter((k) => k !== key)) : new Set([...now, key])));
   const linkMenu = (url: string, title: string, y: number) => {
@@ -140,6 +143,7 @@ function SpacePage({ profile, onMenu, bottom }: { profile: SyncedProfile; onMenu
       initialNumToRender={SPACE_ROWS_FIRST}
       windowSize={SPACE_ROWS_WINDOW}
       removeClippedSubviews
+      {...frame?.list(true)}
       contentContainerStyle={{ paddingBottom: bottom + space.l }}
       refreshControl={
         <RefreshControl

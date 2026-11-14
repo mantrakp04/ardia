@@ -204,6 +204,10 @@ export const voiceLayout = {
   levelMotion: 120,
 } as const;
 
+export const sheetInk = { scrim: "rgba(0,0,0,0.25)" } as const;
+
+export const sheetLayout = { topGap: 10, radius: 32, backgroundRadius: 24 } as const;
+
 export const syncInk = { banner: "#FF9500" } as const;
 
 export const spacesLayout = {

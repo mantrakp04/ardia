@@ -29,6 +29,9 @@ export const tabsMotion = {
   sheetOut: spring(0.32, 1),
   surfaceFade: 200,
   barCollapse: spring(0.4, 1),
+  sheetRise: spring(0.42, 0.9),
+  sheetDismiss: spring(0.32, 1),
+  sheetReduced: 200,
   barCollapseReduced: 200,
 } as const;
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, SectionList, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { closeArchive } from "../../state/browse/store";
@@ -8,7 +8,7 @@ import { usePreferences } from "../../state/settings/hooks";
 import { useArchiveDays, useArchiveLoaded } from "../../state/tabs/hooks";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval, type BrowserTab } from "../../state/tabs/tabModels";
 import { clearArchivedTabs, loadArchive, searchArchive, setAutoArchiveInterval } from "../../state/tabs/store";
-import { Backdrop, ConfirmDialog, Favicon, font, Menu, radius, space, Symbol, tabsLayout, tabsMotion, useTheme, type Confirmation, type MenuItem } from "../ui";
+import { Backdrop, ConfirmDialog, Favicon, FloatingMenu, font, radius, space, SwipeToDelete, Symbol, tabsLayout, tabsMotion, useSheetFrame, useTheme, type Confirmation, type MenuItem } from "../ui";
 
 const time = (at: number) => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
@@ -25,7 +25,9 @@ function dayTitle(at: number): string {
 export function ArchiveView() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
+  const frame = useSheetFrame();
+  const options = useRef<View>(null);
   const days = useArchiveDays();
   const loaded = useArchiveLoaded();
   const interval = usePreferences((p) => p.autoArchiveInterval);
@@ -55,7 +57,7 @@ export function ArchiveView() {
   return (
     <View style={StyleSheet.absoluteFill}>
       <Backdrop colors={theme.backdrop} />
-      <View style={[styles.column, { paddingTop: insets.top }]}>
+      <View style={[styles.column, { paddingTop: frame ? 0 : insets.top }]}>
         <View style={styles.top}>
           <Pressable accessibilityRole="button" onPress={closeArchive} style={styles.topButton}>
             <Text style={[font.body, styles.bold, { color: theme.formAccent }]}>Done</Text>
@@ -63,7 +65,7 @@ export function ArchiveView() {
           <Text accessibilityRole="header" style={[font.body, styles.bold, { color: theme.label }]}>
             Archive
           </Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Options" onPress={() => setMenu(true)} style={[styles.topButton, styles.end]}>
+          <Pressable ref={options} accessibilityRole="button" accessibilityLabel="Options" onPress={() => setMenu(true)} style={[styles.topButton, styles.end]}>
             <Symbol name="ellipsis" size={22} color={theme.formAccent} />
           </Pressable>
         </View>
@@ -97,6 +99,7 @@ export function ArchiveView() {
             sections={sections}
             keyExtractor={(tab) => tab.id}
             keyboardShouldPersistTaps="handled"
+            {...frame?.list(false)}
             contentContainerStyle={{ paddingBottom: insets.bottom + space.l }}
             renderSectionHeader={({ section }) =>
               section.title ? <Text style={[font.footnote, styles.section, { color: theme.secondaryLabel }]}>{section.title}</Text> : null
@@ -113,11 +116,13 @@ export function ArchiveView() {
           />
         )}
       </View>
-      {menu ? <Menu items={items} place={{ top: insets.top + tabsLayout.archiveTop, right: space.s, width: Math.min(tabsLayout.menuWidth, width - space.l) }} onDismiss={() => setMenu(false)} /> : null}
+      {menu ? (
+        <FloatingMenu items={items} anchor={options} place={{ top: 0, right: space.s, width: Math.min(tabsLayout.menuWidth, width - space.l) }} onDismiss={() => setMenu(false)} />
+      ) : null}
       {rowMenu ? (
-        <Menu
+        <FloatingMenu
           items={rowMenuItems(rowMenu.tab)}
-          place={{ top: Math.min(rowMenu.y, height - tabsLayout.cardMenuHeight - insets.bottom), left: space.xl, width: Math.min(tabsLayout.menuWidth, width - space.xl * 2) }}
+          place={{ top: rowMenu.y, left: space.xl, width: Math.min(tabsLayout.menuWidth, width - space.xl * 2) }}
           onDismiss={() => setRowMenu(null)}
         />
       ) : null}
@@ -145,26 +150,28 @@ function ArchiveRow({ tab, onMenu }: { tab: BrowserTab; onMenu: (y: number) => v
   const theme = useTheme();
   const shown = display(tab.url);
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityHint="Reopens the tab."
-      onPress={() => openArchivedTab(tab)}
-      onLongPress={(event) => onMenu(event.nativeEvent.pageY)}
-      delayLongPress={tabsMotion.longPress}
-      style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}
-    >
-      <View style={[styles.icon, { backgroundColor: theme.fieldFill }]}>
-        <Favicon iconUrl={tab.faviconUrl} pageUrl={tab.url} size={tabsLayout.faviconSize} />
-      </View>
-      <View style={styles.label}>
-        <Text style={[font.body, { color: theme.label }]} numberOfLines={2}>
-          {tab.title || shown.host}
-        </Text>
-        <Text style={[font.footnote, { color: theme.secondaryLabel }]} numberOfLines={1}>
-          {`${shown.host} · ${time(tab.archivedAt ?? tab.lastActive)}`}
-        </Text>
-      </View>
-    </Pressable>
+    <SwipeToDelete onDelete={() => deleteArchivedTab(tab)}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityHint="Reopens the tab."
+        onPress={() => openArchivedTab(tab)}
+        onLongPress={(event) => onMenu(event.nativeEvent.pageY)}
+        delayLongPress={tabsMotion.longPress}
+        style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}
+      >
+        <View style={[styles.icon, { backgroundColor: theme.fieldFill }]}>
+          <Favicon iconUrl={tab.faviconUrl} pageUrl={tab.url} size={tabsLayout.faviconSize} />
+        </View>
+        <View style={styles.label}>
+          <Text style={[font.body, { color: theme.label }]} numberOfLines={2}>
+            {tab.title || shown.host}
+          </Text>
+          <Text style={[font.footnote, { color: theme.secondaryLabel }]} numberOfLines={1}>
+            {`${shown.host} · ${time(tab.archivedAt ?? tab.lastActive)}`}
+          </Text>
+        </View>
+      </Pressable>
+    </SwipeToDelete>
   );
 }
 

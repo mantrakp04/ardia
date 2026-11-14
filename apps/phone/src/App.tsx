@@ -11,7 +11,7 @@ import { OnboardingView } from "./components/onboarding/OnboardingView";
 import { SettingsView } from "./components/settings/SettingsView";
 import { SpacesView } from "./components/sync/SpacesView";
 import { ToastHost } from "./components/toasts/ToastHost";
-import { DEFAULT_PROFILE_COLOR, OverlayHost, PROFILE_PRESETS, ProfileLookContext, Shade } from "./components/ui";
+import { DEFAULT_PROFILE_COLOR, FullSheet, OverlayHost, PROFILE_PRESETS, ProfileLookContext, Shade, SheetBackground } from "./components/ui";
 import { useLook } from "./state/sync/hooks";
 import { startSettingsSources } from "./state/settings/actions";
 import { startSync } from "./state/sync/actions";
@@ -22,10 +22,11 @@ import { startLinks } from "./state/links/links";
 import { useBaseSystemBars } from "./state/app/systemBars";
 import { useSearchOpen } from "./state/search/hooks";
 import { useSheet, useSurface } from "./state/browse/hooks";
-import { appBecameActive, appWillResignActive, goBackToStartIfEmpty, startBrowser } from "./state/browse/store";
+import { appBecameActive, appWillResignActive, closeArchive, goBackToStartIfEmpty, startBrowser } from "./state/browse/store";
 import { handleSystemBack, startPageUi } from "./state/page/actions";
 import { VoiceSearchView } from "./components/search/VoiceSearchView";
 import { useVoicePresented } from "./state/voice/store";
+import { useSharedValue } from "react-native-reanimated";
 import { useSelectedTab } from "./state/tabs/hooks";
 
 export default function App() {
@@ -69,20 +70,24 @@ function Surfaces() {
   const onboarding = useOnboarding((s) => s.showing);
   const searching = useSearchOpen();
   const voice = useVoicePresented();
+  const sheetProgress = useSharedValue(0);
   useEffect(goBackToStartIfEmpty, [tab, surface]);
   return (
     <>
-      <Layer covered={sheet !== null || settingsOpen || onboarding || voice}>
-        <Shade shaded={searching}>
-          {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
-          {surface === "deck" ? <TabDeck /> : null}
-          {surface === "start" ? <StartScreen /> : null}
-        </Shade>
-        <SearchTray />
-      </Layer>
+      <SheetBackground progress={sheetProgress}>
+        <Layer covered={settingsOpen || onboarding || voice} muted={sheet !== null}>
+          <Shade shaded={searching}>
+            {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
+            {surface === "deck" ? <TabDeck /> : null}
+            {surface === "start" ? <StartScreen /> : null}
+          </Shade>
+          <SearchTray />
+        </Layer>
+      </SheetBackground>
       <Layer covered={settingsOpen || onboarding || voice}>
-        {sheet === "archive" ? <ArchiveView /> : null}
-        {sheet === "spaces" ? <SpacesView /> : null}
+        <FullSheet sheet={sheet} progress={sheetProgress} onDismiss={closeArchive}>
+          {(shown) => (shown === "archive" ? <ArchiveView /> : <SpacesView />)}
+        </FullSheet>
       </Layer>
       <Layer covered={onboarding || voice}>
         <SettingsView />
@@ -98,7 +103,7 @@ function Surfaces() {
 
 const COVER_SETTLE_MS = 450;
 
-function Layer({ covered, children }: { covered: boolean; children: ReactNode }) {
+function Layer({ covered, muted = false, children }: { covered: boolean; muted?: boolean; children: ReactNode }) {
   const [gone, setGone] = useState(covered);
   useEffect(() => {
     if (!covered) {
@@ -111,10 +116,10 @@ function Layer({ covered, children }: { covered: boolean; children: ReactNode })
   return (
     <View
       style={[StyleSheet.absoluteFill, gone ? styles.gone : null]}
-      pointerEvents={covered ? "none" : "box-none"}
+      pointerEvents={covered || muted ? "none" : "box-none"}
       collapsable={false}
-      importantForAccessibility={covered ? "no-hide-descendants" : "auto"}
-      accessibilityElementsHidden={covered}
+      importantForAccessibility={covered || muted ? "no-hide-descendants" : "auto"}
+      accessibilityElementsHidden={covered || muted}
     >
       {children}
     </View>
