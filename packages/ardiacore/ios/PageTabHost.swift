@@ -4,6 +4,11 @@ import ExpoModulesCore
 class PageTabHost: ExpoView {
   let page: PageTab
   var pageEvents: Set<String> = []
+  var captureOverlay: CaptureOverlay?
+  var captureAreaObserver: NSObjectProtocol?
+  var captureStarting = false
+  var captureAttempt = 0
+  var captureStartedAt: CFTimeInterval = 0
   private var propsReady = false
 
   class func makePage() -> PageTab {
@@ -27,6 +32,11 @@ class PageTabHost: ExpoView {
   override func setFrameSize(_ newSize: NSSize) {
     super.setFrameSize(newSize)
     page.frame = bounds
+  }
+
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    if window == nil { endCapture() }
   }
 
   func propsDidUpdate() {

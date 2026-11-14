@@ -1,4 +1,5 @@
 import AppKit
+import WebKit
 
 extension WebKitTab: PageTab {
   static let unsupported = "unsupported"
@@ -57,4 +58,18 @@ extension WebKitTab: PageTab {
   func resolveUnresponsive(terminate: Bool) {}
 
   func discard(unload: Bool) -> String { Self.unsupported }
+
+  var captureArea: NSView? { webView }
+
+  func copyCapturePicture(_ completion: @escaping (CGImage?, NSRect) -> Void) {
+    guard let view = webView, window != nil, !view.isHidden else { return completion(nil, .zero) }
+    let frame = view.frame
+    let configuration = WKSnapshotConfiguration()
+    configuration.afterScreenUpdates = false
+    view.takeSnapshot(with: configuration) { image, _ in
+      guard let image else { return completion(nil, .zero) }
+      var proposed = CGRect(origin: .zero, size: image.size)
+      completion(image.cgImage(forProposedRect: &proposed, context: nil, hints: nil), frame)
+    }
+  }
 }
