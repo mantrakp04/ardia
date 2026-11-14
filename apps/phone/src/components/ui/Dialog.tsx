@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, type ReactNode } from "react";
+import { BackHandler, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { tabsMotion } from "./motion";
 import { useTheme } from "./theme";
@@ -11,6 +11,13 @@ type Props = { title: string; message?: string | null; buttons: DialogButton[]; 
 
 export function Dialog({ title, message, buttons, onDismiss, children }: Props) {
   const theme = useTheme();
+  useEffect(() => {
+    const back = BackHandler.addEventListener("hardwareBackPress", () => {
+      onDismiss();
+      return true;
+    });
+    return () => back.remove();
+  }, [onDismiss]);
   return (
     <Animated.View entering={FadeIn.duration(tabsMotion.surfaceFade)} exiting={FadeOut.duration(tabsMotion.surfaceFade)} style={StyleSheet.absoluteFill}>
       <Pressable accessibilityLabel="Dismiss" style={[StyleSheet.absoluteFill, { backgroundColor: theme.dialogScrim }]} onPress={onDismiss} />
@@ -42,3 +49,26 @@ const styles = StyleSheet.create({
   button: { minHeight: 44, justifyContent: "center", paddingHorizontal: space.m },
   buttonText: { fontWeight: "600" },
 });
+
+export type Confirmation = { title: string; message: string; action: string; run: () => void };
+
+export function ConfirmDialog({ confirmation, onClose }: { confirmation: Confirmation; onClose: () => void }) {
+  return (
+    <Dialog
+      title={confirmation.title}
+      message={confirmation.message}
+      onDismiss={onClose}
+      buttons={[
+        { title: "Cancel", onPress: onClose },
+        {
+          title: confirmation.action,
+          destructive: true,
+          onPress: () => {
+            onClose();
+            confirmation.run();
+          },
+        },
+      ]}
+    />
+  );
+}

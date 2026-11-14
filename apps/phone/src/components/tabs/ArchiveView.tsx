@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, SectionList, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Pressable, SectionList, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { closeArchive, reopenArchived } from "../../state/browse/store";
 import { display } from "../../state/search/omnibox";
@@ -7,7 +7,7 @@ import { usePreferences } from "../../state/settings/hooks";
 import { useArchiveDays, useArchiveLoaded } from "../../state/tabs/hooks";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval, type BrowserTab } from "../../state/tabs/tabModels";
 import { clearArchivedTabs, loadArchive, searchArchive, setAutoArchiveInterval } from "../../state/tabs/store";
-import { Backdrop, font, Menu, radius, space, Symbol, tabsLayout, useTheme, type MenuItem } from "../ui";
+import { Backdrop, ConfirmDialog, font, Menu, radius, space, Symbol, tabsLayout, useTheme, type Confirmation, type MenuItem } from "../ui";
 
 const time = (at: number) => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
@@ -37,11 +37,8 @@ export function ArchiveView() {
     ? [{ title: "", data: results }]
     : days.map((day) => ({ title: dayTitle(day.tabs[0]!.archivedAt ?? day.tabs[0]!.lastActive), data: day.tabs }));
 
-  const confirmClear = () =>
-    Alert.alert("Delete All Archived Tabs?", "This can’t be undone.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete All", style: "destructive", onPress: clearArchivedTabs },
-    ]);
+  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const confirmClear = () => setConfirmation({ title: "Delete All Archived Tabs?", message: "This can’t be undone.", action: "Delete All", run: clearArchivedTabs });
   const items: MenuItem[] = [
     { heading: "Archive Inactive Tabs" },
     ...(Object.keys(AUTO_ARCHIVE_INTERVALS) as AutoArchiveInterval[]).map((option) => ({
@@ -107,6 +104,7 @@ export function ArchiveView() {
         )}
       </View>
       {menu ? <Menu items={items} place={{ top: insets.top + tabsLayout.archiveTop, right: space.s, width: Math.min(tabsLayout.menuWidth, width - space.l) }} onDismiss={() => setMenu(false)} /> : null}
+      {confirmation ? <ConfirmDialog confirmation={confirmation} onClose={() => setConfirmation(null)} /> : null}
     </View>
   );
 }

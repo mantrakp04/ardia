@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, StyleSheet, useWindowDimensions, View } from "react-native";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,7 +30,7 @@ import {
   reopenLastClosed,
 } from "../../state/browse/store";
 import { useCanReopen, useDeckOrder, useHasArchivedTabs, useIncognito, usePrivateCount } from "../../state/tabs/hooks";
-import { Backdrop, Menu, tabsCurve, tabsLayout, tabsMotion, useTheme, type MenuItem } from "../ui";
+import { Backdrop, ConfirmDialog, Menu, tabsCurve, tabsLayout, tabsMotion, useTheme, type Confirmation, type MenuItem } from "../ui";
 import { DeckBar } from "./DeckBar";
 import { DeckCard, type DeckMotion, type DeckRole } from "./DeckCard";
 import { DeckEmpty, IncognitoChip } from "./DeckChrome";
@@ -60,6 +60,7 @@ export function TabDeck() {
   const [shift, setShift] = useState({ by: 0, generation: 0 });
   const [phase, setPhase] = useState<Phase>({ kind: "settled", id: null });
   const [menu, setMenu] = useState<"plus" | "chip" | null>(null);
+  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const hidden = useRef(new Set<string>());
   const motion: DeckMotion = {
     scroll: useSharedValue(initialDeckScroll(order.length)),
@@ -184,15 +185,14 @@ export function TabDeck() {
   });
 
   const confirmCloseAll = () =>
-    Alert.alert(count === 1 ? "Close 1 Tab?" : `Close ${count} Tabs?`, privateCount ? "Incognito tabs aren’t saved. Other tabs stay in your Archive." : "They’ll stay in your Archive.", [
-      { text: "Cancel", style: "cancel" },
-      { text: count === 1 ? "Close Tab" : "Close All Tabs", style: "destructive", onPress: closeAllFromDeck },
-    ]);
+    setConfirmation({
+      title: count === 1 ? "Close 1 Tab?" : `Close ${count} Tabs?`,
+      message: privateCount ? "Incognito tabs aren’t saved. Other tabs stay in your Archive." : "They’ll stay in your Archive.",
+      action: count === 1 ? "Close Tab" : "Close All Tabs",
+      run: closeAllFromDeck,
+    });
   const confirmLeaveIncognito = () =>
-    Alert.alert("Close Incognito Tabs?", "Their pages, cookies and history are cleared.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Close Incognito Tabs", style: "destructive", onPress: leaveIncognito },
-    ]);
+    setConfirmation({ title: "Close Incognito Tabs?", message: "Their pages, cookies and history are cleared.", action: "Close Incognito Tabs", run: leaveIncognito });
 
   const plusItems: MenuItem[] = incognito
     ? [
@@ -249,6 +249,7 @@ export function TabDeck() {
           onDismiss={() => setMenu(null)}
         />
       ) : null}
+      {confirmation ? <ConfirmDialog confirmation={confirmation} onClose={() => setConfirmation(null)} /> : null}
     </View>
   );
 }
