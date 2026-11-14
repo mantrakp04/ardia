@@ -1,6 +1,7 @@
 import type { Fiber } from "./fiber";
+import type { FocusOnWindows } from "./textFocus";
 
-type TakesKeyboard = { takeKeyboardFromPage(windowId: string): Promise<boolean> | boolean };
+type TakesKeyboard = Pick<FocusOnWindows, "takeKeyboardFromPage">;
 type FocusedField = { field: unknown; windowId: string; tabId?: string } | null;
 type FieldPlace = { windowId: string; tabId: string };
 
