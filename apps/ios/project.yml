@@ -41,11 +41,14 @@ targets:
       - target: ArdiaOpen
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ardia.ios
+        PRODUCT_BUNDLE_IDENTIFIER: com.ardia.browser.ios
         PRODUCT_NAME: Ardia
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Config/Ardia-Info.plist
-        CODE_SIGN_ENTITLEMENTS: Config/Ardia.entitlements
+        CODE_SIGN_ENTITLEMENTS: $(ARDIA_ENTITLEMENTS_$(ARDIA_DEFAULT_BROWSER))
+        ARDIA_DEFAULT_BROWSER: NO
+        ARDIA_ENTITLEMENTS_NO: Config/Ardia.entitlements
+        ARDIA_ENTITLEMENTS_YES: Config/Ardia-DefaultBrowser.entitlements
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
@@ -62,9 +65,6 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         INFOPLIST_KEY_UIFileSharingEnabled: YES
         INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
-      configs:
-        Release:
-          CODE_SIGN_ENTITLEMENTS: Config/Ardia-Release.entitlements
   ArdiaWidgets:
     type: app-extension
     platform: iOS
@@ -80,7 +80,7 @@ targets:
       - sdk: SwiftUI.framework
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ardia.ios.widgets
+        PRODUCT_BUNDLE_IDENTIFIER: com.ardia.browser.ios.widgets
         PRODUCT_NAME: ArdiaWidgets
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Config/Widgets-Info.plist
@@ -101,7 +101,7 @@ targets:
         product: ArdiaDesign
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ardia.ios.share
+        PRODUCT_BUNDLE_IDENTIFIER: com.ardia.browser.ios.share
         PRODUCT_NAME: ArdiaShare
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Config/Share-Info.plist
@@ -120,7 +120,7 @@ targets:
         product: ArdiaDesign
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ardia.ios.open
+        PRODUCT_BUNDLE_IDENTIFIER: com.ardia.browser.ios.open
         PRODUCT_NAME: ArdiaOpen
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Config/Open-Info.plist

@@ -9,7 +9,7 @@ struct DefaultBrowserPage: View {
         .padding(.top, Spacing.large)
         .padding(.bottom, Spacing.section)
     }
-    .background(Color(.systemGroupedBackground))
+    .background { ProfileBackdrop().ignoresSafeArea() }
     .navigationTitle("Default Browser")
     .navigationBarTitleDisplayMode(.inline)
   }
@@ -19,6 +19,7 @@ struct DefaultBrowserInstructions: View {
   var onLater: (() -> Void)?
   var onOpened: (() -> Void)?
 
+  @Environment(AppModel.self) private var app
   @Environment(\.openURL) private var openURL
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -53,6 +54,7 @@ struct DefaultBrowserInstructions: View {
       VStack(spacing: Spacing.small) {
         Button {
           onOpened?()
+          app.defaultBrowser.willOpenSystemSettings()
           if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
         } label: {
           Text("Open Ardia in Settings")
@@ -61,7 +63,7 @@ struct DefaultBrowserInstructions: View {
         }
         .buttonStyle(.borderedProminent)
         .buttonBorderShape(.roundedRectangle(radius: 14))
-        .tint(Palette.indigo)
+        .primaryActionColors()
 
         if let onLater {
           Button("Maybe Later", action: onLater)
@@ -121,4 +123,5 @@ private struct DefaultBrowserStep<Icon: View>: View {
   NavigationStack {
     DefaultBrowserPage()
   }
+  .environment(AppModel(isDemo: true))
 }

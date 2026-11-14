@@ -7,19 +7,24 @@ struct SyncConnectPage: View {
 
   @Environment(AppModel.self) private var app
   @Environment(\.dismiss) private var dismiss
-  @State private var phrase = ""
+  @State private var flow = SyncConnectFlow()
   @State private var isScanning = false
   @State private var isEnteringWords = false
   @State private var isChoosingFolder = false
-  @State private var isConnecting = false
-  @State private var failure: String?
   @State private var scans = 0
   @State private var connections = 0
   @State private var connectFailures = 0
-  @State private var pickedFolder: URL?
+
+  private var isConnecting: Bool { flow.isConnecting }
+  private var failure: String? { flow.failure }
+  private var pickedFolder: URL? { flow.folder }
+
+  private var phrase: Binding<String> {
+    Binding(get: { flow.phrase }, set: { start(flow.enterPhrase($0)) })
+  }
 
   var body: some View {
-    let hasPhrase = app.sync.check(phrase: phrase).isValid
+    let hasPhrase = flow.hasPhrase
     Form {
       SettingsHero("Connect to Your Mac", subtitle: Text("Two steps, and your Mac’s tabs are here."), systemImage: "macbook.and.iphone", tint: SettingsTint.sync)
 
@@ -99,22 +104,18 @@ struct SyncConnectPage: View {
       SyncCodeScannerSheet(
         isValid: { app.sync.check(phrase: $0).isValid },
         onScan: { code in
-          phrase = code
-          failure = nil
           if pickedFolder == nil { scans += 1 }
+          start(flow.enterPhrase(code))
         },
         onEnterWords: { isEnteringWords = true }
       )
     }
     .navigationDestination(isPresented: $isEnteringWords) {
-      RecoveryPhraseEntryPage(phrase: $phrase)
+      RecoveryPhraseEntryPage(phrase: phrase)
     }
     .folderPicker(isPresented: $isChoosingFolder) { folder in
-      pickedFolder = folder
-      failure = nil
-      connectIfReady()
+      start(flow.chooseFolder(folder))
     }
-    .onChange(of: hasPhrase) { _, _ in connectIfReady() }
     .sensoryFeedback(.success, trigger: scans)
     .sensoryFeedback(.success, trigger: connections)
     .sensoryFeedback(.error, trigger: connectFailures)
@@ -126,7 +127,7 @@ struct SyncConnectPage: View {
     Group {
       Button("Scan Code", systemImage: "qrcode.viewfinder") { isScanning = true }
         .buttonStyle(.borderedProminent)
-        .tint(Palette.indigo)
+        .primaryActionColors()
       Button("Enter Words", systemImage: "character.cursor.ibeam") { isEnteringWords = true }
         .buttonStyle(.bordered)
     }
@@ -136,23 +137,19 @@ struct SyncConnectPage: View {
     .fixedSize(horizontal: true, vertical: false)
   }
 
-  private func connectIfReady() {
-    guard let pickedFolder, !isConnecting, app.sync.check(phrase: phrase).isValid else { return }
-    connect(folder: pickedFolder)
-  }
-
-  private func connect(folder: URL) {
-    isConnecting = true
-    failure = nil
+  private func start(_ attempt: SyncConnectFlow.Attempt?) {
+    guard let attempt else { return }
     Task {
-      let result = await app.sync.connect(phrase: phrase, folder: folder)
-      isConnecting = false
-      if let message = result.message {
-        failure = message
+      let result = await app.sync.connect(phrase: attempt.phrase, folder: attempt.folder)
+      let retry = flow.finish(result)
+      if let retry {
+        start(retry)
+        return
+      }
+      if result.message != nil {
         connectFailures += 1
         return
       }
-      phrase = ""
       connections += 1
       app.toasts.show(.syncConnected)
       if let onConnected {

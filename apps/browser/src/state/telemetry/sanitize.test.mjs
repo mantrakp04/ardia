@@ -72,6 +72,30 @@ test("event properties are flat, plain and scrubbed", () => {
   assert.deepEqual(out, { kind: "history", count: 3, ok: true, none: null, url: "<url>" });
 });
 
+test("the built-in page keeps its slash in the crash context, and still can't carry a path, address or id", () => {
+  assert.deepEqual(cleanProperties({ ctx_webui_page: "settings/cookies", prev_webui_page: "history", webui_page: null }), {
+    ctx_webui_page: "settings/cookies",
+    prev_webui_page: "history",
+    webui_page: null,
+  });
+  for (const bad of ["settings/https://private.example/a", "me@example.com/0123456789abcdef0123", "a/b/c/d/Users/someone/x.json", "/Users/someone/x.json"]) {
+    const page = cleanProperties({ ctx_webui_page: bad }).ctx_webui_page;
+    assert.match(page, /^<[a-z]+>(?:\/?<[a-z]+>)*$/, bad);
+    assert.deepEqual(leaks(page, "private", "someone", "example.com"), [], bad);
+  }
+  assert.equal(cleanProperties({ other_page: "settings/cookies" }).other_page, "<path>", "only the built-in page field is exempt from the path scrub");
+});
+
+test("a saved context keeps the built-in page only as a host and first path segment", async () => {
+  const { readContext } = await import("./savedContext.ts");
+  assert.equal(readContext({ at: 1, tabs: 3, webui_page: "settings/cookies" }).webui_page, "settings/cookies");
+  assert.equal(readContext({ at: 1, webui_page: null }).webui_page, null);
+  assert.equal("webui_page" in readContext({ at: 1, tabs: 3 }), false, "a sample saved before the field existed stays without it");
+  for (const bad of ["https://private.example/inbox?token=secret", "settings/cookies/detail", "Users/someone/x", "a b", 7, {}]) {
+    assert.equal(readContext({ at: 1, webui_page: bad }).webui_page, null, String(bad));
+  }
+});
+
 test("an uncaught NSException sends its name and its throw site first, never its reason", () => {
   const { name, signal, exceptions } = nativeCrashExceptions({
     exceptionType: "EXC_BREAKPOINT",
@@ -241,6 +265,15 @@ test("every measured key survives the telemetry property cleaner unchanged", () 
   const measured = Object.keys(snap).filter((k) => k.startsWith("setting_")).length;
   assert.ok(measured > 30, `only ${measured} settings measured`);
   assert.ok(measured < Object.keys(SETTING_SPECS).length);
+});
+
+test("the settings snapshot reports borderless mode and its default without changing the saved frame", () => {
+  const snap = settingsSnapshot({ ...DEFAULT_SETTINGS, borderlessMode: true, pageFrame: 6 });
+  assert.equal(snap.setting_borderlessMode, "true");
+  assert.equal(snap.default_borderlessMode, "false");
+  assert.equal(snap.setting_pageFrame, "6");
+  assert.equal(snap.default_pageFrame, "9");
+  assert.deepEqual(cleanProperties(snap), snap);
 });
 
 test("the snapshot says whether text adjusts to the colour, and how many profiles have a custom colour, never which", () => {

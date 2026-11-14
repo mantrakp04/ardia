@@ -1,6 +1,6 @@
 import { useTheme } from "../ui/theme";
 import { duration } from "../ui/motion";
-import { font, ink, shadow, withAlpha, type ShadowLevel } from "../ui/tokens";
+import { font, ink, radius, shadow, space, withAlpha, type ShadowLevel } from "../ui/tokens";
 import type { GroupColor } from "../../state/browser/types";
 import { GROUP_COLORS } from "../../state/groups/tokens";
 
@@ -14,8 +14,6 @@ const DARK = {
   multiSelectedStroke: "rgba(255,255,255,0.14)",
   dragBorder: "rgba(255,255,255,0.33)",
   dragSilhouette: "#0F0F14",
-  switcherFocus: "rgba(255,255,255,0.3)",
-  switcherOutline: "rgba(255,255,255,0.15)",
   badge: "rgba(255,255,255,0.9)",
   newTabLabel: "#FFFFFF8C",
   newTabIcon: "#FFFFFF40",
@@ -39,8 +37,6 @@ const LIGHT: typeof DARK = {
   multiSelectedStroke: "rgba(0,0,0,0.08)",
   dragBorder: "rgba(0,0,0,0.28)",
   dragSilhouette: "#FFFFFF",
-  switcherFocus: "rgba(0,0,0,0.18)",
-  switcherOutline: "rgba(0,0,0,0.1)",
   badge: "rgba(0,0,0,0.75)",
   newTabLabel: "#00000080",
   newTabIcon: "#00000042",
@@ -69,8 +65,34 @@ export const SIDEBAR_SHADOW = {
   dragGhost: { color: ink.black, opacity: { dark: 0.45, light: 0.18 }, radius: 10, offset: [0, 4] },
   card: shadow.card,
   searchTabs: shadow.dialog,
-  tabSwitcher: { ...shadow.dialog, radius: 28, offset: [0, 12] },
+  tabSwitcher: { ...shadow.dialog, opacity: { dark: 0.45, light: 0.45 }, radius: 32, offset: [0, 14] },
 } satisfies Record<string, ShadowLevel>;
+
+export const TAB_SWITCHER = {
+  card: 168,
+  shotAspect: 1.6,
+  gap: space.xs,
+  pad: space.m,
+  label: 30,
+  labelGap: space.s,
+  labelInset: space.xxs,
+  cardInset: space.xs,
+  windowMargin: 80,
+  panelRadius: 18,
+  cardRadius: radius.panel,
+  previewRadius: radius.tile,
+  ring: { focused: 2, rest: 1 },
+  icon: { preview: 30, label: 13, globe: 12 },
+  titleSize: font.small.fontSize,
+  fill: { dark: "#1C1C1EF2", light: "#2A2A2CF2" },
+  focusFill: "rgba(255,255,255,0.14)",
+  restRing: "rgba(255,255,255,0.12)",
+  pageFill: "#FFFFFF",
+  blankFill: "#3A3A3C",
+  onPanel: "#FFFFFFB3",
+  onPage: "#000000A6",
+  title: "#FFFFFF",
+} as const;
 
 export const SELECTED_ROW_SHADOW_OFFSET: [number, number] = [0, 0.5];
 
@@ -81,9 +103,10 @@ export const SIDEBAR_MOTION = { liveFold: duration.long, fold: duration.base, li
 export const HOVER_CARD_IN_SPRING = { response: 0.25, damping: 0.75 } as const;
 export const HOVER_CARD_OUT_SPRING = { response: 0.2, damping: 0.6 } as const;
 
-export const TAB_ROW = { contentLeft: 9, trailing: 6, titleGap: 5, titleHeight: 18, compactTitleHeight: 17, closeSlot: 22 } as const;
+export const TAB_ROW = { contentLeft: 9, trailing: 6, titleGap: 5, titleHeight: 18, compactTitleHeight: 17, closeSlot: 22, renameTextOffset: 1 } as const;
 
 export const TILE_RIM = 1;
+export const TILE_STATUS = { pip: 8, speaker: 9.5, box: { width: 14, height: 12 }, inset: { x: 5, y: 4 } } as const;
 
 export const AWAY_TITLE = { slashAlpha: 0.45, slashGap: 4, pinnedMaxWidth: "45%" } as const;
 

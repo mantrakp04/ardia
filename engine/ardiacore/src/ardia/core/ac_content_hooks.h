@@ -48,6 +48,16 @@ struct RequestAction;
 
 extern int g_ardia_disk_space_check_seconds;
 
+enum ArdiaDragEnd {
+  kArdiaDragEndOwnerGone,
+  kArdiaDragEndDebuggerUnowned,
+  kArdiaDragEndNativeRefused,
+  kArdiaDragEndSourceGone,
+  kArdiaDragEndKinds,
+};
+
+extern int g_ardia_drags_ended[kArdiaDragEndKinds];
+
 extern bool g_ardia_auto_picture_in_picture_off;
 
 extern bool g_ardia_widevine_without_cdm;

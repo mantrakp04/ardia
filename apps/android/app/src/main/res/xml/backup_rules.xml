@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="root" path="no_backup/" />
+    <exclude domain="root" path="app_webview/" />
+    <exclude domain="file" path="System/" />
+    <exclude domain="sharedpref" path="WebViewChromiumPrefs.xml" />
+</full-backup-content>

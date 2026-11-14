@@ -5,10 +5,10 @@ public struct TabsBackdrop: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
-  private let tint: [Color]?
+  private let look: ProfileLook
 
-  public init(tint: [Color]? = nil) {
-    self.tint = tint
+  public init(look: ProfileLook = .plum) {
+    self.look = look
   }
 
   public var body: some View {
@@ -29,23 +29,9 @@ public struct TabsBackdrop: View {
     .accessibilityHidden(true)
   }
 
-  private var baseColors: [Color] {
-    let hexes = colorScheme == .dark ? TabsPalette.backdropDark : TabsPalette.backdropLight
-    let base = hexes.map { Color(hex: $0) }
-    guard let tint, tint.count >= 2 else { return base }
-    let mix = colorScheme == .dark ? 0.18 : 0.1
-    return base.enumerated().map { index, color in
-      color.mix(with: tint[index % tint.count], by: mix)
-    }
-  }
+  private var baseColors: [Color] { look.deckBase(dark: colorScheme == .dark) }
 
-  private var blobColors: [Color] {
-    let blobs = colorScheme == .dark
-      ? [TabsPalette.blobLavenderDark, TabsPalette.blobBlushDark, TabsPalette.blobPeriwinkleDark]
-      : [TabsPalette.blobLavender, TabsPalette.blobBlush, TabsPalette.blobPeriwinkle]
-    guard let tint, !tint.isEmpty else { return blobs }
-    return blobs.enumerated().map { index, color in color.mix(with: tint[index % tint.count], by: 0.2) }
-  }
+  private var blobColors: [Color] { look.deckBlobs(dark: colorScheme == .dark) }
 }
 
 #if canImport(UIKit)

@@ -9,7 +9,7 @@ const { useSuggestions } = await import("./useSuggestions.ts");
 const { keywordScope, offeredScope } = await import("../../state/omnibox/scopes.ts");
 const { approveOmniboxProvider } = await import("../../state/omnibox/providerApproval.ts");
 const { registerOmniboxProvider } = await import("../../state/omnibox/providers.ts");
-const { heldIndex } = await import("./heldSelection.ts");
+const { heldIndex, heldKey } = await import("./heldSelection.ts");
 
 const S = () => useBrowser.getState();
 const settle = () => new Promise((r) => setImmediate(r));
@@ -93,4 +93,16 @@ test("late rows never move the selection off the row it was on", () => {
   assert.equal(heldIndex(prev, after, "x", null, 2), 3);
   assert.equal(heldIndex(prev, after, "xy", null, 0), 0, "typing starts over");
   assert.equal(heldIndex(prev, before, "x", null, 1), 1, "same items: the user's move stands");
+});
+
+test("the default row is never held: a row moving off the top doesn't become a preview", () => {
+  const row = (url) => ({ kind: "page", url, title: url, favicon: null });
+  const search = { kind: "search", query: "n", url: "https://search/?q=n" };
+  const page = row("https://narasaka.dev/");
+  const before = [page, search];
+  const after = [search, page];
+  const key = heldKey(before, 0);
+  assert.equal(key, null);
+  assert.equal(heldIndex({ items: before, typed: "n", scope: null, key }, after, "n", null, 0), 0);
+  assert.equal(heldKey(before, 1), "search:https://search/?q=n");
 });

@@ -1,5 +1,4 @@
 import { savePassword } from "../../platform/passwords";
-import { orWarn } from "../../lib/fallback";
 import {
   importModule,
   type BookmarkNode as ImportedNode,
@@ -15,6 +14,7 @@ import {
 import { addGroupsFromDrafts } from "../bookmarks/bookmarkGroups";
 import { adoptFavicons } from "../favicons/favicons";
 import { paneChunks } from "../splits/splits";
+import { passwordImportTally } from "../telemetry/passwordSaves";
 import { noteImportedPins } from "../telemetry/usage";
 import { bookmarkRoots, type BookmarkDraft } from "../bookmarks/bookmarks";
 import type { GroupDraft } from "../groups/draftGroups";
@@ -104,12 +104,14 @@ export function importHistory(profileId: string, entries: { url: string; title: 
 }
 
 async function importPasswords(profileId: string, credentials: Credential[]): Promise<number> {
+  const tally = passwordImportTally("browser");
   let saved = 0;
   for (const c of credentials) {
     const origin = originOfLogin(c.realm?.startsWith("http") ? c.realm : c.url);
     if (!origin || !c.password) continue;
-    if (await savePassword(engineProfile(useBrowser.getState(), profileId), origin, c.username, c.password).catch(orWarn(false))) saved++;
+    if (await tally.attempt(savePassword(engineProfile(useBrowser.getState(), profileId), origin, c.username, c.password))) saved++;
   }
+  tally.done();
   return saved;
 }
 
@@ -246,6 +248,12 @@ export function importArcSpace(profileId: string, space: SpaceSuggestion, favico
   }
   noteImportedPins({ rows: pinnedRows.tabs, splits });
   return { tabs, bookmarks: 0, skipped };
+}
+
+export function importFavorites(profileId: string, tabs: ImportedTab[], favicons?: ImportedFavicon[]): number {
+  if (!tabs.length) return 0;
+  importFavicons(profileId, favicons, tabs.map((t) => t.url));
+  return importTabs(profileId, tabs.map((t) => ({ ...t, pinned: true })), null, "tiles");
 }
 
 export function importDiaProfile(profileId: string, profile: DiaTabsProfile, what: { pinned: boolean; open: boolean }, favicons?: ImportedFavicon[]): number {

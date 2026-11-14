@@ -14,7 +14,11 @@ enum OnboardingStep: Int, CaseIterable, Comparable {
   }
 
   var next: OnboardingStep? {
-    Self.allCases.first { $0 > self }
+    Self.allCases.first { $0 > self && $0.isOffered }
+  }
+
+  var isOffered: Bool {
+    self != .defaultBrowser || DefaultBrowserStatus.isOffered
   }
 
   static var launchStep: OnboardingStep {
@@ -35,9 +39,10 @@ struct OnboardingView: View {
   var body: some View {
     ZStack {
       if step == .welcome {
-        LaunchGradient()
+        ProfileBackdrop()
           .ignoresSafeArea()
           .transition(.opacity)
+          .zIndex(0.5)
       } else {
         OnboardingBackdrop()
           .transition(.opacity)
@@ -52,8 +57,9 @@ struct OnboardingView: View {
         case .allSet: OnboardingAllSetStep(onFinish: finish)
         }
       }
-      .id(step)
       .transition(stepTransition)
+      .zIndex(1)
+      .id(step)
     }
     .sensoryFeedback(.selection, trigger: advances)
     .onAppear(perform: Self.dismissKeyboard)

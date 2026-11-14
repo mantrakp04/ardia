@@ -8,6 +8,7 @@ import { useCleanedCount } from "../../state/sidebar/hooks";
 import { openNewTabInSplit } from "../../state/splits/actions";
 import { openOverflowMenu, openSidebarMenu } from "../../state/sidebar/menus";
 import { toggleNewTabBar } from "../../state/omnibox/newTabBar";
+import { noteRowPressIn } from "../../state/sidebar/heldTabPress";
 import { modifiersOf } from "../../lib/keys";
 import { useClipped, useShift, type ClipSource } from "./EntryMotion";
 import { TAB_ROW, useSidebarTokens } from "./tokens";
@@ -51,7 +52,7 @@ export const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip 
       </View>
       <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => void openSidebarMenu(windowId)}>
         <Pressable
-          style={{ flex: 1 }}
+          onPressIn={() => noteRowPressIn(windowId)}
           onPress={(e) => {
             if (modifiersOf(e).altKey) openNewTabInSplit(windowId);
             else toggleNewTabBar(windowId) || newTab(windowId, { newTabCommand: true });

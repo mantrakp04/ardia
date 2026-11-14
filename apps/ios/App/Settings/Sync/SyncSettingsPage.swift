@@ -26,7 +26,7 @@ struct SyncSettingsPage: View {
           .buttonStyle(.borderedProminent)
           .buttonBorderShape(.capsule)
           .controlSize(.large)
-          .tint(Palette.indigo)
+          .primaryActionColors()
           .padding(.top, Spacing.tight)
         }
       }
@@ -197,7 +197,7 @@ private struct SyncFeatureRow: View {
     HStack(alignment: .firstTextBaseline, spacing: Spacing.small) {
       Image(systemName: symbol)
         .font(.body.weight(.semibold))
-        .foregroundStyle(Palette.indigo)
+        .foregroundStyle(Palette.formAccent)
         .frame(width: symbolWidth)
         .accessibilityHidden(true)
       Text(title)
@@ -212,7 +212,7 @@ struct SyncDeviceRow: View {
 
   var body: some View {
     LabeledContent {
-      Text(lastSeen)
+      if let detail = device.detail { Text(detail) }
     } label: {
       Label {
         Text(verbatim: device.name)
@@ -223,12 +223,6 @@ struct SyncDeviceRow: View {
     }
   }
 
-  private var lastSeen: String {
-    if device.isCurrent { return String(localized: "This iPhone") }
-    guard let lastSeen = device.lastSeen else { return String(localized: "Not Yet Synced") }
-    if Date.now.timeIntervalSince(lastSeen) < 60 { return String(localized: "Just Now") }
-    return lastSeen.formatted(.relative(presentation: .named, unitsStyle: .abbreviated))
-  }
 }
 
 enum DeviceOrder {

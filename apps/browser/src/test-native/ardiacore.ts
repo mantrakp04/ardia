@@ -8,6 +8,7 @@ import type {
   CliTabTarget,
   EngineBookmark,
   EngineEvents,
+  EngineTask,
   EventName,
   HistoryChange,
   HistoryChangedBatch,
@@ -36,7 +37,11 @@ const testGlobals = globalThis as {
   acTestCliControl?: (on: boolean | null) => Promise<CliControlStatus> | undefined;
   acTestCliActive?: (tabId: string | null) => Promise<CliControlStatus> | undefined;
   acTestCliTargets?: (tabId: string) => CliTabTarget | undefined;
+  acTestCliOwns?: (tabId: string) => { owned: boolean; shown: boolean };
+  acTestCliMoveOffscreen?: (tabId: string) => { ok: boolean; reason?: string };
+  acTestTasks?: () => EngineTask[];
   acTestUserScripts?: { engine: ExtensionEngine };
+  acTestSuggest?: (args: { url: string; id: number; profile: string }) => CallResult<"search.suggest"> | undefined;
 };
 
 type VerbOf<D extends string, N extends string = CallName> = N extends `${D}.${infer V}` ? V : never;
@@ -304,7 +309,7 @@ const fakeModules = {
     "engine",
     {
       components: () => [],
-      tasks: () => [],
+      tasks: () => testGlobals.acTestTasks?.() ?? [],
       beginTracing: () => false,
       endTracing: () => null,
       isTracing: () => false,
@@ -315,6 +320,9 @@ const fakeModules = {
       cliControlStatus: () => cliControl(null),
       setCliControl: ({ on }) => cliControl(on),
       setCliActiveTab: ({ tabId }) => testGlobals.acTestCliActive?.(tabId) ?? cliStatus(null),
+      cliOwnsTab: ({ tabId }) => testGlobals.acTestCliOwns?.(tabId) ?? { owned: false, shown: false },
+      cliMoveOffscreen: ({ tabId }) => testGlobals.acTestCliMoveOffscreen?.(tabId) ?? { ok: false },
+      cliCloseOffscreenTabs: () => null,
       cliTabTargets: ({ tabIds }) => Object.fromEntries(tabIds.map((id) => [id, testGlobals.acTestCliTargets?.(id) ?? { targetId: null, pageGeneration: 0 }])),
     },
     { inputIdleSeconds: () => 3600 },
@@ -445,7 +453,12 @@ const fakeModules = {
     syncState: () => ({ ready: false, extensions: [], pending: [], settling: [], queued: [], intents: [] }),
     syncApply: () => ({ state: "pending" }),
   }),
-  ArdiaSearch: domain("search", { engines: () => ({ list: { engines: [] } }), setEngineName: () => null }),
+  ArdiaSearch: domain("search", {
+    engines: () => ({ list: { engines: [] } }),
+    setEngineName: () => null,
+    suggest: (args) => testGlobals.acTestSuggest?.(args) ?? { status: 200, body: JSON.stringify([args.url, []]) },
+    stopSuggest: () => null,
+  }),
   ArdiaMedia: domain("media", {
     displayMediaSources: () => [],
     selectDevice: () => null,

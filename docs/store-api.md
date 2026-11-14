@@ -10,7 +10,7 @@ store but through `storeAction` wrappers in each domain's `actions.ts` (`newTab`
 
 ## State
 - `profiles` + `profileOrder`; default profile id is `"default"`.
-- `windows`: `{ profileId, incognito, tabIds (sidebar order, pinned first), activeTabIds[profileId], frame }` + `windowOrder`. Whether a window shows its tabs is not stored on it: `tabsShownIn(s, windowId)` (`state/browser/model.ts`) reads `settings.autoHideTabs`, the one place that says so; the saved session writes it back as each window's `sidebarOpen` for the launch window and older builds.
+- `windows`: `{ profileId, incognito, tabIds (sidebar order, pinned first), activeTabIds[profileId], frame }` + `windowOrder`. Whether a window shows its tabs: `tabsShownIn(s, windowId)` (`state/browser/model.ts`) reads the window's own `autoHideTabs` (set by ⌘S in that window), else `settings.autoHideTabs`. A change to the setting, from any source, removes every window's own value; the saved session writes the result as each window's `sidebarOpen` for the launch window and older builds.
   A private window's `profileId` is `incognito:<window id>@<originalProfileId>` (`incognitoProfileId`, state/browser/model.ts),
   `originalProfileId` the regular profile it was opened from (`createWindow({ incognito: true, profileId })`, default
   `lastActiveProfile`). Its engine profile (`engineProfile`) is that profile's off-the-record one: private windows of one

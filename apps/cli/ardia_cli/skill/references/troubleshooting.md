@@ -16,7 +16,8 @@ These are the places it differs, and what to do when something goes wrong.
 
 ## Input that didn't land
 
-A click, key press, typing or scroll the page never received fails with `input_not_delivered`; one it only partly
+A click, key press, typing or scroll the page never received fails with `input_not_delivered` (`target_replaced` when
+the page redrew the element first: find it again); one it only partly
 received reports an unknown outcome. Check the page before retrying, and never repeat a submit blindly. Input is
 instant; `--humanize` (or `AGENT_BROWSER_HUMANIZE=1`) gives curved mouse paths, human press timing, wheel scrolling
 and per-character typing.
@@ -59,7 +60,9 @@ line succeeded. On `stale_ref`, the answer has the new refs.
 
 ## Refused commands
 
-Ardia's policy doesn't allow the browser methods behind cookies, `state`, `set …`, `network route`, `upload`,
+Ardia's policy doesn't allow the browser methods behind cookies, `state`, `set …` (but `set viewport <w> <h>` works
+on a tab this session opened and never showed: it goes off-screen, and `--show` or `set viewport reset` reloads it
+at its own size), `network route`, `upload`,
 `download`, `highlight`, `clipboard`, `trace`, `profiler`, `record` and `stream`. They fail with exit 1 and name the
 refused method (`code: "policy_refused"` in `--json`). Use `storage local|session`, `eval`, or ask the user to do that
 step. A refusal that says "which Ardia allows for the ardia command, but not …" is about the tab or address, not the
@@ -72,6 +75,8 @@ command: it gives the reason (`data.reason`) and, for a tab, what Ardia has ther
   tabs too; `tab close` refuses theirs, and `close` leaves open a tab another live session uses.
 - `tN` ids are the same in every session and never move to another tab. `tab tab-…` takes the ids `ardia windows`
   prints.
+- `tab_detached`: Ardia took the tab away mid-command (it closed, crashed or went to sleep). Run the command again;
+  a multi-page `read` already retries that page in a new tab.
 - `--session name` (or `AGENT_BROWSER_SESSION`) gives its own tabs, refs and captures; cookies and logins are the
   user's in every session. Use one session per task.
 

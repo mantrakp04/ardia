@@ -16,20 +16,23 @@ export const Route = createFileRoute("/files/feedback/$id/$name")({
         const viewer = await currentViewer();
         if (viewer.state !== "allowed") return plain(viewer.state === "signed-out" ? 401 : 403, "Not allowed");
         if (!REPORT_ID.test(params.id) || !FILE_NAME.test(params.name)) return plain(400, "Bad file");
-        const { feedbackFilesBase, feedbackFilesHeaders } = await import("../../../../server/feedback-reports");
-        const base = feedbackFilesBase();
-        if (!base) return plain(503, "Feedback storage is not configured: set FEEDBACK_FILES_URL or REPLAYS_HOST");
+        const { feedbackFilesBases, feedbackFilesHeaders } = await import("../../../../server/feedback-reports");
+        const bases = feedbackFilesBases();
+        if (!bases.length) return plain(503, "Feedback storage is not configured: set FEEDBACK_FILES_URL, FEEDBACK_OBJECTS_HOST or REPLAYS_HOST");
         const range = request.headers.get("range");
-        let upstream: Response;
+        let upstream: Response | undefined;
         try {
-          upstream = await fetch(`${base}${encodeURIComponent(params.id)}/${encodeURIComponent(params.name)}`, {
-            headers: { ...feedbackFilesHeaders(), ...(range ? { Range: range } : {}) },
-            signal: AbortSignal.any([request.signal, AbortSignal.timeout(60_000)]),
-          });
+          for (const base of bases) {
+            upstream = await fetch(`${base}${encodeURIComponent(params.id)}/${encodeURIComponent(params.name)}`, {
+              headers: { ...feedbackFilesHeaders(), ...(range ? { Range: range } : {}) },
+              signal: AbortSignal.any([request.signal, AbortSignal.timeout(60_000)]),
+            });
+            if (upstream.status !== 404) break;
+          }
         } catch (error) {
           return plain(502, `Feedback storage unreachable (${(error as Error).message})`);
         }
-        if (upstream.status === 404) return plain(404, "No such file");
+        if (!upstream || upstream.status === 404) return plain(404, "No such file");
         if (!upstream.ok) return plain(502, `Feedback storage: ${upstream.status}`);
         const headers = new Headers({ "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" });
         for (const name of PASSED_HEADERS) {

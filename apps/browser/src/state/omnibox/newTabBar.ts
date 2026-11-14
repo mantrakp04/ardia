@@ -4,13 +4,16 @@ import { webviews } from "../../platform/webviews";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId } from "../browser/model";
 import { isEmptyCardTab, NEW_TAB_BAR_POLICY, newTabOpensBar } from "./newTabBarPolicy";
+import { focusHeroBar } from "./barState";
 import { isSmall } from "../windows/small";
 import type { NewTabTarget } from "../browser/types";
+import { notePageOverlay } from "../telemetry/usage";
 
 export { isEmptyCardTab };
 
 const store = () => useBrowser.getState();
 const IN_LIST: NewTabTarget = { kind: "list" };
+const shownUnasked = new WeakSet<object>();
 
 function barTarget(s: BrowserState, windowId: string, target: NewTabTarget): NewTabTarget {
   if (target.kind !== "list") return target;
@@ -29,10 +32,22 @@ export function showNewTabBar(windowId: string, target: NewTabTarget = IN_LIST):
   return true;
 }
 
+function focusShownNewTabPage(s: BrowserState, windowId: string): boolean {
+  if (!s.settings.reuseEmptyNewTab) return false;
+  const active = activeTabId(s, windowId);
+  if (!active || !isEmptyCardTab(s, s.tabs[active])) return false;
+  if (s.windowUi[windowId]?.panel.open) s.closePanel(windowId);
+  if (!focusHeroBar(windowId, active)) return false;
+  notePageOverlay("newTabReused");
+  return true;
+}
+
 export function toggleNewTabBar(windowId: string, target: NewTabTarget = IN_LIST): boolean {
   const s = store();
-  if (!barOpensHere(s, windowId)) return false;
-  if (s.windowUi[windowId]?.panel.newTab) closeNewTabBar(windowId);
+  if (!barOpensHere(s, windowId)) return target.kind === "list" && focusShownNewTabPage(s, windowId);
+  const panel = s.windowUi[windowId]?.panel;
+  if (panel?.newTab && shownUnasked.delete(panel)) notePageOverlay("newTabBarKept");
+  else if (panel?.newTab) closeNewTabBar(windowId);
   else s.openPanel(windowId, "", barTarget(s, windowId, target));
   return true;
 }
@@ -69,7 +84,9 @@ export function showOnceOverEmptyCard(windowId: string, tabId: string) {
   shownOver.add(tabId);
   if (launchTabs.has(tabId) && !NEW_TAB_BAR_POLICY.showOnLaunch) return;
   const s = store();
-  if (activeTabId(s, windowId) === tabId && !s.windowUi[windowId]?.panel.open) showNewTabBar(windowId);
+  if (activeTabId(s, windowId) !== tabId || s.windowUi[windowId]?.panel.open || !showNewTabBar(windowId)) return;
+  const shown = store().windowUi[windowId]?.panel;
+  if (shown) shownUnasked.add(shown);
 }
 
 function dismissBars(except?: string) {

@@ -37,6 +37,10 @@ static std::atomic<bool> gLinkPolicyReady{false};
 
 static NSString *AppDataDirectory();
 
+static double LaunchNowMs() {
+  return NSDate.date.timeIntervalSince1970 * 1000;
+}
+
 static NSString *StatStamp(const struct stat &info) {
   return [NSString stringWithFormat:@"%llu:%llu:%lld:%ld.%09ld:%ld.%09ld", (unsigned long long)info.st_dev, (unsigned long long)info.st_ino,
                                     (long long)info.st_size, info.st_mtimespec.tv_sec, info.st_mtimespec.tv_nsec, info.st_ctimespec.tv_sec,
@@ -250,6 +254,7 @@ static void TryEarlyWindow() {
   if (!loaded) return;
   [loaded warmSpareRenderer];
   const BOOL shown = [ArdiaEarlyWindow showWindow:focused frame:window[@"frame"] key:key profile:profile backdrop:backdrop];
+  if (shown) launch.earlyWindowShownAt = NSDate.date.timeIntervalSince1970 * 1000;
   [ArdiaWebView startLaunchTab:key url:url profile:profile];
   if (!shown) return;
   if (ArdiaCoreTab *tab = ArdiaTabParking.launchTab) [ArdiaEarlyWindow attachPage:tab key:key];
@@ -324,6 +329,27 @@ void StartEarlyWindow() {
 
 + (BOOL)holdsIncomingLinks {
   return SavedLinkHold();
+}
+
++ (void)markMainStarted {
+  ArdiaLaunchSequence.shared.mainStartedAt = LaunchNowMs();
+}
+
++ (nullable NSNumber *)launchedHidden {
+  ArdiaLaunchSequence *launch = ArdiaLaunchSequence.shared;
+  return [launch reached:ArdiaLaunchAppKitDidFinish] ? @(launch.launchedHidden) : nil;
+}
+
++ (NSDictionary<NSString *, NSNumber *> *)launchMarks {
+  ArdiaLaunchSequence *launch = ArdiaLaunchSequence.shared;
+  NSMutableDictionary<NSString *, NSNumber *> *marks = [NSMutableDictionary dictionary];
+  if (launch.mainStartedAt > 0) marks[@"mainStarted"] = @(launch.mainStartedAt);
+  if (launch.startupPreparedAt > 0) marks[@"startupPrepared"] = @(launch.startupPreparedAt);
+  if (launch.chromiumEnteredAt > 0) marks[@"chromiumEntered"] = @(launch.chromiumEnteredAt);
+  if (launch.engineStartedAt > 0) marks[@"engineStarted"] = @(launch.engineStartedAt);
+  if (launch.reactNativeStartedAt > 0) marks[@"reactNativeStarted"] = @(launch.reactNativeStartedAt);
+  if (launch.earlyWindowShownAt > 0) marks[@"earlyWindowShown"] = @(launch.earlyWindowShownAt);
+  return marks;
 }
 
 + (void)setHoldIncomingLinks:(BOOL)hold hooksStamp:(NSString *)hooksStamp {
@@ -431,6 +457,7 @@ void StartEarlyWindow() {
   const bool mockKeychain = gScratchDataDir || !IsTeamSigned();
   if (mockKeychain) extra.push_back("--use-mock-keychain");
   ardia_host::PrepareStartup(gDataDirectory);
+  ArdiaLaunchSequence.shared.startupPreparedAt = LaunchNowMs();
   @autoreleasepool {
     [ArdiaEarlyWindow setDataDirectory:AppDataDirectory()];
     [ArdiaEarlyWindow prefetchForSession:[ArdiaSavedSession atLaunch:AppDataDirectory()]];
@@ -481,6 +508,7 @@ void StartEarlyWindow() {
   args.resize(1);
   for (const std::string &s : merged) args.push_back(s.c_str());
   static ArdiaHostEngineDelegate *engineDelegate = [ArdiaHostEngineDelegate new];
+  ArdiaLaunchSequence.shared.chromiumEnteredAt = LaunchNowMs();
   return [ArdiaCoreEngine runWithArgc:(int)args.size() argv:args.data() delegate:engineDelegate];
 }
 

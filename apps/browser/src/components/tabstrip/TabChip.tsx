@@ -28,6 +28,9 @@ import { TabPressArea } from "../sidebar/TabPressArea";
 import { tabTitle } from "../../state/browser/model";
 import { awayTitle } from "../../state/pins/organize";
 import { AwayTitleLabel } from "../sidebar/AwayTitle";
+import { UnreadCount } from "../unread/UnreadBadge";
+import { useTabUnread } from "../../state/tabs/unread";
+import { titleWithoutUnread } from "../../lib/unread";
 
 export function DraggableChip({
   tabId,
@@ -123,8 +126,9 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
   const { palette, band } = useWebsiteBand(tabId);
   const closeControl = useTabCloseControl(tabId);
   const { hovered, hoverProps } = useHover();
+  const unread = useTabUnread(tabId);
   if (!tab) return null;
-  const title = tabTitle(tab);
+  const title = tab.customTitle ? tabTitle(tab) : titleWithoutUnread(tabTitle(tab), unread);
   const away = awayTitle(tab);
   const onBand = active && !floating && !!palette.background;
   const ink = onBand ? palette.text : active ? theme.tabSelectedText : theme.textTab;
@@ -141,7 +145,7 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
             <ItemRow hovered={(hovered || dragged) && !active && !onto} pressed={pressed && !active}>
               <View pointerEvents="none">
                 <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-                <TabBadges tabId={tab.id} pip={false} />
+                <TabBadges tabId={tab.id} />
               </View>
               {(playing || mute) && (
                 <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: CHIP_LABEL_GAP }} tooltip={muteTitle(mute)}>
@@ -166,7 +170,9 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
                     tooltip={tuck ? "Hide in Group" : closeControl.tooltip}
                   />
                 }
-              />
+              >
+                <UnreadCount unread={unread} ink={ink} />
+              </HoverSlot>
             </ItemRow>
           )}
         </TabPressArea>

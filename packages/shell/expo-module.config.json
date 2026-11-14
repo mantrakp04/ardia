@@ -27,6 +27,7 @@
       "AppModule",
       "UpdaterModule",
       "NotificationsModule",
+      "LocationModule",
       "ScriptingModule",
       "DevModule",
       "CalendarModule",

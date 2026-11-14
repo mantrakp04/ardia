@@ -1,0 +1,102 @@
+Memory Saver's timer puts a pinned tab to sleep like any other tab (issue #1069: with Memory Saver at Maximum, Top
+Apps tiles and pinned rows, which are Chrome's pinned tabs, stayed loaded for hours at 200-450 MB each).
+DiscardEligibilityPolicy keeps a pinned tab only from an urgent discard (memory pressure); a proactive or suggested
+one takes it. MemorySaverModePolicy starts a pinned tab's timer however often it was revisited: the revisit cap
+(more than 5 / 15 / 15 visits and a tab never sleeps) would exempt every tile in daily use for as long as it lives.
+Every other protection is Chrome's: visible, a window's active tab, audible or recently audible, Picture in Picture,
+capture, form input, PDFs, DevTools, kept-active sites, notifications, a title or icon changed in the background.
+
+diff --git a/chrome/browser/performance_manager/policies/discard_eligibility_policy.cc b/chrome/browser/performance_manager/policies/discard_eligibility_policy.cc
+--- a/chrome/browser/performance_manager/policies/discard_eligibility_policy.cc
++++ b/chrome/browser/performance_manager/policies/discard_eligibility_policy.cc
+@@ -409,7 +409,7 @@
+                                    CanDiscardResult::kProtected);
+     }
+     // Pinning a tab is a strong signal the user wants to keep it.
+-    if (live_state_data->IsPinnedTab()) {
++    if (!is_proactive_or_suggested && live_state_data->IsPinnedTab()) {
+       add_reason_and_update_result(CannotDiscardReason::kPinnedTab,
+                                    CanDiscardResult::kProtected);
+     }
+diff --git a/chrome/browser/performance_manager/policies/discard_eligibility_policy_unittest.cc b/chrome/browser/performance_manager/policies/discard_eligibility_policy_unittest.cc
+--- a/chrome/browser/performance_manager/policies/discard_eligibility_policy_unittest.cc
++++ b/chrome/browser/performance_manager/policies/discard_eligibility_policy_unittest.cc
+@@ -533,13 +533,12 @@
+   PageLiveStateDecorator::Data::GetOrCreateForPageNode(page_node())
+       ->SetIsPinnedTabForTesting(true);
+ 
+-  ExpectCanDiscardProtected(page_node(),
+-                            {DiscardReason::URGENT, DiscardReason::PROACTIVE,
+-                             DiscardReason::SUGGESTED},
++  ExpectCanDiscardProtected(page_node(), {DiscardReason::URGENT},
+                             CannotDiscardReason::kPinnedTab);
+   ExpectCanDiscardEligible(
+       page_node(),
+-      {DiscardReason::EXTERNAL, DiscardReason::FROZEN_WITH_GROWING_MEMORY});
++      {DiscardReason::PROACTIVE, DiscardReason::SUGGESTED,
++       DiscardReason::EXTERNAL, DiscardReason::FROZEN_WITH_GROWING_MEMORY});
+ }
+ 
+ TEST_F(DiscardEligibilityPolicyTest, TestCannotDiscardWithDevToolsOpen) {
+diff --git a/chrome/browser/performance_manager/policies/memory_saver_mode_policy.cc b/chrome/browser/performance_manager/policies/memory_saver_mode_policy.cc
+--- a/chrome/browser/performance_manager/policies/memory_saver_mode_policy.cc
++++ b/chrome/browser/performance_manager/policies/memory_saver_mode_policy.cc
+@@ -7,6 +7,7 @@
+ #include "base/feature_list.h"
+ #include "base/notreached.h"
+ #include "chrome/browser/performance_manager/policies/page_discarding_helper.h"
++#include "components/performance_manager/public/decorators/page_live_state_decorator.h"
+ #include "components/performance_manager/public/decorators/tab_page_decorator.h"
+ #include "components/performance_manager/public/features.h"
+ #include "components/performance_manager/public/user_tuning/prefs.h"
+@@ -158,7 +159,10 @@
+     TabRevisitTracker::StateBundle state =
+         revisit_tracker->GetStateForTabHandle(tab_handle);
+ 
+-    if (state.num_revisits > GetMaxNumRevisitsForCurrentMode()) {
++    const PageLiveStateDecorator::Data* live_state =
++        PageLiveStateDecorator::Data::FromPageNode(tab_handle->page_node());
++    const bool pinned = live_state && live_state->IsPinnedTab();
++    if (!pinned && state.num_revisits > GetMaxNumRevisitsForCurrentMode()) {
+       // Don't start the discard timer if the tab has been revisited more times
+       // than the max allowable for the current mode. It's impossible for
+       // `num_revisits` to decrease. This condition is only checked here (not in
+diff --git a/chrome/browser/performance_manager/policies/memory_saver_mode_policy_unittest.cc b/chrome/browser/performance_manager/policies/memory_saver_mode_policy_unittest.cc
+--- a/chrome/browser/performance_manager/policies/memory_saver_mode_policy_unittest.cc
++++ b/chrome/browser/performance_manager/policies/memory_saver_mode_policy_unittest.cc
+@@ -10,6 +10,7 @@
+ #include "base/test/task_environment.h"
+ #include "base/time/time.h"
+ #include "chrome/browser/performance_manager/test_support/page_discarding_utils.h"
++#include "components/performance_manager/public/decorators/page_live_state_decorator.h"
+ #include "components/performance_manager/public/decorators/tab_page_decorator.h"
+ #include "components/performance_manager/public/features.h"
+ #include "components/performance_manager/public/user_tuning/prefs.h"
+@@ -343,7 +344,27 @@
+   task_env().FastForwardBy(policy()->GetTimeBeforeDiscardForTesting());
+   ::testing::Mock::VerifyAndClearExpectations(discarder());
+ }
++
++TEST_F(MemorySaverModeTest, DiscardPinnedTabAboveMaxNumRevisits) {
++  EXPECT_EQ(page_node()->GetType(), PageType::kTab);
++  page_node()->SetIsVisible(true);
++  policy()->OnMemorySaverModeChanged(true);
++  PageLiveStateDecorator::Data::GetOrCreateForPageNode(page_node())
++      ->SetIsPinnedTabForTesting(true);
+ 
++  TabRevisitTracker::StateBundle state;
++  state.num_revisits = 100;
++  tab_revisit_tracker()->SetStateBundle(
++      TabPageDecorator::FromPageNode(page_node()), state);
++
++  EXPECT_CALL(*discarder(), DiscardPageNodeImpl(page_node()))
++      .WillOnce(::testing::Return(true));
++  page_node()->SetIsVisible(false);
++
++  task_env().FastForwardBy(policy()->GetTimeBeforeDiscardForTesting());
++  ::testing::Mock::VerifyAndClearExpectations(discarder());
++}
++
+ namespace {
+ 
+ constexpr base::MemoryConsumerTraits kStatefulTraits(

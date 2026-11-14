@@ -74,7 +74,7 @@ struct OpenFallbackView: View {
           .frame(maxWidth: .infinity, minHeight: 50)
       }
       .buttonStyle(.glassProminent)
-      .tint(Palette.indigo)
+      .primaryActionColors()
     }
     .padding(Spacing.large)
     .frame(maxWidth: .infinity)

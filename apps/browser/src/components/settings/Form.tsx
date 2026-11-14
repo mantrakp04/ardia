@@ -1,6 +1,6 @@
 import { Children, createContext, isValidElement, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
-import { settingsSectionKey, useSettingsSearch } from "../../state/settings/searchState";
+import { sectionRevealed, settingsSectionKey, useSettingsSearch } from "../../state/settings/searchState";
 import { registerAnchor } from "./anchors";
 import { useProfiles, useSettings, useTabLayout } from "../../state/browser/hooks";
 import { currentSettings } from "../../state/browser/current";
@@ -28,10 +28,11 @@ export function useUnshownSettings(): ReadonlySet<string> {
 
 export function useHiddenSetting() {
   const shown = useSettings((s) => s.showAdvancedSettings);
-  const revealed = useSettingsSearch((s) => s.revealedSections);
+  const revealedSections = useSettingsSearch((s) => s.revealedSections);
+  const previewSection = useSettingsSearch((s) => s.previewSection);
   const unshown = useUnshownSettings();
   return (entry: SettingEntry | undefined) =>
-    !!entry && (unshown.has(entry.id) || (entry.advanced && !shown && !revealed.includes(settingsSectionKey(entry.pane, entry.section))));
+    !!entry && (unshown.has(entry.id) || (entry.advanced && !shown && !sectionRevealed({ revealedSections, previewSection }, settingsSectionKey(entry.pane, entry.section))));
 }
 
 function useHiddenSection(pane: SettingsPane | null | undefined, section: string | undefined) {

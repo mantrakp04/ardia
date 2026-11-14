@@ -49,6 +49,9 @@ export function startDevHarness() {
     get checkIn(): typeof import("../../state/onboarding/defaultBrowserCheckIn") {
       return require("../../state/onboarding/defaultBrowserCheckIn");
     },
+    get onboarding(): typeof import("../../state/onboarding/onboarding") {
+      return require("../../state/onboarding/onboarding");
+    },
     get media(): typeof import("../../state/media/media").useMedia {
       return require("../../state/media/media").useMedia;
     },
@@ -106,11 +109,20 @@ export function startDevHarness() {
     get settingsSearch(): typeof import("../../state/settings/searchState") & typeof import("../settings/SettingsSearch") & typeof import("../settings/anchors") {
       return { ...require("../../state/settings/searchState"), ...require("../settings/SettingsSearch"), ...require("../settings/anchors") };
     },
+    get settingsData(): typeof import("../../state/settings/paneData") {
+      return require("../../state/settings/paneData");
+    },
     get settingsNav(): typeof import("../../state/settings/settingsWindows").useSettingsNav {
       return require("../../state/settings/settingsWindows").useSettingsNav;
     },
     get preload(): typeof import("../../state/tabs/prewarm") {
       return require("../../state/tabs/prewarm");
+    },
+    get report(): typeof import("../../state/report/actions") & typeof import("../../state/report/recording") & typeof import("../../state/report/store") {
+      return { ...require("../../state/report/actions"), ...require("../../state/report/recording"), ...require("../../state/report/store") };
+    },
+    get model(): typeof import("../../state/browser/model") {
+      return require("../../state/browser/model");
     },
     get unread(): typeof import("../../state/tabs/unread") {
       return require("../../state/tabs/unread");

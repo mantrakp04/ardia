@@ -58,6 +58,7 @@ test("a header click hides every kept tab but the focused one, and the group sta
   assert.deepEqual(kept(), ["t:t5"]);
   assert.equal(S().groups.g.collapsed, true);
   S().activate("t0");
+  assert.deepEqual(kept(), []);
   S().updateGroup("g", { shownTabIds: [] });
   assert.deepEqual(kept(), []);
   assert.equal(S().groups.g.shownTabIds, undefined);
@@ -70,9 +71,13 @@ test("expanding or collapsing starts over with only the focused tab", () => {
   S().activate("t4");
   S().updateGroup("g", { collapsed: true });
   assert.deepEqual(kept(), ["t:t4"]);
+  S().activate("t0");
+  assert.deepEqual(kept(), ["t:t4"]);
   S().activate("t5");
   S().updateGroup("g", { collapsed: false });
   S().updateGroup("g", { collapsed: true });
+  assert.deepEqual(kept(), ["t:t5"]);
+  S().activate("t0");
   assert.deepEqual(kept(), ["t:t5"]);
 });
 
@@ -142,6 +147,8 @@ test("a group expanded and collapsed again by the Chrome-side sync starts over w
   set(false);
   assert.equal(S().groups.g.shownTabIds, undefined);
   set(true);
+  assert.deepEqual(kept(), ["t:t5"]);
+  S().activate("t0");
   assert.deepEqual(kept(), ["t:t5"]);
 });
 
@@ -246,6 +253,12 @@ test("expanding and collapsing the outer group starts the group inside it over t
   S().updateGroup("g", { collapsed: true });
   assert.deepEqual(kept("n"), []);
   assert.deepEqual(kept(), []);
+  S().updateGroup("g", { collapsed: false });
+  S().activate("t5");
+  S().updateGroup("g", { collapsed: true });
+  S().activate("t0");
+  assert.deepEqual(kept("n"), ["t:t5"]);
+  assert.deepEqual(kept(), ["g:n"]);
 });
 
 test("a tab of a collapsed group reopened after closing stays under its header", () => {

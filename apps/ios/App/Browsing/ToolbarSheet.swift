@@ -40,7 +40,7 @@ struct ToolbarSheet: View {
           }
           group {
             blockingRow(page)
-            if !app.isDefaultBrowser {
+            if !app.defaultBrowser.isDefault {
               row("safari", "Open in Default Browser") {
                 app.openInDefaultBrowser(page)
                 dismiss()
@@ -64,10 +64,10 @@ struct ToolbarSheet: View {
     .background {
       Color.clear.onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { bottomInset = $0 }
     }
-    .tint(Palette.indigo)
+    .tint(Palette.formAccent)
     .presentationDetents([.height(max(contentHeight - bottomInset, 200))])
     .presentationCornerRadius(MenuLayout.sheetRadius)
-    .presentationBackground(Color(.systemGroupedBackground))
+    .presentationBackground { ProfileBackdrop() }
     .presentationDragIndicator(.hidden)
     .sensoryFeedback(.success, trigger: copies)
     .alert("Translate with Google?", isPresented: $confirmsTranslation) {
@@ -123,9 +123,12 @@ struct ToolbarSheet: View {
   }
 
   private var pinButton: some View {
-    capsuleButton("star", label: "Pin to Mac", enabled: isWebPage && tab?.isPrivate == false) {
+    let isPinned = tab.map(app.isPinnedToMac) ?? false
+    return capsuleButton(isPinned ? "star.fill" : "star", label: isPinned ? "Pinned to Mac" : "Pin to Mac", enabled: isWebPage && tab?.isPrivate == false) {
       app.pinCurrentToMac()
     }
+    .contentTransition(.symbolEffect(.replace))
+    .sensoryFeedback(.success, trigger: isPinned) { _, pinned in pinned }
   }
 
   @ViewBuilder

@@ -66,7 +66,7 @@
 //   download, on disk             size     the DMG's bytes; du of the bundle
 // Results: <out>/samples.jsonl (one line per finished item), report → bench.json and the table.
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { accessSync, appendFileSync, constants as fsConstants, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { accessSync, appendFileSync, constants as fsConstants, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { cpus, loadavg, totalmem } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -701,11 +701,39 @@ async function launchItem(name, item, kind) {
   } finally {
     await app.quit();
     keepLogs(item, dir);
-    rmSync(dir, { recursive: true, force: true });
+    await removeRunDir(dir);
   }
 }
 
 const STEADY_MS = 120_000;
+
+function pidsUsing(dir) {
+  const found = spawnSync("pgrep", ["-f", dir], { encoding: "utf8" }).stdout.split("\n").map(Number).filter((pid) => pid && pid !== process.pid);
+  return [...new Set(found)];
+}
+
+async function removeRunDir(dir) {
+  for (const signal of ["SIGTERM", "SIGKILL"]) {
+    for (const pid of pidsUsing(dir)) try {
+      process.kill(pid, signal);
+    } catch {}
+    for (const end = Date.now() + 3000; Date.now() < end && pidsUsing(dir).length; ) await sleep(200);
+  }
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch (e) {
+      if (e.code !== "ENOTEMPTY" && e.code !== "EBUSY" && e.code !== "EACCES" && e.code !== "EPERM") throw e;
+      spawnSync("chmod", ["-R", "u+w", dir], { stdio: "ignore" });
+      await sleep(300);
+    }
+  }
+  const aside = join(out, "runs-aside", `${dir.split("/").pop()}-${Date.now()}`);
+  mkdirSync(dirname(aside), { recursive: true });
+  renameSync(dir, aside);
+  log(`${dir} couldn't be removed after its browser quit; moved to ${aside}`);
+}
 
 function keepLogs(item, dir) {
   const log = join(dir, "home/data/Chromium/chrome_debug.log");
@@ -844,7 +872,7 @@ async function sessionItem(name, item) {
   } finally {
     await app.quit();
     keepLogs(item, dir);
-    rmSync(dir, { recursive: true, force: true });
+    await removeRunDir(dir);
   }
   return r;
 }

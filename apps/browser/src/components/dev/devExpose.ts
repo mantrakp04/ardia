@@ -6,5 +6,7 @@ import { useToasts } from "../../state/app/toasts";
 import * as tabDrag from "../../state/drag/tabDrag";
 import { devPeeks, useDockMotion } from "../../state/windows/dockMotion";
 import { useUrlAnchors } from "../../state/windows/layout";
+import { devTabPress } from "../../state/sidebar/heldTabPress";
 
 devRegister("acLayout", null, { pages: usePages, anchors: useUrlAnchors, toasts: useToasts, splitActions, tabDrag, permissions, peek: devPeeks, dockMotion: useDockMotion });
+devRegister("tabPress", null, devTabPress);

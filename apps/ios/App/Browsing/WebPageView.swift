@@ -14,11 +14,12 @@ struct WebPageView: UIViewRepresentable {
 
   func makeUIView(context: Context) -> PageContainerView {
     let view = PageContainerView()
-    view.backgroundColor = UIColor(BrowsePalette.pageBackdrop)
+    view.backdrop = context.environment.profileLook.surface
     return view
   }
 
   func updateUIView(_ view: PageContainerView, context: Context) {
+    view.backdrop = context.environment.profileLook.surface
     view.swipeMode = swipeMode
     view.onTone = onTone
     view.bottomInset = bottomInset
@@ -50,6 +51,9 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
   }
 
   var placeholderTab: BrowserTab?
+  var backdrop: Color = ProfileLook.plum.surface {
+    didSet { backgroundColor = UIColor(backdrop) }
+  }
   private var placeholderHost: UIHostingController<PageLoadingPlaceholder>?
   private weak var page: WebTab?
   private weak var webView: WKWebView?
@@ -317,7 +321,7 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     guard let tab = placeholderTab else { return }
     placeholderHost?.view.layer.removeAllAnimations()
     placeholderHost?.view.removeFromSuperview()
-    let host = UIHostingController(rootView: PageLoadingPlaceholder(tab: tab, revealDelay: Motion.placeholderDelay))
+    let host = UIHostingController(rootView: PageLoadingPlaceholder(tab: tab, backdrop: backdrop, revealDelay: Motion.placeholderDelay))
     host.view.isUserInteractionEnabled = false
     host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     host.view.frame = bounds
@@ -381,11 +385,16 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     if refreshControl.isRefreshing { refreshControl.endRefreshing() }
   }
 
+  override func safeAreaInsetsDidChange() {
+    super.safeAreaInsetsDidChange()
+    applyInsets()
+  }
+
   private func applyInsets() {
-    guard let scrollView = webView?.scrollView else { return }
-    if scrollView.contentInset.bottom != bottomInset {
-      scrollView.contentInset.bottom = bottomInset
-      scrollView.verticalScrollIndicatorInsets.bottom = bottomInset
+    guard let webView else { return }
+    let insets = UIEdgeInsets(top: safeAreaInsets.top, left: 0, bottom: max(bottomInset, 0), right: 0)
+    if webView.obscuredContentInsets != insets {
+      webView.obscuredContentInsets = insets
     }
   }
 

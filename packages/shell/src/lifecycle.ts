@@ -2,7 +2,7 @@ import type { EventSubscription } from "expo-modules-core";
 import type { BangListReply } from "./documents";
 
 export type AppEvent =
-  | { type: "reopen" }
+  | { type: "reopen"; pastFloating: boolean }
   | { type: "willQuit" }
   | { type: "quitCancelled" }
   | { type: "appearance"; dark: boolean }
@@ -13,7 +13,8 @@ export type AppEvent =
   | { type: "switcherReleased" }
   | { type: "switcherKey"; key: "escape" | "next" | "previous" }
   | { type: "switcherMouseUp" }
-  | { type: "dragEscape" };
+  | { type: "dragEscape" }
+  | { type: "unclaimedEscape"; windowId: string };
 
 export type AppearanceMode = "auto" | "light" | "dark";
 

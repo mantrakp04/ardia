@@ -149,6 +149,7 @@ AC_ARGS_CALL(ac_tasks_list) {
     tasks.Append(
         base::DictValue()
             .Set("id", static_cast<double>(id))
+            .Set("pid", static_cast<int>(manager->GetProcessId(id)))
             .Set("type", ardia::TypeName(manager->GetType(id)))
             .Set("title", base::UTF16ToUTF8(manager->GetTitle(id)))
             .Set("killable", manager->IsTaskKillable(id))

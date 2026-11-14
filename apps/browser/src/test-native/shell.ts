@@ -116,6 +116,9 @@ const windowsModule: Modules["ArdiaAppWindows"] = {
   replyToTerminate: () => Promise.resolve(),
 };
 
+export const pressesWithoutRelease = { count: 0 };
+export const pressRepeated: { earlier: { landedOn: string; ms: number } | null } = { earlier: null };
+
 const focus: Modules["ArdiaFocus"] = {
   setSwitcherCapture: () => Promise.resolve(),
   setDragEscapeCapture: () => Promise.resolve(),
@@ -125,6 +128,8 @@ const focus: Modules["ArdiaFocus"] = {
   switcherPointerMoved: () => true,
   cancelFocusMove: () => Promise.resolve(),
   claimFocus: () => Promise.resolve(),
+  pressesWithoutRelease: () => pressesWithoutRelease.count,
+  pressRepeated: () => Promise.resolve(pressRepeated.earlier),
 };
 
 const menus: Modules["ArdiaMenus"] = {
@@ -194,6 +199,13 @@ const notifications: Modules["ArdiaNotifications"] = {
   postNotification: () => Promise.resolve(null),
   removeNotifications: () => Promise.resolve(),
   openNotificationSettings: () => Promise.resolve(),
+};
+
+const location: Modules["ArdiaLocation"] = {
+  locationPermission: () => Promise.resolve("notDetermined"),
+  requestLocationPermission: () => Promise.resolve("notDetermined"),
+  openLocationSettings: () => Promise.resolve(),
+  devLocationRequests: () => Promise.resolve(0),
 };
 
 const scriptingEvents = nativeEvents();
@@ -381,6 +393,7 @@ export const shellNativeModules: Modules = {
   ArdiaApp: app,
   ArdiaUpdater: updater,
   ArdiaNotifications: notifications,
+  ArdiaLocation: location,
   ArdiaScripting: scripting,
   ArdiaDev: dev,
   ArdiaSystem: system,

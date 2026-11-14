@@ -67,6 +67,7 @@ struct PageFailureView: View {
   let failure: PageLoadFailure
   var onRetry: () -> Void
 
+  @Environment(\.profileLook) private var look
   @ScaledMetric(relativeTo: .title) private var symbolSize: CGFloat = 36
 
   var body: some View {
@@ -92,7 +93,7 @@ struct PageFailureView: View {
     .frame(maxWidth: 320)
     .padding(.horizontal, Spacing.section)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(BrowsePalette.pageBackdrop)
+    .background(look.surface)
     .task(id: isOffline) {
       guard isOffline else { return }
       var sawOffline = false

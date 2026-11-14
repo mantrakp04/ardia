@@ -12,6 +12,7 @@ import { isUtilityWindowId } from "../settings/settingsWindows";
 import { openingLightsCenter } from "../windows/layout";
 import { createWindowSync, type WindowPort } from "../windows/windowSync";
 import { openExternalUrls } from "../littleArdia/actions";
+import { startUnclaimedEscape } from "../windows/unclaimedEscape";
 import { SMALL_LIGHTS_CENTER } from "../windows/small";
 import { runCommand } from "../commands/commands";
 import { setMenuBarShortcuts } from "../commands/commandShortcuts";
@@ -21,6 +22,7 @@ import { flushPersistence, resumePersistence } from "../session/persist";
 import { flushLive } from "../live/store";
 import { startWindowCloseGuard } from "../windows/windowClose";
 import { openLastWindowOrNew } from "../windows/lastWindow";
+import { noteDockReopen } from "../telemetry/usage";
 import { startExtensionsBridge } from "../extensions/bridge";
 import { useExtensions } from "../extensions/actions";
 import { answerQuitAfterSaves, isQuitting, setQuitting } from "./quit";
@@ -51,6 +53,7 @@ export function startNativeSync() {
   startWindowCloseGuard();
   startExtensionsBridge();
   onOpenURLs((urls, pointer, source) => openExternalUrls(urls, pointer, source));
+  startUnclaimedEscape();
   void lastTabClosesWindow()
     .catch(() => true)
     .then((closes) => setLastTabKeepsWindow(!closes));
@@ -63,7 +66,10 @@ export function startNativeSync() {
   onAppEvent((e) => {
     const s = store.getState();
     if (e.type === "appearance") s.setAppDark(e.dark);
-    if (e.type === "reopen") openLastWindowOrNew("dock");
+    if (e.type === "reopen") {
+      noteDockReopen(e.pastFloating);
+      openLastWindowOrNew("dock");
+    }
     if (e.type === "quitWarningSuppressed") s.updateSettings({ warnBeforeQuitting: false });
     if (e.type === "willQuit") {
       setQuitting(true);

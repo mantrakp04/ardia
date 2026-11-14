@@ -65,6 +65,18 @@ void HandOffTab(ArdiaCoreTab *tab) {
   return [[ArdiaWindowFullScreen ofWindow:controller.coreWindow create:YES] seen];
 }
 
++ (void)reconsiderSightOf:(NSWindow *)window {
+  ArdiaWindowController *controller = [self forNSWindow:window];
+  if (!controller || controller.stray || controller.standalone) return;
+  [[ArdiaWindowFullScreen ofWindow:controller.coreWindow create:YES] reconsiderSight];
+}
+
++ (BOOL)userSeesOnlyThroughWindowServer:(NSWindow *)window {
+  ArdiaWindowController *controller = [self forNSWindow:window];
+  if (!controller || controller.stray || controller.standalone) return NO;
+  return [[ArdiaWindowFullScreen ofWindow:controller.coreWindow create:YES] seenOnlyByWindowServer];
+}
+
 + (instancetype)strayWindowForProfile:(ArdiaCoreProfile *)profile {
   ArdiaCoreWindow *coreWindow = [[ArdiaCoreWindow alloc] initWithContentRect:NSMakeRect(0, 0, 800, 600)];
   if (!coreWindow.window) return nil;
@@ -357,7 +369,7 @@ NSMapTable<ArdiaCoreProfile *, ArdiaWindowController *> *StandaloneWindows() {
 }
 
 - (BOOL)window:(ArdiaCoreWindow *)window preHandleKeyEvent:(NSEvent *)event {
-  return (IsReservedKey(event) || IsSecondSidebarKeyPress(event)) && [NSApp.mainMenu performKeyEquivalent:event];
+  return ArdiaPerformReservedKey(event);
 }
 
 - (BOOL)window:(ArdiaCoreWindow *)window handleKeyEvent:(NSEvent *)event {

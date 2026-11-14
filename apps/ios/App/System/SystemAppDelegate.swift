@@ -20,9 +20,9 @@ final class SystemEvents {
 }
 
 enum QuickAction: String, CaseIterable {
-  case search = "com.ardia.ios.search"
-  case voiceSearch = "com.ardia.ios.voice"
-  case incognito = "com.ardia.ios.incognito"
+  case search = "com.ardia.browser.ios.search"
+  case voiceSearch = "com.ardia.browser.ios.voice"
+  case incognito = "com.ardia.browser.ios.incognito"
 
   var link: SystemLink {
     switch self {

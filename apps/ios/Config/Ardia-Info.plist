@@ -2,15 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>ArdiaDefaultBrowser</key>
+	<string>$(ARDIA_DEFAULT_BROWSER)</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>com.ardia.ios.sync</string>
+		<string>com.ardia.browser.ios.sync</string>
 	</array>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.ardia.ios</string>
+			<string>com.ardia.browser.ios</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>ardia</string>
@@ -20,7 +24,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>CFBundleURLName</key>
-			<string>com.ardia.ios.web</string>
+			<string>com.ardia.browser.ios.web</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>http</string>
@@ -34,7 +38,7 @@
 		<true/>
 	</dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
-	<true/>
+	<false/>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>NSUserActivityTypeBrowsingWeb</string>
