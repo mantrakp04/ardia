@@ -22,7 +22,13 @@ export type FilterListInfo = BlockingState["lists"][number];
 
 export const useBlocking = create<{ state: BlockingState | null; busy: boolean }>()(() => ({ state: null, busy: false }));
 
-export const useEngines = create<{ engines: { id: string; name: string }[]; nightShade: NightShadeMode }>()(() => ({ engines: [], nightShade: "disabled" }));
+export type AppLinkChoice = "ardia" | "app";
+
+export const useEngines = create<{ engines: { id: string; name: string }[]; nightShade: NightShadeMode; appLinks: AppLinkChoice }>()(() => ({
+  engines: [],
+  nightShade: "disabled",
+  appLinks: "ardia",
+}));
 
 const quietly = (call: () => Promise<unknown>) => void settled(call, undefined);
 
@@ -38,14 +44,20 @@ export function startSettingsSources() {
   }
 }
 
+export function setAppLinks(choice: AppLinkChoice) {
+  useEngines.setState({ appLinks: choice });
+  quietly(() => pages.setAppLinksDefault(choice === "app"));
+}
+
 export async function refreshSettings() {
-  const [state, shade, engines] = await Promise.all([
+  const [state, shade, engines, opensApps] = await Promise.all([
     settled(() => blocking.state(), null),
     settled(() => pages.nightShade(null, false), null),
     settled(async () => searchEngines(), [] as { id: string; name: string }[]),
+    settled(() => pages.appLinksDefault(), false),
   ]);
   if (state) useBlocking.setState({ state });
-  useEngines.setState({ engines, nightShade: shade?.defaultMode ?? "disabled" });
+  useEngines.setState({ engines, nightShade: shade?.defaultMode ?? "disabled", appLinks: opensApps ? "app" : "ardia" });
 }
 
 export function setSearchEngine(id: string) {

@@ -165,6 +165,7 @@ export const settingsTint = {
   export: "#0153FF",
   onboarding: "#FF901A",
   swipe: "#458AFF",
+  appLinks: "#3EA82E",
   bottomBar: "#30B0C7",
 } as const;
 

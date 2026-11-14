@@ -7,12 +7,17 @@ import { matchMyMac } from "../../state/sync/actions";
 import { useSyncEnabled, useSyncStatus, useSyncView } from "../../state/sync/hooks";
 import { syncedEngineName, syncRowSubtitle } from "../../state/sync/syncRules";
 import { showOnboarding } from "../../state/onboarding/store";
-import { appVersion, exportOpenTabs, setArchiveInterval, setAutoOpenKeyboard, setColorChoice, setSearchSuggestions, useEngines } from "../../state/settings/actions";
+import { appVersion, exportOpenTabs, setAppLinks, setArchiveInterval, setAutoOpenKeyboard, setColorChoice, setSearchSuggestions, useEngines } from "../../state/settings/actions";
 import { usePreferences } from "../../state/settings/hooks";
 import { closeSettings, pushSettings } from "../../state/settings/nav";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
 import { capsule, font, PROFILE_COLORS, settingsLayout, settingsTint, space, Symbol, useProfileLook, useTheme, type ProfileColor } from "../ui";
 import { BarButton, Group, IconTile, NavRow, PickerRow, SettingsPage, ToggleRow } from "./SettingsKit";
+
+const APP_LINKS = [
+  { id: "ardia" as const, title: "Ardia" },
+  { id: "app" as const, title: "App" },
+];
 
 const INTERVALS = (Object.keys(AUTO_ARCHIVE_INTERVALS) as AutoArchiveInterval[]).map((id) => ({ id, title: autoArchiveTitle(id) }));
 
@@ -23,6 +28,7 @@ export function SettingsRoot() {
   const keyboard = usePreferences((p) => p.autoOpensKeyboard);
   const interval = usePreferences((p) => p.autoArchiveInterval);
   const engines = useEngines((s) => s.engines);
+  const appLinks = useEngines((s) => s.appLinks);
   const syncEnabled = useSyncEnabled();
   const offersDefault = offersDefaultBrowser(useDefaultBrowser((s) => s.status));
   useEffect(() => {
@@ -74,6 +80,7 @@ export function SettingsRoot() {
       </Group>
       <Group>
         <PickerRow title="Archive Inactive Tabs" icon="archivebox" tint={settingsTint.archive} options={INTERVALS} selected={interval} divider onSelect={setArchiveInterval} />
+        <PickerRow title="Open App Links In" icon="arrowUpForwardAppFill" tint={settingsTint.appLinks} options={APP_LINKS} selected={appLinks} divider onSelect={setAppLinks} />
         <NavRow title="Clear Browsing Data" icon="eraserFill" tint={settingsTint.clearData} divider onPress={() => pushSettings({ page: "clearData" })} />
         <Pressable accessibilityRole="button" onPress={exportOpenTabs} style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}>
           <IconTile icon="squareAndArrowUp" tint={settingsTint.export} />

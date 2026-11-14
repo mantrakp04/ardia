@@ -216,6 +216,7 @@ export const SYMBOLS = {
   ],
   equalCircleFill: [{ d: circle(12, 12, 10) + roundRect(7.3, 8.8, 9.4, 2, 1) + roundRect(7.3, 13.2, 9.4, 2, 1), fill: true, evenOdd: true }],
   xmarkCircleFill: [{ d: circle(12, 12, 10) + cross(12, 12, 4.4, 1.05), fill: true, evenOdd: true }],
+  arrowUpForwardAppFill: [{ d: roundRect(3, 3, 18, 18, 5.5) + "M8.09 14.88L9.42 16.21L13.38 12.24L13.38 15.0L15.25 15.0L15.25 9.05L9.3 9.05L9.3 10.92L12.06 10.92Z", fill: true, evenOdd: true }],
   camera: [
     {
       d: "M4 7.5h3l1.5-2.5h7L17 7.5h3a1.5 1.5 0 0 1 1.5 1.5v9.5A1.5 1.5 0 0 1 20 20H4a1.5 1.5 0 0 1-1.5-1.5V9A1.5 1.5 0 0 1 4 7.5zM12 10a3.5 3.5 0 1 1 0 7a3.5 3.5 0 1 1 0-7z",
