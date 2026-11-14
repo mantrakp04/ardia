@@ -795,7 +795,9 @@ reproduced.
    (`ArrangeLikeDia`): a blank page shows Back, Forward, Reload — Save As…, Print…, Cast… — View Page Source,
    Inspect, with Back and Forward always there and greyed when there's nowhere to go (Helium hid them); a link shows
    Open Link in New Tab / New Window / Split View / Incognito Window — Save Link As…, Copy Link Address, and "Open
-   Link as <Profile>" is gone (until then it still showed whenever another profile was open); an image shows Open
+   Link as <Profile>" is gone (until then it still showed whenever another profile was open; since 2026-11-13 it's gone
+   from every page menu Ardia shows, not only a tab's: an installed web app's window, a popup and a side panel kept
+   Chrome's stock menu and its submenu, `ac_context_menu.mm` `RemoveOpenLinkInProfile`, #1333); an image shows Open
    Image in New Tab, Save Image As…, Copy Image, Copy Image Address — Inspect. Not yet as Dia: no "Translate to
    <language>" (#189; Helium shows Chrome's Translate only with a translate script URL, Google's service, which we
    don't set, and our own translator isn't in this menu), and no "Search <engine> for Image" (Chrome offers it only
