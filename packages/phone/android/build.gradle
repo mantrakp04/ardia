@@ -14,43 +14,78 @@ def scriptRuntime = file("${androidApp}/shared/src/main")
 def syncEngine = file("${androidApp}/sync/src")
 def syncBundle = file("${repository}/apps/ios/Packages/ArdiaKit/Sources/ArdiaShared/Scripts/ardia-sync.js")
 def syncFixtures = file("${repository}/packages/sync/tests/fixtures")
+def phoneSchema = file("${repository}/apps/phone/src/state/store/schema.ts")
 def pageEngineOutsideThisModule = ['**/Omnibox.kt', '**/PageSurface.kt']
 def kotlinVersion = org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapperKt.getKotlinPluginVersion(project)
 def architectures = (findProperty('reactNativeArchitectures') ?: 'arm64-v8a,x86_64').split(',').collect { it.trim() }
 def reactNative = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).parentFile
-def hermescPlatform = System.getProperty('os.name').toLowerCase().contains('mac') ? 'osx-bin' : (System.getProperty('os.name').toLowerCase().contains('win') ? 'win64-bin' : 'linux64-bin')
-def hermesc = new File(reactNative, "sdks/hermesc/${hermescPlatform}/hermesc")
-def syncBytecode = layout.buildDirectory.dir("generated/ardia-sync")
-
-def syncTranspiled = layout.buildDirectory.file("intermediates/ardia-sync/ardia-sync.js")
 def phoneApp = file("${repository}/apps/phone")
 
-def transpileSyncBundle = tasks.register('transpileSyncBundle', Exec) {
-  inputs.file(syncBundle)
-  inputs.file("${projectDir}/scripts/transpile-sync-bundle.mjs")
-  outputs.file(syncTranspiled)
-  commandLine 'node', "${projectDir}/scripts/transpile-sync-bundle.mjs", syncBundle.absolutePath, syncTranspiled.get().asFile.absolutePath, phoneApp.absolutePath
+abstract class CompileSyncBundle extends DefaultTask {
+  static final String REACT_NATIVE_VERSION = '0.81.6'
+  static final Map<String, String> HERMESC_SHA256 = [
+    'osx-bin/hermesc': '71b5e25546a50a453d2d35af7e29061b964a3b422d04d56d60a4e8d27cf3b8be',
+    'linux64-bin/hermesc': 'b4c37f09410c6c6c0ce90df00eb270dc257d2184c85ca320382ebe06057f2a14',
+    'win64-bin/hermesc.exe': 'a8c491973bcc3899e96a866380a8165a0e5e308bf123445d11def2450ee6e27f',
+  ]
+  static final byte[] HERMES_BYTECODE_MAGIC = [(byte) 0xC6, (byte) 0x1F, (byte) 0xBC, (byte) 0x03, (byte) 0xC1, (byte) 0x03, (byte) 0x19, (byte) 0x1F] as byte[]
+
+  @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getBundle()
+  @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getHermesc()
+  @Input abstract Property<String> getHermescPath()
+  @Input abstract Property<String> getReactNativeVersion()
+  @Input abstract Property<String> getBabelVersion()
+  @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getTranspileScript()
+  @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getCheckScript()
+  @Internal abstract DirectoryProperty getPhoneApp()
+  @OutputDirectory abstract DirectoryProperty getOutputDir()
+  @Inject abstract ExecOperations getExec()
+
+  @TaskAction
+  void compile() {
+    if (reactNativeVersion.get() != REACT_NATIVE_VERSION) throw new GradleException("ardia-sync.hbc is pinned to React Native ${REACT_NATIVE_VERSION}'s hermesc, found ${reactNativeVersion.get()}")
+    def compiler = hermesc.get().asFile
+    def expected = HERMESC_SHA256[hermescPath.get()]
+    def actual = java.security.MessageDigest.getInstance('SHA-256').digest(compiler.bytes).encodeHex().toString()
+    if (expected == null || actual != expected) throw new GradleException("${compiler} is not React Native ${REACT_NATIVE_VERSION}'s hermesc: sha256 ${actual}")
+    def work = new File(temporaryDir, 'work')
+    work.deleteDir()
+    work.mkdirs()
+    def transpiled = new File(work, 'ardia-sync.js')
+    def bytecode = new File(work, 'ardia-sync.hbc')
+    exec.exec { commandLine 'node', transpileScript.get().asFile.absolutePath, bundle.get().asFile.absolutePath, transpiled.absolutePath, phoneApp.get().asFile.absolutePath }
+    exec.exec { commandLine 'node', checkScript.get().asFile.absolutePath, bundle.get().asFile.absolutePath, transpiled.absolutePath }
+    exec.exec { commandLine compiler.absolutePath, '-emit-binary', '-O', '-w', '-out', bytecode.absolutePath, transpiled.absolutePath }
+    def head = new byte[8]
+    bytecode.withInputStream { it.read(head) }
+    if (bytecode.length() < 1024 || !Arrays.equals(head, HERMES_BYTECODE_MAGIC)) throw new GradleException("hermesc wrote no Hermes bytecode to ${bytecode}")
+    def out = outputDir.get().asFile
+    out.mkdirs()
+    out.listFiles()?.findAll { it.name != 'ardia-sync.hbc' }?.each { it.delete() }
+    def staged = new File(out, 'ardia-sync.hbc.partial')
+    java.nio.file.Files.copy(bytecode.toPath(), staged.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    java.nio.file.Files.move(staged.toPath(), new File(out, 'ardia-sync.hbc').toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+  }
 }
 
-def checkSyncBundle = tasks.register('checkSyncBundle', Exec) {
-  dependsOn transpileSyncBundle
-  def stamp = layout.buildDirectory.file("intermediates/ardia-sync/checked.txt")
-  inputs.file(syncBundle)
-  inputs.file(syncTranspiled)
-  inputs.file("${projectDir}/scripts/check-sync-bundle.mjs")
-  outputs.file(stamp)
-  commandLine 'node', "${projectDir}/scripts/check-sync-bundle.mjs", syncBundle.absolutePath, syncTranspiled.get().asFile.absolutePath
-  doFirst { standardOutput = new FileOutputStream(stamp.get().asFile) }
-}
+def hermescPath = System.getProperty('os.name').toLowerCase().contains('mac') ? 'osx-bin/hermesc' : (System.getProperty('os.name').toLowerCase().contains('win') ? 'win64-bin/hermesc.exe' : 'linux64-bin/hermesc')
+def babelVersion = new groovy.json.JsonSlurper().parse(new File(["node", "--print", "require.resolve('@babel/core/package.json', { paths: [require.resolve('@react-native/babel-preset/package.json', { paths: [require.resolve('babel-preset-expo/package.json')] })] })"].execute(null, phoneApp).text.trim())).version
+def reactNativeVersion = new groovy.json.JsonSlurper().parse(new File(reactNative, 'package.json')).version
 
-def compileSyncBundle = tasks.register('compileSyncBundle', Exec) {
-  dependsOn checkSyncBundle
-  inputs.file(syncTranspiled)
-  inputs.file(hermesc)
-  outputs.dir(syncBytecode)
-  def out = syncBytecode.get().asFile
-  doFirst { out.mkdirs() }
-  commandLine hermesc.absolutePath, '-emit-binary', '-O', '-w', '-out', new File(out, 'ardia-sync.hbc').absolutePath, syncTranspiled.get().asFile.absolutePath
+androidComponents {
+  onVariants(selector().all()) { variant ->
+    def task = tasks.register("compile${variant.name.capitalize()}SyncBundle", CompileSyncBundle) {
+      bundle.set(syncBundle)
+      hermesc.set(new File(reactNative, "sdks/hermesc/${hermescPath}"))
+      it.hermescPath.set(hermescPath)
+      it.reactNativeVersion.set(reactNativeVersion)
+      it.babelVersion.set(babelVersion)
+      transpileScript.set(file("${projectDir}/scripts/transpile-sync-bundle.mjs"))
+      checkScript.set(file("${projectDir}/scripts/check-sync-bundle.mjs"))
+      it.phoneApp.set(phoneApp)
+    }
+    variant.sources.assets?.addGeneratedSourceDirectory(task, { CompileSyncBundle compile -> compile.outputDir })
+  }
 }
 
 android {
@@ -87,7 +122,7 @@ android {
   sourceSets {
     main {
       java.srcDirs += ["${pageEngine}/kotlin", "${contentBlocking}/kotlin", "${scriptRuntime}/kotlin", "${syncEngine}/main/kotlin"]
-      assets.srcDirs += ["${pageEngine}/assets", syncBytecode.get().asFile]
+      assets.srcDirs += "${pageEngine}/assets"
       res.srcDirs += "${pageEngine}/res"
       resources.srcDirs += "${contentBlocking}/resources"
     }
@@ -109,19 +144,13 @@ android {
     unitTests.returnDefaultValues = true
     unitTests.all { test ->
       test.systemProperty("ardia.syncFixtures", syncFixtures.absolutePath)
+      test.systemProperty("ardia.phoneSchema", phoneSchema.absolutePath)
     }
   }
 }
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
   exclude(pageEngineOutsideThisModule)
-}
-
-tasks.configureEach { task ->
-  if (task.name.startsWith('merge') && task.name.endsWith('Assets')) task.dependsOn(compileSyncBundle)
-  if (task.name.startsWith('package') && task.name.endsWith('Assets')) task.dependsOn(compileSyncBundle)
-  if (task.name.startsWith('generate') && task.name.endsWith('LintModel')) task.dependsOn(compileSyncBundle)
-  if (task.name.startsWith('lint')) task.dependsOn(compileSyncBundle)
 }
 
 dependencies {
@@ -137,4 +166,6 @@ dependencies {
   implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0"
   implementation "com.google.re2j:re2j:1.8"
   testImplementation "junit:junit:4.13.2"
+  testImplementation "org.json:json:20240303"
+  testImplementation "org.xerial:sqlite-jdbc:3.41.2.2"
 }
