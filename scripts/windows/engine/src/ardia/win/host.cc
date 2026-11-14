@@ -623,9 +623,11 @@ base::DictValue Host::CloseTab(const base::DictValue& args) {
         UnloadController::From(browser)->is_attempting_to_close_browser());
     return Ok();
   }
-  model->CloseWebContentsAt(index,
-                            TabCloseTypes::CLOSE_USER_GESTURE |
-                                TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
+  const bool kept_for_reopen = !(state && state->OnlyShowedOpeningBlank());
+  model->CloseWebContentsAt(
+      index, TabCloseTypes::CLOSE_USER_GESTURE |
+                 (kept_for_reopen ? TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB
+                                  : TabCloseTypes::CLOSE_NONE));
   return Ok();
 }
 
@@ -800,7 +802,9 @@ content::WebContents* Host::FindOffered(const std::string& adopt) const {
     TabStripModel* model = browser->GetTabStripModel();
     for (int index = 0; index < model->count(); ++index) {
       content::WebContents* contents = model->GetWebContentsAt(index);
-      if (TabState::IdOf(contents) == id) {
+      const TabState* state = TabState::FromWebContents(contents);
+      if (TabState::IdOf(contents) == id &&
+          !(state && state->closed_by_host())) {
         return contents;
       }
     }
@@ -1229,7 +1233,7 @@ void Host::OnTabStripModelChanged(TabStripModel* tab_strip_model,
     for (const auto& inserted : change.GetInsert()->contents) {
       content::WebContents* contents = inserted.contents;
       TabState* state = TabState::FromWebContents(contents);
-      if (state && !state->key().empty()) {
+      if (state && (!state->key().empty() || state->closed_by_host())) {
         continue;
       }
       NoteOpened(browser, tab_strip_model, contents, inserted.index,
