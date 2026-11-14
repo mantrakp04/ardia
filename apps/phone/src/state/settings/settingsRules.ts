@@ -212,3 +212,7 @@ export function defaultBrowserCopy(status: Status, instructions: DefaultBrowserS
 
 export const exportableUrls = (tabs: readonly { url: string; isPrivate: boolean }[]) =>
   tabs.filter((tab) => !tab.isPrivate && /^https?:\/\//i.test(tab.url)).map((tab) => tab.url);
+
+export type PageSwipe = "anywhere" | "edges" | "off";
+
+export const pageSwipe = (mode: "anywhere" | "screenEdges" | "disabled"): PageSwipe => (mode === "screenEdges" ? "edges" : mode === "disabled" ? "off" : "anywhere");

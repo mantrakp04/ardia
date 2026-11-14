@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { copyTable } from "../../lib/platformCopy.ts";
 import {
+  pageSwipe,
   clearChoice,
   clearFooter,
   clearIsEmpty,
@@ -135,4 +136,10 @@ test("on iPhone the page has the three Settings steps and opens Ardia in Setting
   assert.equal(copy.does, "openAppSettings");
   assert.equal(offersDefaultBrowser({ isDefault: false, canAsk: false }, ios.offersDefaultBrowserAlways), false);
   assert.equal(offersDefaultBrowser({ isDefault: false, canAsk: true }, ios.offersDefaultBrowserAlways), true);
+});
+
+test("the Swipe to Navigate setting reaches the page view in the module's words", () => {
+  assert.equal(pageSwipe("anywhere"), "anywhere");
+  assert.equal(pageSwipe("screenEdges"), "edges");
+  assert.equal(pageSwipe("disabled"), "off");
 });
