@@ -18,6 +18,8 @@ DEFAULT_DAEMON_IDLE = 3600.0
 MAX_REQUEST = 16 * 1024 * 1024
 MAX_RESPONSE = 256 * 1024 * 1024
 OUTPUT_CAP = 6000
+SCRIPT_OUTPUT_CAP = 20000
+SPILL_KEEP = 40
 SETTLE_TIMEOUT = 5.0
 WATCH_INTERVAL = 2.0
 EXIT_GRACE = 3.0
@@ -152,13 +154,36 @@ def cap(text: str, options: dict, name: str = "", default: int | None = None) ->
     if options.get("full"):
         return text
     limit = options.get("max_output")
-    limit = (default or OUTPUT_CAP) if limit is None else int(limit)
+    limit = (default or (SCRIPT_OUTPUT_CAP if name == "script" else OUTPUT_CAP)) if limit is None else int(limit)
     if limit <= 0 or len(text) <= limit:
         return text
     cut = text.rfind("\n", 0, limit + 1)
     cut = cut if cut >= limit * 0.8 else limit
-    return text[:cut] + (f"\n{CAP_NOTICE}{cut:,} of {len(text):,} characters. Narrow it instead: {NARROWER.get(name, NARROW_ANY)}. "
+    saved = spill(text)
+    where = f"; all of it is in {saved}" if saved else ""
+    return text[:cut] + (f"\n{CAP_NOTICE}{cut:,} of {len(text):,} characters{where}. Narrow it instead: {NARROWER.get(name, NARROW_ANY)}. "
                          f"Only if you need every line: --max-output {len(text)}]")
+
+
+def spill(text: str) -> str | None:
+    import tempfile
+
+    folder = Path(tempfile.gettempdir()) / f"ardia-browse-output-{os.getuid()}"
+    try:
+        folder.mkdir(mode=0o700, exist_ok=True)
+        info = folder.lstat()
+        if not folder.is_dir() or folder.is_symlink() or info.st_uid != os.getuid() or info.st_mode & 0o077:
+            return None
+        fd, path = tempfile.mkstemp(prefix="output-", suffix=".txt", dir=folder)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        older = sorted(folder.glob("output-*.txt"), key=lambda item: item.stat().st_mtime)[:-SPILL_KEEP]
+        for item in older:
+            item.unlink(missing_ok=True)
+    except OSError:
+        return None
+    command_metrics.flag("output_saved", True)
+    return path
 
 
 def cap_notice(text: str) -> str:

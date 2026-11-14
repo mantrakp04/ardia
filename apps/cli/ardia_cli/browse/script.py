@@ -4,6 +4,7 @@ import re
 
 from ardia_cli import command_metrics
 from ardia_cli.browse.errors import BrowseError, ConnectionLost, OutcomeUnknown, Usage
+from ardia_cli.browse.readpages import MAX_LIMIT
 
 DEFAULT_TIMEOUT = 90.0
 MAX_TIMEOUT = 600.0
@@ -78,6 +79,7 @@ CONTROLLER = r"""
 
 WORKER = r"""const SOURCE = "ardia-script.js";
 const OFFSET = %(offset)d;
+const READ_BATCH = %(read_batch)d;
 const waiting = new Map();
 let nextId = 1;
 const show = (value) => {
@@ -144,9 +146,13 @@ const read = async (what, options) => {
   options = options || {};
   let argv = ["read"];
   if (what && typeof what === "object" && !Array.isArray(what)) { options = { ...what, ...options }; what = options.urls; }
-  for (const url of words(what)) argv.push(await absolute(url));
-  argv = argv.concat(flags(options, { links: "--links", selector: "-s", limit: "--limit", timeout: "--timeout", http: "--http" }));
-  return (await browse(argv)).data.pages;
+  const urls = [];
+  for (const url of words(what)) urls.push(await absolute(url));
+  const rest = flags(options, { links: "--links", selector: "-s", limit: "--limit", timeout: "--timeout", http: "--http" });
+  if (options.links != null || options.limit != null || urls.length <= READ_BATCH) return (await browse(argv.concat(urls, rest))).data.pages;
+  const pages = [];
+  for (let i = 0; i < urls.length; i += READ_BATCH) pages.push(...(await browse(argv.concat(urls.slice(i, i + READ_BATCH), rest))).data.pages);
+  return pages;
 };
 const page = {
   goto: async (url) => (await browse("open", await absolute(url))).data,
@@ -229,9 +235,9 @@ def parse_timeout(value) -> float:
 
 
 def worker_source(source: str) -> tuple[str, int]:
-    api = WORKER % {"offset": 0}
+    api = WORKER % {"offset": 0, "read_batch": MAX_LIMIT}
     offset = api.count("\n") + 2
-    api = WORKER % {"offset": offset}
+    api = WORKER % {"offset": offset, "read_batch": MAX_LIMIT}
     return f"{api}\n__ardiaRun(async () => {{\n{source}\n}});\n//# sourceURL={SOURCE_URL}", offset
 
 

@@ -425,11 +425,11 @@ class BrowseEndToEnd(unittest.TestCase):
         session = "cap"
         self.browse("open", self.url("many.html"), "--show", session=session)
         capped = self.browse("snapshot", "-i", session=session).stdout
-        self.assertLessEqual(len(capped), 6300)
+        self.assertLessEqual(len(capped), 6450)
         self.assertIn("Narrow it instead: snapshot -i", capped.splitlines()[-1])
         self.assertIn("--max-output", capped.splitlines()[-1])
         self.assertEqual(self.browse("snapshot", "-i", "--full", session=session).stdout.count("Button number"), 400)
-        self.assertLessEqual(len(self.browse("snapshot", "-i", "--max-output", "500", session=session).stdout), 800)
+        self.assertLessEqual(len(self.browse("snapshot", "-i", "--max-output", "500", session=session).stdout), 900)
         self.assertEqual(json.loads(self.browse("snapshot", "-i", "--json", session=session).stdout)["data"]["snapshot"].count("Button number"), 400)
 
     def test_batch_fills_a_form_five_times_from_stdin(self):
@@ -558,6 +558,10 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertEqual(self.report(session).get("category"), "Software")
         still = self.browse("select", "#owner", "Alice", session=session, check=False)
         self.assertIn("no list of suggestions is linked to this field", still.stderr)
+        self.assertIn("select #category <option>", self.browse("fill", "#category", "Meals", session=session, check=False).stderr)
+        self.assertIn("opens a picker", self.browse("fill", "#edit-date", "2026-10-07", session=session, check=False).stderr)
+        self.assertIn("select #color <option>", self.browse("fill", "#color", "Red", session=session, check=False).stderr)
+        self.assertIn('is a button "Show results", which takes no typing', self.browse("fill", "#results", "x", session=session, check=False).stderr)
 
     def test_press_takes_a_target_and_find_takes_partial(self):
         session = "press-target"
@@ -595,6 +599,50 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertEqual((levels["Wood screw"], levels["Hex bolt"]), (7, 0))
         self.browse("batch", "--bail", session=session, stdin='fill #q2 "valve"\nclick button.pick\n')
         self.assertEqual(self.report(session).get("picked"), "Valve")
+
+    def test_read_returns_a_pdfs_text(self):
+        session = "pdf"
+        url = self.url("doc.pdf")
+        many = self.browse("read", url, self.url("picker.html"), session=session).stdout
+        self.assertIn("Quarterly total: 4,217 units", many)
+        self.assertIn("[page 1 of 1]", many)
+        self.assertIn("Quarterly total: 4,217 units", self.browse("read", url, "--http", session=session).stdout)
+        self.browse("open", url, session=session)
+        self.assertIn("Ardia PDF fixture", self.browse("read", session=session).stdout)
+
+    def test_click_dismisses_a_consent_banner_in_the_way(self):
+        session = "consent"
+        self.browse("open", self.url("consent.html"), "--show", session=session)
+        clicked = self.browse("click", "#buy", session=session).stdout
+        self.assertIn("A consent banner was in the way", clicked)
+        self.assertIn('"Reject all" button was clicked (reject)', clicked)
+        self.assertEqual(self.report(session), {"clicked": ["buy"], "choice": "reject"})
+
+    def test_click_recenters_an_element_under_a_sticky_header(self):
+        session = "sticky"
+        self.browse("open", self.url("consent.html"), "--show", session=session)
+        self.browse("eval", "scrollToUnderHeader()", session=session)
+        clicked = self.browse("click", "#under-header", session=session).stdout
+        self.assertNotIn("consent banner", clicked)
+        self.assertEqual(self.report(session), {"clicked": ["under-header"], "choice": None})
+
+    def test_output_redirected_to_a_file_is_whole_and_cut_output_is_saved(self):
+        session = "spill"
+        self.browse("open", self.url("many.html"), "--show", session=session)
+        target = self.data / "snapshot.txt"
+        with open(target, "w") as out:
+            subprocess.run([sys.executable, "-m", "ardia_cli", "browse", "--port", str(self.port), "--data-dir", str(self.data), "--session", session,
+                            "snapshot", "-i"], stdout=out, stderr=subprocess.PIPE, timeout=120, env=dict(os.environ, PYTHONPATH=str(CLI)), check=True)
+        self.assertEqual(target.read_text().count("Button number"), 400)
+        last = self.browse("snapshot", "-i", session=session).stdout.splitlines()[-1]
+        saved = re.search(r"all of it is in (\S+?)\. Narrow", last)
+        self.assertIsNotNone(saved, last)
+        self.assertEqual(Path(saved.group(1)).read_text().count("Button number"), 400)
+
+    def test_read_reads_every_named_url_past_the_link_limit(self):
+        urls = [self.url(f"picker.html?n={number}") for number in range(25)]
+        pages = json.loads(self.browse("read", *urls, "--http", "--json", session="many-urls").stdout)["data"]["pages"]
+        self.assertEqual(len(pages), 25)
 
     def test_find_label_prefers_the_exact_label_over_a_longer_one(self):
         session = "label-rank"

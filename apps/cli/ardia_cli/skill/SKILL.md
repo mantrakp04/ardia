@@ -16,7 +16,7 @@ turn that re-reads all output before it: do the most per call, print the least. 
 ardia browse snapshot -i
 ```
 
-With no tab yet it uses the one the user is looking at. It lists what you can act on with refs
+It uses the tab the user is looking at; to start on another site, `open <url>` first. It lists what you can act on with refs
 (`textbox "Name" [ref=e11]`); `-u` adds link URLs. If it starts with `# notes for <site>`, follow them.
 
 ## Read
@@ -100,6 +100,5 @@ EOF
 - `--port N` anywhere on the line (or `ARDIA_PORT`). Write `ardia browse` out in each command. Exit 2: Ardia
   isn't reachable; its message says what to ask the user.
 - `ardia browse <command> --help`. `references/troubleshooting.md`: input that doesn't land, background tabs,
-  refused commands, sessions, exit codes. `automation.md`: tabs and groups (`ardia tabs`, not the sidebar; `--usage` for each tab's pid, CPU, memory), events,
-  hooks. `userscripts.md`, `config.md`, `daily-reports.md`.
+  refused commands, sessions, exit codes. `automation.md`: tabs and groups (`ardia tabs`; `--usage`: pid, CPU, memory), events, hooks. `userscripts.md`, `config.md`, `daily-reports.md`.
 - Output doesn't match this file: `ardia skills install --target <your agent>`.

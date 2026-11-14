@@ -87,6 +87,15 @@ def split_globals(argv: list[str]) -> tuple[dict, list[str]]:
     return found, rest
 
 
+def stdout_is_file() -> bool:
+    import stat
+
+    try:
+        return stat.S_ISREG(os.fstat(sys.stdout.fileno()).st_mode)
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
 def options_from(found: dict, env: dict) -> dict:
     from ardia_cli.browse.inputs import humanize_default
 
@@ -101,6 +110,8 @@ def options_from(found: dict, env: dict) -> dict:
             max_output = int(max_output)
         except ValueError:
             raise Usage(f"--max-output takes a number of characters, not {max_output}") from None
+    elif stdout_is_file():
+        max_output = 0
     options = {
         "json": found.get("json") or truthy(env.get("AGENT_BROWSER_JSON")),
         "humanize": humanize,

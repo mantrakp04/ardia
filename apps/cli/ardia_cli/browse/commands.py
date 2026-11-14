@@ -581,7 +581,15 @@ async def cmd_click(ctx: Ctx, argv):
         ctx.state.current = previous or tab.target_id
         return Result({"clicked": args[0], "newTab": ctx.state.tab_id(tab.target_id), "url": tab.url})
     _, report = await changes.observe(ctx, page, lambda: actions.click(page, element, humanize, 1, options.get("button") or "left"))
-    return changes.attach(Result({"clicked": args[0]}), report)
+    return consent_note(ctx, changes.attach(Result({"clicked": args[0]}), report))
+
+
+def consent_note(ctx: Ctx, result: Result) -> Result:
+    note, ctx.state.consent_dismissed = ctx.state.consent_dismissed, None
+    if note:
+        result.data["dismissed"] = note
+        result.text = f"{result.text or '✓ Done'}\nA consent banner was in the way: {note}"
+    return result
 
 
 @command("dblclick")
@@ -590,7 +598,7 @@ async def cmd_dblclick(ctx: Ctx, argv):
     need(args, 1, "dblclick <selector>")
     page, element = await resolve(ctx, args[0])
     _, report = await changes.observe(ctx, page, lambda: actions.click(page, element, ctx.humanize and not options.get("no_humanize"), 2))
-    return changes.attach(Result({"clicked": args[0], "count": 2}), report)
+    return consent_note(ctx, changes.attach(Result({"clicked": args[0], "count": 2}), report))
 
 
 @command("hover")
@@ -1731,6 +1739,12 @@ async def cmd_read(ctx: Ctx, argv):
     page = await ctx.state.page()
     frame = ctx.state.frame_for(page) or page.main_frame
     selector = options.get("selector")
+    from ardia_cli.browse import pdftext
+
+    if frame == page.main_frame and await pdftext.page_is_pdf(page):
+        content = readurl.post_process(await pdftext.page_text(page), options)
+        return Result({"content": content, "contentType": "application/pdf", "finalUrl": page.url, "source": "pdf", "truncated": False, "url": page.url},
+                      content, page_content=True)
     if selector:
         content = await page.call("(s) => ardiaBrowse.queryAll(s).map((el) => ardiaBrowse.readable(el)).filter(Boolean).join('\\n\\n')",
                                   selector, frame=frame, read=True)

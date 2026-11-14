@@ -169,6 +169,12 @@ def parse_limit(value) -> int:
     return int(value)
 
 
+def pages_limit(options: dict, named: int) -> int:
+    if options.get("limit") is not None:
+        return parse_limit(options.get("limit"))
+    return max(DEFAULT_LIMIT, min(named, MAX_LIMIT))
+
+
 def page_timeout(options: dict) -> float:
     value = options.get("timeout")
     if value is None:
@@ -276,13 +282,16 @@ def header(record: dict, index: int, total: int) -> str:
     if record.get("error"):
         return f"=== {place}✗ {url}\n{record['error']}"
     status = f" (HTTP {record['status']})" if record.get("status") and record["status"] >= 400 else ""
-    return f"=== {place}{record.get('title') or '(no title)'}{status}\n{url}"
+    note = f"\n({record['note']})" if record.get("note") else ""
+    return f"=== {place}{record.get('title') or '(no title)'}{status}\n{url}{note}"
 
 
-def footer(limit: int, cut_any: bool, hidden: int, wanted: int) -> str:
+def footer(limit: int, cut_any: bool, hidden: int, wanted: int, saved: str = "") -> str:
     parts = [f"pages cut to fit {limit:,} characters"] if cut_any else []
     if hidden:
         parts.append(f"+{hidden} page{'s' if hidden != 1 else ''} not shown")
+    if saved:
+        parts.append(f"all of it is in {saved}")
     return (f"[{'; '.join(parts)}. Narrow it instead: -s <css> (one region per page), a tighter --links pattern, or --limit <n>. "
             f"Only if you need every line: --max-output {wanted}]")
 
@@ -313,17 +322,20 @@ def render(records: list[dict], options: dict, extra: str = "") -> str:
     whole = join(heads, texts, [extra])
     if not limit or limit <= 0 or len(whole) <= limit:
         return whole
+    from ardia_cli.browse.daemon import spill
+
+    saved = spill(whole) or ""
     for shown in range(len(records), -1, -1):
-        out = fit(heads[:shown], texts[:shown], len(records) - shown, limit, extra, len(whole) + 300)
+        out = fit(heads[:shown], texts[:shown], len(records) - shown, limit, extra, len(whole) + 300, saved)
         if out is not None:
             return out
-    return footer(limit, False, len(records), len(whole) + 300)[:limit]
+    return footer(limit, False, len(records), len(whole) + 300, saved)[:limit]
 
 
-def fit(heads: list[str], texts: list[str], hidden: int, limit: int, extra: str, wanted: int) -> str | None:
+def fit(heads: list[str], texts: list[str], hidden: int, limit: int, extra: str, wanted: int, saved: str = "") -> str | None:
     lengths = [len(text) for text in texts]
     needed = sum(min(length, MIN_USEFUL) for length in lengths)
-    longest = footer(limit, True, hidden, wanted)
+    longest = footer(limit, True, hidden, wanted, saved)
     budget = limit - len(join(heads, [""] * len(heads), [extra, longest])) - (CUT_MARK + 1) * len(texts)
     best = None
     for _ in range(4):
@@ -331,7 +343,7 @@ def fit(heads: list[str], texts: list[str], hidden: int, limit: int, extra: str,
             return best
         allowed = shares(lengths, budget)
         cut_any = any(room < length for room, length in zip(allowed, lengths))
-        tail = [extra, footer(limit, cut_any, hidden, wanted)] if cut_any or hidden else [extra]
+        tail = [extra, footer(limit, cut_any, hidden, wanted, saved)] if cut_any or hidden else [extra]
         out = join(heads, [cut(text, room) for text, room in zip(texts, allowed)], tail)
         if len(out) > limit:
             budget -= len(out) - limit
@@ -444,9 +456,17 @@ async def goto(ctx, page, url: str, timeout: float):
 async def read_in(ctx, page, url: str, selector: str | None, timeout: float, options: dict) -> dict:
     from ardia_cli.browse import readurl
 
+    from ardia_cli.browse import pdftext
+
     record = {"url": url, "source": "browser"}
     try:
         await goto(ctx, page, url, timeout)
+        if await pdftext.page_is_pdf(page):
+            record.update(finalUrl=page.url, title=page.url.rsplit("/", 1)[-1], source="pdf",
+                          text=readurl.post_process(await pdftext.page_text(page), options))
+            if selector:
+                record["note"] = f"{url} is a PDF, so -s {selector} doesn't apply; this is the whole document's text"
+            return record
         got = await page.call(EXTRACT, selector, frame=page.main_frame, read=True)
     except ConnectionLost:
         raise
@@ -538,7 +558,7 @@ def run_local(options: dict, positional: list[str], stdin: str | None, global_op
     urls = wanted_urls(options, positional, stdin)
     if not urls:
         raise Usage("Usage: ardia browse read <url>... [--stdin] [--links <pattern>] [-s <selector>] [--http]")
-    limit = parse_limit(options.get("limit"))
+    limit = pages_limit(options, len(urls))
     page_timeout(options)
     if options.get("selector"):
         raise Usage("-s needs the browser's DOM; drop --http to read the pages in Ardia")
@@ -726,6 +746,7 @@ async def run(ctx, options: dict, positional: list[str]):
         await page.refresh_frames()
         base = page.url
     urls = wanted_urls(options, positional, ctx.stdin, base)
+    named = len(urls)
     data_extra = {}
     if options.get("links") is not None:
         source, links, picked = await collect_links(ctx, options["links"])
@@ -743,6 +764,7 @@ async def run(ctx, options: dict, positional: list[str]):
         raise Usage("--list goes with --links <pattern>: it prints the links that read would visit")
     if not urls:
         raise Usage("Usage: ardia browse read <url>... [--stdin] [--links <pattern>] [-s <selector>] [--http]")
+    limit = pages_limit(options, named)
     extra = limit_note(len(urls), limit, "--limit")
     urls = urls[:limit]
     if fetch_only(options):

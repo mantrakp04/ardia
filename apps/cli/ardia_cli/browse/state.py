@@ -51,6 +51,7 @@ class State:
         self.endpoint = None
         self.pages: dict[str, Page] = {}
         self.pending_reaction: dict | None = None
+        self.consent_dismissed: str | None = None
         self.sessions: dict[str, Page] = {}
         self.tab_ids: dict[str, str] = {}
         self.next_tab = 1
