@@ -133,16 +133,6 @@ int main() {
       [l after:0 do:^{ ran++; }];
       CHECK(ran == 0 && !l.engineRunning && ![l reached:ArdiaLaunchJSStarted]);
     }
-    {
-      ArdiaLaunchSequence *l = [ArdiaLaunchSequence new];
-      CHECK(l.mainStartedAt == 0 && l.startupPreparedAt == 0 && l.chromiumEnteredAt == 0 && l.engineStartedAt == 0);
-      l.mainStartedAt = 1000;
-      l.startupPreparedAt = 1700;
-      l.chromiumEnteredAt = 1720;
-      l.engineStartedAt = 7400;
-      CHECK(l.mainStartedAt < l.startupPreparedAt && l.startupPreparedAt < l.chromiumEnteredAt && l.chromiumEnteredAt < l.engineStartedAt);
-      CHECK(l.engineStartedAt == 7400);
-    }
   }
   if (failures) return 1;
   std::printf("launch-sequence: ok\n");

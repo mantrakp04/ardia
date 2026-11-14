@@ -114,7 +114,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
     title: "Speed",
     items: [
       "Time to the first window, profile switch time, and command bar speed (a sample of keystrokes)",
-      "How long launches, new tabs, tab switches and page loads take, step by step (for a launch: until the app's own code starts, its setup is done, the engine is up, the interface starts, the first window and the restored page): times and counts only, summed up once an hour, with how many tabs were open",
+      "How long launches, new tabs, tab switches and page loads take, step by step (for a launch: until the app's own code starts, its setup is done, the engine starts and is up, the interface starts, the first window and the restored page): times and counts only, summed up once an hour, with how many tabs were open",
       "How many tabs a page opened were matched to your click on a link, opened at once because nothing was clicked or typed in that window in the 5 seconds before, or opened only after a 0.2 second wait for a click that never came, summed up once an hour",
       "How many times ⌘Y asked for the History search field, and how many of those put the cursor in it, summed up once an hour. Never what you searched",
       "At launch, in rough ranges: how many tabs and windows came back, how much history there is, and whether it's the first launch since the Mac started. Also at launch: the Mac's load average (one number, how busy it was) and whether the app was started as a login item",
