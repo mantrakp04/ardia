@@ -30,6 +30,7 @@ export function downloadStatus(d: Download, exists = true) {
   if (awaitsKeep(d)) return dangerWarning(d);
   const progress = d.total > 0 ? `${formatBytes(d.received)} of ${formatBytes(d.total)}` : formatBytes(d.received);
   if (d.paused) return `${progress} — Paused`;
-  if (d.speed > 0 && d.total > 0) return `${progress}, ${formatBytes(d.speed)}/s — ${formatDuration((d.total - d.received) / d.speed)}`;
-  return progress;
+  if (d.speed <= 0) return progress;
+  const withSpeed = `${progress}, ${formatBytes(d.speed)}/s`;
+  return d.total > 0 ? `${withSpeed} — ${formatDuration((d.total - d.received) / d.speed)}` : withSpeed;
 }
