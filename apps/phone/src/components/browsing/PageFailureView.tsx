@@ -1,16 +1,20 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "../../state/browse/hooks";
 import { retryPage, retryWhenOnline } from "../../state/page/actions";
-import { failureIcon, retriesWhenOnline, type FailureIcon } from "../../state/page/pageFailure";
+import { failureIcon, holdFailure, NO_FAILURE, retriesWhenOnline, type FailureIcon } from "../../state/page/pageFailure";
 import { capsule, failureLayout, font, space, Symbol, useTheme, type SymbolName } from "../ui";
 
 const ICONS: Record<FailureIcon, SymbolName> = { crashed: "exclamationmarkTriangle", offline: "wifiSlash", network: "globe" };
 
 export function PageFailureView({ tabId }: { tabId: string }) {
   const theme = useTheme();
-  const failure = useNavigation(tabId, (n) => n?.failure ?? null);
-  const waitsForNetwork = failure ? retriesWhenOnline(failure) : false;
+  const live = useNavigation(tabId, (n) => n?.failure ?? null);
+  const isLoading = useNavigation(tabId, (n) => n?.isLoading ?? false);
+  const hold = useRef(NO_FAILURE);
+  hold.current = holdFailure(hold.current, live, isLoading);
+  const failure = hold.current.shown;
+  const waitsForNetwork = live ? retriesWhenOnline(live) : false;
   useEffect(() => (waitsForNetwork ? retryWhenOnline(tabId) : undefined), [waitsForNetwork, tabId]);
   if (!failure) return null;
   return (
