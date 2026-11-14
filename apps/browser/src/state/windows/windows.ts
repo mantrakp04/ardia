@@ -10,6 +10,7 @@ import {
   newId,
   pinKeyOf,
   resolveWindowId,
+  tabsShownIn,
   viewTabIds,
   without,
 } from "../browser/model";
@@ -27,7 +28,7 @@ import { isLastRegularWindow, isOpenRegularWindow, isRegularWindow, isSmall, isS
 import { activated, apply, removeTabs, withNewTab } from "../tabs/tabs";
 import type { AdoptId, BrowserWindow, ClosedWindow, Frame, ParkedPins, Tab, WindowKind } from "../browser/types";
 import { emptyWindow, smallWindow, withWindow } from "./newWindow";
-import { choose } from "../settings/settings";
+import { noteAutoHideTabsChosen } from "../telemetry/autoHideTabsChoices";
 import { lastClosedEntry, lastClosedTab, restoreTab, restoreWindow } from "./reopenClosed";
 import { groupTree, regrouped, splitsWithin, withSplitsBack } from "./groupMoves";
 import { commonGroup, orderSections } from "../groups/groups";
@@ -250,7 +251,11 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
   toggleSidebar(windowId) {
     set((s) => {
       const w = s.windows[windowId];
-      return !w || isSmallWindow(w) ? {} : choose(s, { autoHideTabs: !s.settings.autoHideTabs });
+      if (!w || isSmallWindow(w)) return {};
+      noteAutoHideTabsChosen();
+      const { autoHideTabs: _, ...rest } = w;
+      const hide = tabsShownIn(s, windowId);
+      return { windows: { ...s.windows, [windowId]: hide === s.settings.autoHideTabs ? rest : { ...rest, autoHideTabs: hide } } };
     });
   },
 

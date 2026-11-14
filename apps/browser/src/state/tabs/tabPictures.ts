@@ -8,16 +8,34 @@ const SETTLE_MS = 1500;
 const KEEP = 40;
 const pictures = new Map<string, Picture>();
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
+const listeners = new Set<() => void>();
 let started = false;
 
 export function lastPicture(tabId: string): Picture | null {
   return pictures.get(tabId) ?? null;
 }
 
-function remember(tabId: string) {
-  void webviews
-    .get(tabId)
-    ?.capturePicture(0.25)
+export function onPicturesChanged(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => void listeners.delete(listener);
+}
+
+function changed() {
+  for (const listener of listeners) listener();
+}
+
+export function rememberPicture(tabId: string): Promise<void> {
+  return remember(tabId);
+}
+
+function remember(tabId: string): Promise<void> {
+  const state = useBrowser.getState();
+  const tab = state.tabs[tabId];
+  if (!tab || state.windows[tab.windowId]?.kind === "private" || isIncognitoProfile(tab.profileId)) return Promise.resolve();
+  const view = webviews.get(tabId);
+  if (!view) return Promise.resolve();
+  return view
+    .capturePicture(0.25)
     .then((picture) => {
       if (!picture || !useBrowser.getState().tabs[tabId]) return;
       pictures.delete(tabId);
@@ -26,6 +44,7 @@ function remember(tabId: string) {
         if (pictures.size <= KEEP) break;
         pictures.delete(old);
       }
+      changed();
     })
     .catch(() => {});
 }
@@ -56,6 +75,10 @@ export function startTabPictures() {
         }, SETTLE_MS),
       );
     }
-    if (s.tabs !== prev.tabs) for (const id of pictures.keys()) if (!s.tabs[id]) pictures.delete(id);
+    if (s.tabs !== prev.tabs) {
+      const before = pictures.size;
+      for (const id of pictures.keys()) if (!s.tabs[id]) pictures.delete(id);
+      if (pictures.size !== before) changed();
+    }
   });
 }
