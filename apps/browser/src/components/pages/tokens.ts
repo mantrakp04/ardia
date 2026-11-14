@@ -17,7 +17,7 @@ export function pagesColors(theme: Theme): PagesColors {
   return colors;
 }
 
-export const pageType = { fileName: font.body, dayHeader: font.small } as const;
+export const pageType = { get fileName() { return font.body; }, get dayHeader() { return font.small; } } as const;
 
 export const pageHeader = { sideWidth: 200, searchMaxWidth: 480 } as const;
 

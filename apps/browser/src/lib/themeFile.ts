@@ -1,6 +1,7 @@
 import { isFields } from "./decode";
 import { JSON_SCHEMA_DIALECT, type JsonSchema } from "./jsonSchema";
 import { toHex } from "./color";
+import { LOOK_KEYS, lookSchemas, parseLookBlocks, type LookBlocks } from "./themeLook";
 
 export type RoleValue = string | number | boolean | readonly [string, string];
 export type RolePalette = Readonly<Record<string, RoleValue>>;
@@ -8,7 +9,7 @@ export type RolePalettes = { readonly dark: RolePalette; readonly light: RolePal
 export type BasePalette = RolePalettes & { readonly revision: number };
 export type ThemeRoles = { readonly dark: Readonly<Record<string, RoleValue>>; readonly light: Readonly<Record<string, RoleValue>> };
 export type ThemeMode = keyof RolePalettes;
-export type ParsedTheme = { roles: ThemeRoles | null; problems: string[] };
+export type ParsedTheme = { roles: ThemeRoles | null; look: LookBlocks | null; problems: string[] };
 
 export const THEME_NAME = /^[a-z0-9][a-z0-9_-]*$/;
 export const THEME_MODES: readonly ThemeMode[] = ["dark", "light"];
@@ -70,11 +71,12 @@ export function parseThemeFile(file: string, text: string, defaults: RolePalette
   try {
     doc = JSON.parse(text);
   } catch (error) {
-    return { roles: null, problems: [`${file}: isn't valid JSON (${(error as Error).message})`] };
+    return { roles: null, look: null, problems: [`${file}: isn't valid JSON (${(error as Error).message})`] };
   }
-  if (!isFields(doc)) return { roles: null, problems: [`${file}: must be an object`] };
+  if (!isFields(doc)) return { roles: null, look: null, problems: [`${file}: must be an object`] };
   const problems: string[] = [];
-  for (const key of Object.keys(doc)) if (key !== "$schema" && key !== "dark" && key !== "light") problems.push(`${file}: ${key} isn't a theme key (dark, light)`);
+  const keys: readonly string[] = [...THEME_MODES, ...LOOK_KEYS];
+  for (const key of Object.keys(doc)) if (key !== "$schema" && !keys.includes(key)) problems.push(`${file}: ${key} isn't a theme key (${keys.join(", ")})`);
   const roles = { dark: {} as Record<string, RoleValue>, light: {} as Record<string, RoleValue> };
   for (const mode of THEME_MODES) {
     const given = doc[mode];
@@ -94,7 +96,7 @@ export function parseThemeFile(file: string, text: string, defaults: RolePalette
       else roles[mode][role] = checked.value;
     }
   }
-  return { roles, problems };
+  return { roles, look: parseLookBlocks(file, doc, problems), problems };
 }
 
 export function mergedPalettes(defaults: RolePalettes, roles: ThemeRoles | null, revision: number): BasePalette {
@@ -121,9 +123,9 @@ function modeSchema(mode: ThemeMode, palette: RolePalette): JsonSchema {
 export function themeSchema(defaults: RolePalettes): object {
   return {
     $schema: JSON_SCHEMA_DIALECT,
-    description: "An Ardia theme: colour roles that replace Ardia's own, per appearance",
+    description: "An Ardia theme: colour roles that replace Ardia's own, per appearance, and the type, metrics, layout and icons it draws with",
     type: "object",
-    properties: { $schema: { type: "string" }, dark: modeSchema("dark", defaults.dark), light: modeSchema("light", defaults.light) },
+    properties: { $schema: { type: "string" }, dark: modeSchema("dark", defaults.dark), light: modeSchema("light", defaults.light), ...lookSchemas() },
     additionalProperties: false,
   };
 }

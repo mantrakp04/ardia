@@ -1,9 +1,11 @@
-import { OutsidePressArea, showMenu, Symbol, type MenuItem } from "@ardia/shell";
+import { OutsidePressArea, showMenu, type MenuItem } from "@ardia/shell";
+import { withIconNames } from "../../lib/activeLook";
+import { Symbol } from "./Symbol";
 import { useEffect, useRef, type Ref } from "react";
 import { Animated, Pressable, StyleSheet, Text, TextInput, View, type DimensionValue, type StyleProp, type ViewStyle } from "react-native";
 import { curve, duration } from "./motion";
 import { useTheme } from "./theme";
-import { capsule, opacity, proseLineHeight, radius, space, font as typeScale } from "./tokens";
+import { capsule, monoFace, opacity, perLook, proseLineHeight, radius, space, font as typeScale } from "./tokens";
 import { useHover } from "./useHover";
 
 const SEARCH_KEYS = [{ key: "Escape" }];
@@ -160,7 +162,7 @@ export function TextField({
           onBlur={onBlur}
           keyDownEvents={onEscape ? ESCAPE_KEY : undefined}
           onKeyDown={(e) => e.nativeEvent.key === "Escape" && onEscape?.()}
-          style={[{ ...typeScale.body, color: theme.textPrimary, paddingVertical: 0 }, multiline && MULTILINE_TEXT, mono && MONO]}
+          style={[{ ...typeScale.body, color: theme.textPrimary, paddingVertical: 0 }, multiline && multilineText(), mono && monoFace()]}
         />
       </View>
     </OutsidePressArea>
@@ -168,8 +170,7 @@ export function TextField({
 }
 
 const MULTILINE_HEIGHT = 96;
-const MULTILINE_TEXT = { flex: 1, lineHeight: proseLineHeight.body } as const;
-const MONO = { fontFamily: "Menlo" } as const;
+const multilineText = perLook(() => ({ flex: 1, lineHeight: proseLineHeight.body }));
 
 export type Option<T extends string> = { value: T; title: string; separatorBefore?: boolean };
 
@@ -194,7 +195,7 @@ export function PopUp<T extends string>({
       ...(o.separatorBefore ? [{ separator: true as const }] : []),
       { id: o.value, title: o.title, checked: o.value === value },
     ]);
-    const choice = await showMenu(items);
+    const choice = await showMenu(withIconNames(items));
     if (choice !== null && choice !== value) onChange(choice as T);
   };
   return (

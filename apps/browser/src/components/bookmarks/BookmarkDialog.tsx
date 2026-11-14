@@ -9,9 +9,9 @@ import { useBookmarks } from "../../state/bookmarks/hooks";
 import { currentBookmarkRoots, currentBookmarks } from "../../state/browser/current";
 import { FolderPicker } from "./DialogParts";
 import { bookmarkDialog } from "./tokens";
-import { useAddressBarInSidebar } from "../../state/windows/layout";
 import { useToolbarRow } from "../toolbar/useToolbarRow";
-import { SIDEBAR_HEADER_WITH_FIELD } from "../sidebar/geometry";
+import { useSidebarField } from "../../state/sidebar/chrome";
+import { sidebarHeaderWithField } from "../sidebar/geometry";
 import { useCardFrame } from "../window/cardFrame";
 
 export function BookmarkDialog() {
@@ -22,7 +22,7 @@ export function BookmarkDialog() {
 }
 
 function DialogPanel({ state }: { state: BookmarkDialogState }) {
-  const addressBar = useAddressBarInSidebar();
+  const addressBar = useSidebarField() === "top";
   const sidebarRight = useSidebarSide(state.windowId) === "right";
   const sidebarOpen = useSidebarOpen();
   const sidebarWidth = useSidebarWidth(state.windowId);
@@ -75,8 +75,8 @@ function DialogPanel({ state }: { state: BookmarkDialogState }) {
       place={
         addressBar
           ? sidebarRight
-            ? { top: SIDEBAR_HEADER_WITH_FIELD + bookmarkDialog.belowField, right: layout.sidebarInset }
-            : { top: SIDEBAR_HEADER_WITH_FIELD + bookmarkDialog.belowField, left: layout.sidebarInset }
+            ? { top: sidebarHeaderWithField() + bookmarkDialog.belowField, right: layout.sidebarInset }
+            : { top: sidebarHeaderWithField() + bookmarkDialog.belowField, left: layout.sidebarInset }
           : { top: frame.inset + toolbarHeight - bookmarkDialog.belowToolbar, right: cardRight + bookmarkDialog.rightInset }
       }
     >

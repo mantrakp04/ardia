@@ -1,13 +1,13 @@
 import { memo, type ReactNode } from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
-import { FadeLabel, font, radius, Surface, type SurfaceProps } from "../ui";
+import { FadeLabel, font, lineHeight, perLook, radius, Surface, type SurfaceProps } from "../ui";
 import { hex, layout, useTheme } from "../ui/theme";
 import { useSelectedTabGlow } from "./rowLook";
 import { SELECTED_ROW_SHADOW_OFFSET, SIDEBAR_TYPE, TAB_ROW } from "./tokens";
 
-export const ROW_TITLE_FRAME = { flex: 1, height: TAB_ROW.titleHeight, marginLeft: TAB_ROW.titleGap } as const;
+export const rowTitleFrame = perLook(() => ({ flex: 1, height: Math.max(TAB_ROW.titleHeight, lineHeight.body + 2), marginLeft: TAB_ROW.titleGap }));
 
-const COMPACT_TITLE_FRAME = { flex: 1, height: TAB_ROW.compactTitleHeight, marginLeft: TAB_ROW.titleGap } as const;
+const compactTitleFrame = perLook(() => ({ flex: 1, height: Math.max(TAB_ROW.compactTitleHeight, lineHeight.small + 2), marginLeft: TAB_ROW.titleGap }));
 
 export function SidebarRowSurface({
   fill,
@@ -49,7 +49,8 @@ export function SidebarRowSurface({
 }
 
 export const SidebarRowLabel = memo(function SidebarRowLabel({ text, color, weight, compact = false }: { text: string; color: string; weight?: "medium" | "regular"; compact?: boolean }) {
-  return <FadeLabel text={text} fontSize={compact ? SIDEBAR_TYPE.compact : font.body.fontSize} weight={weight} color={color} style={compact ? COMPACT_TITLE_FRAME : ROW_TITLE_FRAME} />;
+  useTheme();
+  return <FadeLabel text={text} fontSize={compact ? SIDEBAR_TYPE.compact : font.body.fontSize} weight={weight} color={color} style={compact ? compactTitleFrame() : rowTitleFrame()} />;
 });
 
 export function SidebarListRow({ height, fill, padRight = 0, style, children }: { height: number; fill?: string; padRight?: number; style?: StyleProp<ViewStyle>; children: ReactNode }) {

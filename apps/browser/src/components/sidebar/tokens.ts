@@ -90,7 +90,11 @@ export const AWAY_TITLE = { slashAlpha: 0.45, slashGap: 4, pinnedMaxWidth: "45%"
 
 export const TABULAR_NUMS: ("tabular-nums")[] = ["tabular-nums"];
 
-export const SIDEBAR_TYPE = { compact: font.small.fontSize } as const;
+export const SIDEBAR_TYPE = {
+  get compact() {
+    return font.small.fontSize;
+  },
+};
 
 export function groupTint(color: GroupColor | null | undefined): string | null {
   return color && color !== "none" ? (GROUP_COLORS[color]?.hex ?? null) : null;

@@ -2,6 +2,8 @@ import { configDirectory } from "../../platform/launchConfig";
 import { onConfigChange, readConfigFile, watchConfigFiles, writeConfigSchemas, type ConfigFileRead } from "../../platform/configFolder";
 import { afterFirstWindow } from "../../lib/afterFirstWindow";
 import { mergedPalettes, parseThemeFile, type RolePalettes, type ThemeRoles } from "../../lib/themeFile";
+import { DEFAULT_LOOK, resolveLook, type LookBlocks } from "../../lib/themeLook";
+import { setActiveLook } from "../../lib/activeLook";
 import { useBrowser } from "../browser/store";
 import { showToast } from "../app/toasts";
 import { focusedWindowOf } from "../windows/ui";
@@ -18,10 +20,13 @@ const READ_PROBLEMS: Record<Exclude<ConfigFileRead["status"], "ok" | "missing">,
   unreadable: "can't be read",
 };
 
-type Theme = { name: string | null; roles: ThemeRoles | null };
+type ThemeParts = { roles: ThemeRoles | null; look: LookBlocks | null };
+type Theme = ThemeParts & { name: string | null };
+
+const NO_THEME: ThemeParts = { roles: null, look: null };
 
 let defaults: RolePalettes | null = null;
-let theme: Theme = { name: null, roles: null };
+let theme: Theme = { name: null, ...NO_THEME };
 let revision = 0;
 let windowsUp = false;
 let reported = new Set<string>();
@@ -29,35 +34,47 @@ let unshown: string[] = [];
 let watching: string | null | undefined;
 let schemas: Record<string, string> | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
-const lastGoodThemes = new Map<string, ThemeRoles>();
+const lastGoodThemes = new Map<string, ThemeParts>();
 
 const themeFile = (name: string) => `themes/${name}.json`;
 
-function readTheme(name: string | null, problems: string[]): ThemeRoles | null {
-  if (!name || !defaults) return null;
+function readTheme(name: string | null, problems: string[]): ThemeParts {
+  if (!name || !defaults) return NO_THEME;
   const file = themeFile(name);
   const read = readConfigFile(file);
   if (read.status === "missing") {
     problems.push(`${CONFIG_FILE}: theme ${name} has no file ${file}`);
-    return null;
+    return NO_THEME;
   }
   if (read.status !== "ok") {
     problems.push(`${file}: ${READ_PROBLEMS[read.status]}`);
-    return lastGoodThemes.get(name) ?? null;
+    return lastGoodThemes.get(name) ?? NO_THEME;
   }
   const parsed = parseThemeFile(file, read.text, defaults);
   problems.push(...parsed.problems);
-  if (!parsed.roles) return lastGoodThemes.get(name) ?? null;
-  lastGoodThemes.set(name, parsed.roles);
-  return parsed.roles;
+  if (!parsed.roles) return lastGoodThemes.get(name) ?? NO_THEME;
+  const parts = { roles: parsed.roles, look: parsed.look };
+  lastGoodThemes.set(name, parts);
+  return parts;
+}
+
+function applySidebarWidth(before: number | null, after: number | null) {
+  if (!windowsUp || after === null || after === before) return;
+  const width = Math.round(after);
+  if (useBrowser.getState().settings.sidebarWidth !== width) useBrowser.getState().updateSettings({ sidebarWidth: width });
 }
 
 function applyTheme(next: Theme) {
   if (!defaults) return;
-  if (next.name === theme.name && JSON.stringify(next.roles) === JSON.stringify(theme.roles)) return;
+  if (next.name === theme.name && JSON.stringify([next.roles, next.look]) === JSON.stringify([theme.roles, theme.look])) return;
+  const before = useBasePalette.getState().look;
+  const look = resolveLook(next.look);
   theme = next;
   revision += 1;
-  useBasePalette.setState({ palette: next.roles ? mergedPalettes(defaults, next.roles, revision) : null, theme: next.name });
+  setActiveLook(look);
+  const themed = next.roles || look !== DEFAULT_LOOK;
+  useBasePalette.setState({ palette: themed ? mergedPalettes(defaults, next.roles, revision) : null, theme: next.name, look, blocks: next.look });
+  applySidebarWidth(before.sidebarWidth, look.sidebarWidth);
 }
 
 function showProblems() {
@@ -97,7 +114,7 @@ export function reconcileConfig() {
     if (Object.keys(config.patch).length) useBrowser.getState().updateSettings(config.patch);
     if (config.theme !== undefined) name = config.theme;
   }
-  applyTheme({ name, roles: readTheme(name, problems) });
+  applyTheme({ name, ...readTheme(name, problems) });
   report(problems);
   if (watching !== undefined) watchNames();
 }
@@ -140,12 +157,13 @@ export function resetConfigFilesForTests() {
   clearTimeout(timer);
   timer = undefined;
   defaults = null;
-  theme = { name: null, roles: null };
+  theme = { name: null, ...NO_THEME };
   windowsUp = false;
   reported = new Set();
   unshown = [];
   watching = undefined;
   schemas = null;
   lastGoodThemes.clear();
-  useBasePalette.setState({ palette: null, theme: null });
+  setActiveLook(DEFAULT_LOOK);
+  useBasePalette.setState({ palette: null, theme: null, look: DEFAULT_LOOK, blocks: null });
 }

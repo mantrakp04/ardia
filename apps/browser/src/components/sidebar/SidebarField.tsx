@@ -10,9 +10,13 @@ const FIELD_BORDER = StyleSheet.hairlineWidth;
 const FIELD_BUTTON_BOX = 24;
 const FIELD_BUTTON = {
   box: FIELD_BUTTON_BOX,
-  inset: (SIDEBAR_FIELD.height - FIELD_BUTTON_BOX) / 2,
-  radius: concentric(SIDEBAR_FIELD.radius, (SIDEBAR_FIELD.height - FIELD_BUTTON_BOX) / 2),
-} as const;
+  get inset() {
+    return (SIDEBAR_FIELD.height - FIELD_BUTTON_BOX) / 2;
+  },
+  get radius() {
+    return concentric(SIDEBAR_FIELD.radius, (SIDEBAR_FIELD.height - FIELD_BUTTON_BOX) / 2);
+  },
+};
 
 export const SidebarFieldFill = memo(function SidebarFieldFill({
   hovered,

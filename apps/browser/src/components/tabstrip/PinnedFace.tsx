@@ -7,7 +7,7 @@ import { TileUnread } from "../unread/UnreadBadge";
 import { DockSelection } from "../ui";
 import { GlassFill, useGlass } from "../ui/Glass";
 import { useTheme } from "../ui/theme";
-import { ITEM_HEIGHT, PINNED_CELL, PINNED_FACE_INSET, PINNED_FACE_RADIUS, PINNED_RING_STROKE } from "./tokens";
+import { ITEM_HEIGHT, PINNED_CELL, PINNED_FACE_INSET, pinnedFaceRadius, PINNED_RING_STROKE } from "./tokens";
 
 export function PinnedFace({ tabId, active, hovered, pressed }: { tabId: string; active: boolean; hovered: boolean; pressed: boolean }) {
   const theme = useTheme();
@@ -22,14 +22,14 @@ export function PinnedFace({ tabId, active, hovered, pressed }: { tabId: string;
     <View style={{ width: PINNED_CELL, height: ITEM_HEIGHT - 1, alignItems: "center", justifyContent: "center" }}>
       {glassRing ? (
         <View style={face}>
-          <GlassFill radius={PINNED_FACE_RADIUS} state={pressed ? "pressed" : "active"} />
+          <GlassFill radius={pinnedFaceRadius()} state={pressed ? "pressed" : "active"} />
           <DockSelection
             image={tileTheme?.image}
             emoji={tileTheme?.emoji}
             theme={tileTheme?.theme.kind}
             fill={tileTheme?.theme.kind === "template" ? tileTheme.theme.fill : undefined}
             stroke={tileTheme?.theme.kind === "template" ? tileTheme.theme.stroke : undefined}
-            cornerRadius={PINNED_FACE_RADIUS}
+            cornerRadius={pinnedFaceRadius()}
             strokeWidth={PINNED_RING_STROKE}
             dark={theme.dark}
             glass
@@ -39,13 +39,13 @@ export function PinnedFace({ tabId, active, hovered, pressed }: { tabId: string;
         </View>
       ) : glass && (hovered || pressed) ? (
         <View style={face}>
-          <GlassFill radius={PINNED_FACE_RADIUS} state={pressed ? "pressed" : "lit"} />
+          <GlassFill radius={pinnedFaceRadius()} state={pressed ? "pressed" : "lit"} />
         </View>
       ) : (active || hovered || pressed) && (
         <View
           style={{
             ...face,
-            borderRadius: PINNED_FACE_RADIUS,
+            borderRadius: pinnedFaceRadius(),
             backgroundColor: pressed ? theme.tabPressed : active ? theme.pinnedSelectedFill : theme.tabHover,
           }}
         />

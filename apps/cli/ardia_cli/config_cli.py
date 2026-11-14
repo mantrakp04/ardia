@@ -1,3 +1,4 @@
+import copy
 import json
 import math
 import os
@@ -9,7 +10,7 @@ from pathlib import Path
 from ardia_cli import config_files as files
 from ardia_cli.config_files import ConfigError, Places
 from ardia_cli.printable import complain, say
-from ardia_cli.schema_check import Problem, describe, did_you_mean, show, validate
+from ardia_cli.schema_check import Problem, describe, did_you_mean, ecma_pattern, format_path, show, validate
 
 CONFIG_DESCRIPTION = """\
 Set Ardia up from ~/.config/ardia/config.json, dotfiles style. Ardia reads the file at launch and whenever it
@@ -33,14 +34,17 @@ Commands:
 Exit status: 0 done, 1 a check failed or the input is wrong.
 """
 THEME_DESCRIPTION = """\
-Themes are colour overrides in <config folder>/themes/NAME.json, with a "dark" and a "light" block of colour
-roles. config.json's "theme" picks one; editing the active theme restyles Ardia at once.
+Themes live in <config folder>/themes/NAME.json: a "dark" and a "light" block of colour roles, and "type"
+(fonts, text sizes, weights), "metrics" (row heights, sidebar width, corner radii), "layout" (sidebar parts to
+hide or move) and "icons" (SF Symbols to swap). Every key is optional; a block left out is Ardia's own look.
+config.json's "theme" picks one; saving the active theme restyles Ardia at once.
 
 Colours: #RGB, #RRGGBB, #RRGGBBAA, rgb(r,g,b) or rgba(r,g,b,a) (r, g, b 0-255, a 0-1). grain and the ...Opacity
-roles take numbers 0-1, the ...Radius roles 0-100, tabSelectedBorder a list of two colours.
+roles take numbers 0-1, the ...Radius roles 0-100, tabSelectedBorder a list of two colours. Ranges and defaults
+for the other blocks are in theme.schema.json; ardia theme check reports each bad key in Ardia's words.
 
 Commands:
-  new NAME [--from THEME]   write themes/NAME.json with every role (never overwrites)
+  new NAME [--from THEME]   write themes/NAME.json with every role and look key (never overwrites)
   use NAME|none             make NAME the active theme, or go back to Ardia's own
   list                      the themes, the active one marked
   check [NAME|FILE]         check a theme (default: the active one)
@@ -70,6 +74,68 @@ COLOUR = re.compile(
     rf"|rgb\({CHANNEL},{CHANNEL},{CHANNEL}\)|rgba\({CHANNEL},{CHANNEL},{CHANNEL},{ALPHA}\)"
 )
 COLOUR_RULE = "a colour (#RGB, #RRGGBB, #RRGGBBAA, or rgb or rgba with r, g, b from 0 to 255 and a from 0 to 1)"
+FAMILY_RULE = "must be a font family name (1 to 64 characters, no space at either end)"
+SYMBOL_RULE = "an SF Symbol name (lowercase letters, digits and dots)"
+LOOK_NOUNS = {"type.sizes": "text size", "type.weights": "weight", "metrics.radius": "radius"}
+FAMILY_PATTERN = r"^\S(.{0,62}\S)?$"
+SYMBOL_PATTERN = r"^[a-z0-9]+(\.[a-z0-9]+)*$"
+FONT_WEIGHTS = [str(weight) for weight in range(100, 1000, 100)]
+PLACES = ["top", "bottom"]
+CHROME_PARTS = ["pinned", "newTab", "addressField", "navButtons", "sidebarButton", "downloads", "profile"]
+TEXT_SIZES = {"badge": (7, 14, 9), "tiny": (8, 16, 10), "caption": (8, 18, 11), "small": (9, 19, 12), "body": (10, 21, 13), "title": (11, 24, 15), "large": (13, 27, 17)}
+WEIGHT_DEFAULTS = {"regular": "400", "medium": "500", "semibold": "600", "bold": "700"}
+RADIUS_RANGES = {"row": (0, 24, 10), "pinned": (0, 24, 10), "tile": (0, 24, 8), "control": (0, 12, 4), "toolbar": (0, 24, 7), "panel": (0, 28, 12), "sheet": (0, 32, 16)}
+NO_DEFAULT = object()
+
+
+def number_spec(low, high, default=None) -> dict:
+    spec = {"type": "number", "minimum": low, "maximum": high}
+    if default is not None:
+        spec["default"] = default
+    return spec
+
+
+def block_spec(properties: dict) -> dict:
+    return {"type": "object", "properties": properties, "additionalProperties": False}
+
+
+def family_spec(default=None) -> dict:
+    spec = {"type": "string", "pattern": FAMILY_PATTERN}
+    if default is not None:
+        spec["default"] = default
+    return spec
+
+
+def place_spec(default=None) -> dict:
+    spec = {"type": "string", "enum": PLACES}
+    if default is not None:
+        spec["default"] = default
+    return spec
+
+
+SYMBOL_NAME = {"type": "string", "pattern": SYMBOL_PATTERN}
+BUILT_IN_LOOK = {
+    "type": block_spec({
+        "family": family_spec(),
+        "mono": family_spec("Menlo"),
+        "scale": number_spec(0.85, 1.3, 1),
+        "sizes": block_spec({name: number_spec(*span) for name, span in TEXT_SIZES.items()}),
+        "weights": block_spec({name: {"enum": FONT_WEIGHTS + [int(w) for w in FONT_WEIGHTS], "default": weight} for name, weight in WEIGHT_DEFAULTS.items()}),
+    }),
+    "metrics": block_spec({
+        "rowHeight": number_spec(24, 56, 34),
+        "rowGap": number_spec(0, 12, 3),
+        "pinnedHeight": number_spec(28, 72, 41),
+        "sidebarWidth": number_spec(160, 400),
+        "radius": block_spec({name: number_spec(*span) for name, span in RADIUS_RANGES.items()}),
+    }),
+    "layout": block_spec({
+        "hide": {"type": "array", "items": {"type": "string", "enum": CHROME_PARTS}, "default": []},
+        "addressField": place_spec("top"),
+        "newTab": place_spec(),
+    }),
+    "icons": {"type": "object", "propertyNames": SYMBOL_NAME, "additionalProperties": SYMBOL_NAME, "default": {}},
+}
 
 
 def add_parsers(commands, formatter):
@@ -97,7 +163,7 @@ def add_parsers(commands, formatter):
     check = command("check", "check config.json and the theme it names", "Check config.json and the theme it names, the way Ardia reads them. Exit 1 on any problem.")
     check.add_argument("--json", action="store_true", help="print JSON")
 
-    theme = commands.add_parser("theme", help="make, pick and check colour themes", description=THEME_DESCRIPTION, formatter_class=formatter)
+    theme = commands.add_parser("theme", help="make, pick and check themes", description=THEME_DESCRIPTION, formatter_class=formatter)
     tsub = theme.add_subparsers(dest="theme_command", metavar="<command>")
 
     def theme_command(name, help_text, description=None):
@@ -105,7 +171,7 @@ def add_parsers(commands, formatter):
         parser.add_argument("--data-dir", metavar="DIR", help=DATA_DIR_HELP)
         return parser
 
-    new = theme_command("new", "write themes/NAME.json with every colour role", "Write themes/NAME.json with every dark and light colour role, from Ardia's defaults or from another\ntheme. Names use lowercase letters, digits, - and _. It never overwrites a file.")
+    new = theme_command("new", "write themes/NAME.json with every colour role and look key", "Write themes/NAME.json with every dark and light colour role and the type, metrics, layout and icons\nblocks, from Ardia's defaults or from another theme (its values win, key by key). Names use lowercase\nletters, digits, - and _. It never overwrites a file.")
     new.add_argument("name", metavar="NAME", help="the theme's name")
     new.add_argument("--from", dest="source", metavar="THEME", help="start from this theme instead of Ardia's defaults")
     use = theme_command("use", "make a theme the active one", "Set theme in config.json (created first if needed). none goes back to Ardia's own palette.")
@@ -494,13 +560,132 @@ def role_problem(role: str, value, kind: str, spec=None) -> str | None:
     return "must be a number" if span is None else f"must be a number from {show(span[0])} to {show(span[1])}"
 
 
+def look_specs(schema: dict | None) -> dict:
+    if schema is None:
+        return BUILT_IN_LOOK
+    properties = schema.get("properties") if isinstance(schema.get("properties"), dict) else {}
+    return {key: spec for key, spec in properties.items() if key != "$schema" and key not in files.MODES and isinstance(spec, dict)}
+
+
+def theme_keys(schema: dict | None) -> list[str]:
+    return list(files.MODES) + list(look_specs(schema))
+
+
+def as_js_value(value):
+    if isinstance(value, float) and math.isfinite(value) and value.is_integer():
+        return int(value)
+    return value
+
+
+def js_text(value) -> str:
+    return json.dumps(as_js_value(value), ensure_ascii=False, separators=(",", ":"))
+
+
+def js_pattern(spec) -> re.Pattern | None:
+    pattern = spec.get("pattern") if isinstance(spec, dict) else None
+    return re.compile(ecma_pattern(pattern).pattern) if isinstance(pattern, str) else None
+
+
+def matches(pattern: re.Pattern | None, value) -> bool:
+    return isinstance(value, str) and (pattern is None or pattern.search(value) is not None)
+
+
+def look_problems(spec: dict, value, path: tuple) -> list[Problem]:
+    name = format_path(path)
+    kind = spec.get("type")
+    properties = spec.get("properties")
+    if isinstance(properties, dict):
+        if not isinstance(value, dict):
+            return [Problem(path, f"{name} must be an object")]
+        problems = []
+        noun = LOOK_NOUNS.get(name, path[-1])
+        for key, given in value.items():
+            sub = properties.get(key)
+            if not isinstance(sub, dict):
+                problems.append(Problem(path + (key,), f"{name}.{key} isn't a {noun} key ({', '.join(properties)}){did_you_mean(key, properties)}"))
+                continue
+            problems += look_problems(sub, given, path + (key,))
+        return problems
+    if kind == "object":
+        if not isinstance(value, dict):
+            return [Problem(path, f"{name} must be an object of SF Symbol names")]
+        names, replacements = js_pattern(spec.get("propertyNames")), js_pattern(spec.get("additionalProperties"))
+        problems = []
+        for key, given in value.items():
+            if not matches(names, key):
+                problems.append(Problem(path + (key,), f"{name} has {js_text(key)}, which isn't {SYMBOL_RULE}"))
+            elif not matches(replacements, given):
+                problems.append(Problem(path + (key,), f"{name}.{key} must be {SYMBOL_RULE}"))
+        return problems
+    if kind == "array":
+        items = spec.get("items") if isinstance(spec.get("items"), dict) else {}
+        parts = [p for p in items.get("enum", []) if isinstance(p, str)]
+        listed = ", ".join(parts)
+        if not isinstance(value, list):
+            return [Problem(path, f"{name} must be a list of parts ({listed})")]
+        return [Problem(path, f"{name} has {js_text(item)}, which isn't a part ({listed})") for item in value if not (isinstance(item, str) and item in parts)]
+    if kind == "number":
+        low, high = spec.get("minimum"), spec.get("maximum")
+        bounded = is_number(low) and is_number(high)
+        if is_number(value) and math.isfinite(value) and (not bounded or low <= value <= high):
+            return []
+        return [Problem(path, f"{name} must be a number from {show(low)} to {show(high)}" if bounded else f"{name} must be a number")]
+    if kind == "string" and isinstance(spec.get("enum"), list):
+        options = [o for o in spec["enum"] if isinstance(o, str)]
+        return [] if isinstance(value, str) and value in options else [Problem(path, f"{name} must be one of {', '.join(options)}")]
+    if kind == "string":
+        return [] if matches(js_pattern(spec), value) else [Problem(path, f"{name} {FAMILY_RULE}")]
+    if kind is None and isinstance(spec.get("enum"), list):
+        weights = [o for o in spec["enum"] if isinstance(o, str)]
+        weight = str(as_js_value(value)) if is_number(value) else value
+        if isinstance(weight, str) and weight in weights:
+            return []
+        return [Problem(path, f'{name} must be a weight from "{weights[0]}" to "{weights[-1]}" in steps of 100')] if weights else validate(value, spec, path, False)
+    return validate(value, spec, path, False)
+
+
+def look_default(spec: dict):
+    if "default" in spec:
+        return copy.deepcopy(spec["default"])
+    properties = spec.get("properties")
+    if not isinstance(properties, dict):
+        return NO_DEFAULT
+    defaults = {}
+    for key, sub in properties.items():
+        value = look_default(sub) if isinstance(sub, dict) else NO_DEFAULT
+        if value is not NO_DEFAULT:
+            defaults[key] = value
+    return defaults
+
+
+def look_defaults(schema: dict | None) -> dict:
+    defaults = {}
+    for key, spec in look_specs(schema).items():
+        value = look_default(spec)
+        if value is not NO_DEFAULT:
+            defaults[key] = value
+    return defaults
+
+
+def merged(default, given):
+    if not isinstance(default, dict):
+        return copy.deepcopy(given)
+    if not isinstance(given, dict):
+        return default
+    result = dict(default)
+    for key, value in given.items():
+        result[key] = merged(default[key], value) if key in default else copy.deepcopy(value)
+    return result
+
+
 def theme_problems(document, schema: dict | None) -> list[Problem]:
     if not isinstance(document, dict):
         return [Problem((), "must be an object")]
     problems = []
+    keys = theme_keys(schema)
     for key in document:
-        if key not in ("$schema",) + files.MODES:
-            problems.append(Problem((key,), f"{key} isn't a theme key (dark, light){did_you_mean(key, files.MODES)}"))
+        if key != "$schema" and key not in keys:
+            problems.append(Problem((key,), f"{key} isn't a theme key ({', '.join(keys)}){did_you_mean(key, keys)}"))
     for mode in files.MODES:
         if mode not in document:
             continue
@@ -523,6 +708,9 @@ def theme_problems(document, schema: dict | None) -> list[Problem]:
             problem = role_problem(role, value, kind, spec)
             if problem:
                 problems.append(Problem(path, f"{mode}.{role} {problem}"))
+    for key, spec in look_specs(schema).items():
+        if key in document:
+            problems += look_problems(spec, document[key], (key,))
     return problems
 
 
@@ -616,6 +804,8 @@ def theme_new(args, where: Places) -> int:
         for role, value in given.items():
             roles.setdefault(role, value)
         document[mode] = roles
+    for key, default in look_defaults(schema.document).items():
+        document[key] = merged(default, source[key]) if key in source else default
     for key, value in source.items():
         if key not in document:
             document[key] = value
