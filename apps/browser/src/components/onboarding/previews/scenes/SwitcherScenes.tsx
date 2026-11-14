@@ -2,7 +2,7 @@ import { Animated, View } from "react-native";
 import { CRUMB_X, FIELD, fill, rowY, SIDEBAR_W, sideCard, TOOLBAR_H } from "../geometry";
 import { NEW_TAB, tab, TRIP } from "../content";
 import { tracker } from "../timeline";
-import { Card, SidebarField, TabRow, Toolbar } from "../Kit";
+import { Card, TabRow, Toolbar } from "../Kit";
 import { Page } from "../MockPages";
 import { MockSwitcher, switcherLevels } from "../Switcher";
 import { sceneMs } from "../tokens";
@@ -37,15 +37,8 @@ export function switcher(icons: boolean): Scene {
     );
     return (
       <>
-        <Chrome g={g} look={look} opts={opts} />
-        {field ? (
-          <>
-            <SidebarField g={g} look={look} t={tab(0)}>
-              <View />
-            </SidebarField>
-            <SwapCrumb g={g} look={look} t={t} a={tab(0)} b={tab(2)} ms={SWITCH_AT} x={FIELD.x + 12} y={FIELD.y + 8} />
-          </>
-        ) : null}
+        <Chrome g={g} look={look} opts={opts} field={<View />} />
+        {field ? <SwapCrumb g={g} look={look} t={t} a={tab(0)} b={tab(2)} ms={SWITCH_AT} x={FIELD.x + 12} y={FIELD.y + 8} /> : null}
         <Animated.View style={[fill, { opacity: t.out(SWITCH_AT, SETTLE), transform: [{ translateX: t([[SWITCH_AT, 0], [SWITCH_AT + SETTLE, -slide]]) }] }]}>
           {rows(FIRST)}
         </Animated.View>
