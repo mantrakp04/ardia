@@ -113,6 +113,75 @@ says what happened, and no tab or removed visit is lost or shows up twice.
 - **Scanning the phrase.** The Compose app scans the Mac's QR code with CameraX and ZXing in Compose. The Expo
   screens should scan in JavaScript (expo-camera reads QR codes) and pass the text to `sync.connect`.
 
+## System entry points on Android
+
+The Expo app has the Compose app's entry points (`docs/android.md`), from its own code where it can be shared.
+- **Links.** `MainActivity` hands every intent to `PhoneSystemLinks` (`@ardia/phone-native`), which maps it to
+  a `SystemLink` with the Compose app's `SystemLink` parser and queues it until the app listens
+  (`system.initialLink()`, `system.addLinkListener`). http and https `VIEW` (default browser) is `open`, source
+  `web`; `ardia://` from widgets and the tile is its kind, source `system`, and from launcher shortcuts, source
+  `shortcut`; `WEB_SEARCH` and `PROCESS_TEXT` (Search in Ardia on selected text) search, or open a web
+  address, source `intent`; `SEND` text opens its first link or searches the text, source `share`. A link is
+  delivered once, not again on recreate or from Recents. `system.setHidesFromRecents(hidden)` is the Compose
+  app's Recents screenshot and `FLAG_SECURE` handling, for the screens to call while a private tab shows.
+- **Default browser.** `defaultBrowser` uses the Compose app's `AndroidSystemActions` (`RoleManager.ROLE_BROWSER`).
+- **Tile, widgets and shortcuts.** The Compose app's `SearchTileService`, Glance widgets (Search, Your Mac's Tabs)
+  and `SystemSnapshots` compile in place in the Expo app, with its `res-system` resources and a small
+  `ardia-design` library for `ProfileLook`, `Monogram` and `Colors`. `SystemExport` writes the widgets'
+  snapshot from the wrapped sync controller, as the Compose app does; demo mode feeds no widgets.
+- **Not ported.** The share sheet's Send to Your Mac (sharing opens the page in Ardia instead), and the Color
+  setting's tint of the widgets.
+- **Files.** A file request carries `offersPhoto`, `offersVideo` and `capturesDirectly` (the Compose app's
+  `FileChooserPlan`); the answers `takePhoto` and `recordVideo` capture through the shared capture provider.
+- **Open App Links In.** A global default (`pages.appLinksDefault`, `setAppLinksDefault`) with each site on,
+  off or following it (`setOpensLinksInApps(host, null)`).
+
+#### Entry points tester script (lab build)
+
+`P=com.ardia.browser.android/.MainActivity`. Open the lab
+(`adb shell am start -n $P --ez com.ardia.phone.PAGE_LAB true`), tap System, and watch
+`adb logcat -s ReactNativeJS:I | grep "PAGELAB system"`. Each command should print one `PAGELAB system link`
+line with the kind and source shown, and nothing else.
+
+1. **Web link:** `adb shell am start -a android.intent.action.VIEW -d https://example.com/a -n $P`: open, web.
+2. **Ardia links:** the same with `-d ardia://search?q=otters` (search, query otters), `ardia://voice`
+   (voiceSearch), `ardia://incognito`, `ardia://mac-tabs` (macTabs), `ardia://tab/t1` (tab, id t1),
+   `ardia://open?url=https%3A%2F%2Fexample.com%2F` (open), `ardia://inbox`: each with source system.
+3. **Shortcuts:** long-press the app icon: Search, Voice Search, Incognito Tab, Synced Tabs each give their kind
+   with source shortcut.
+4. **Web search:** `adb shell am start -a android.intent.action.WEB_SEARCH --es query "red pandas" -n $P`:
+   search, intent. With `--es query https://example.com/`: open.
+5. **Selected text:** select words in any app, choose Search in Ardia: search with the words, intent. Or
+   `adb shell am start -a android.intent.action.PROCESS_TEXT -t text/plain --es android.intent.extra.PROCESS_TEXT "two words" -n $P`.
+6. **Share:** share a page from another app and pick Ardia: open, share. Or
+   `adb shell am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT "Look https://example.com/b." -n $P`
+   (open https://example.com/b) and with `"just words"` (search).
+7. **Once only:** after a link, go to Recents and back to Ardia, and rotate if the screen allows: no new line.
+8. **Cold start:** force-stop the app, then run step 1 with `--ez com.ardia.phone.PAGE_LAB true` added: open
+   System; the initial link line shows the link.
+9. **Default browser:** the status line shows isDefault and canAsk; Request role shows the system dialog and
+   the line follows the answer; Default apps settings opens the settings page.
+   `adb shell cmd role get-role-holders android.app.role.BROWSER` agrees. With Ardia as the default, step 1
+   without `-n` opens Ardia directly.
+10. **Recents:** Hide from Recents, then open Recents: Ardia's card is blank. Show in Recents restores it.
+11. **Quick Settings tile:** add Ardia's Search tile; tapping it opens Ardia with a search link (system). With
+    the phone locked it asks to unlock first.
+12. **Widgets:** add Search and Your Mac's Tabs from the launcher's widget picker. Search: the field gives
+    search, the mic gives voiceSearch. Your Mac's Tabs with sync off: "Sync With Your Mac"; with real sync
+    connected, the Mac's tabs within a cycle, and a row opens its page (open, system). Dark mode switches the
+    Search widget's backdrop.
+13. **Take Photo and Record Video:** load
+    `data:text/html,<input type=file accept=image/*><input type=file accept=video/* capture>` in the lab and
+    tap each input: the request line shows photo/video/direct; Take photo asks for the camera once, opens the
+    camera, and the page gets the picture; the second input (capture) records video.
+14. **Desktop Site on the POCO F4** (it failed there on `sync3`): Desktop on for google.com, github.com,
+    wikipedia.org and bbc.com. The `PAGELAB desktop` lines should show `switched on`, then `pageFinished` at
+    the tag's scale (visualViewport.scale about 0.38, not 1.0000) with no visible jump, and each page fitting
+    the width. GitHub at 980 px shows its narrow layout, as Chrome's desktop mode does on phones.
+15. **Sync, demo mode:** Stop Syncing turns the demo off (the card and the deck show the disconnected state);
+    the next demo launch is on again. A rename shows in the devices list; Pin to Mac fills the star. Damage inbox
+    in the Sync section sets `inboxProblem` and the app shows its notice.
+
 ## Build and run
 
 ```

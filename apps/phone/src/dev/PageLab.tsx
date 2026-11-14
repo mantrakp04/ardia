@@ -246,12 +246,15 @@ function Lab() {
         <View style={styles.panel}>
           <Text style={styles.status}>
             {request.request.kind}: {request.request.title} {request.request.message ?? ""}
+            {request.request.kind === "fileChooser" ? ` · photo ${request.request.offersPhoto} · video ${request.request.offersVideo} · direct ${request.request.capturesDirectly}` : ""}
           </Text>
           <Row>
             <Button label="Accept" onPress={() => answer({ type: "accept" })} />
             <Button label="Dismiss" onPress={() => answer({ type: "dismiss" })} />
             <Button label="Answer text" onPress={() => answer({ type: "text", text: "from lab" })} />
             <Button label="Pick files" onPress={() => answer({ type: "pickFiles" })} />
+            <Button label="Take photo" onPress={() => answer({ type: "takePhoto" })} />
+            <Button label="Record video" onPress={() => answer({ type: "recordVideo" })} />
           </Row>
         </View>
       )}
