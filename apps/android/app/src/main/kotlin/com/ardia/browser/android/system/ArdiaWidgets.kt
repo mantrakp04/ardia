@@ -47,15 +47,12 @@ import androidx.glance.semantics.semantics
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import androidx.glance.color.ColorProvider as DayNightColorProvider
 import androidx.glance.unit.ColorProvider
 import com.ardia.appmodel.SystemLink
 import com.ardia.browser.android.R
 import com.ardia.browser.android.SystemIntents
 import com.ardia.design.Monogram
 import com.ardia.design.ProfileLook
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 object ArdiaWidgets {
     suspend fun refreshSearch(context: Context) {
@@ -91,12 +88,6 @@ object ArdiaWidgets {
         return bitmap
     }
 
-    val label = DayNightColorProvider(day = Color.Black, night = Color.White)
-    val secondaryLabel = DayNightColorProvider(day = Color(0x993C3C43), night = Color(0x99EBEBF5))
-    val accent = DayNightColorProvider(day = Color(0xFF007AFF), night = Color(0xFF0A84FF))
-    val monogramFill = DayNightColorProvider(day = Color(0x14787880), night = Color(0x29787880))
-    val inkOnLightBackdrop = Color(0xE60E0F10)
-
     const val BACKDROP_WIDTH = 120
     const val BACKDROP_HEIGHT = 120
 }
@@ -105,12 +96,7 @@ class SearchWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Responsive(setOf(SMALL, MEDIUM))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val snapshot = withContext(Dispatchers.IO) { SystemStore.shared(context).loadSnapshot() }
-        val dark = ArdiaWidgets.isDark(context)
-        val look = snapshot.look
-        val backdrop = ArdiaWidgets.backdrop(look, dark, themed = true, softened = false)
-        val inkIsLight = look.inkIsLight(dark, themed = true)
-        provideContent { SearchWidgetContent(backdrop, inkIsLight) }
+        provideContent { SearchWidgetContent() }
     }
 
     companion object {
@@ -120,12 +106,16 @@ class SearchWidget : GlanceAppWidget() {
 }
 
 @Composable
-private fun SearchWidgetContent(backdrop: Bitmap, inkIsLight: Boolean) {
+private fun SearchWidgetContent() {
     val context = LocalContext.current
     val isSmall = LocalSize.current.width < SearchWidget.MEDIUM.width
-    val ink = if (inkIsLight) Color.White else ArdiaWidgets.inkOnLightBackdrop
+    val look = SystemStore.shared(context).loadSnapshot().look
+    val dark = ArdiaWidgets.isDark(context)
+    val colors = WidgetColors.of(look, dark, themed = true)
+    val backdrop = ArdiaWidgets.backdrop(look, dark, themed = true, softened = false)
+    val ink = colors.ink
     val inkProvider = ColorProvider(ink)
-    val capsule = ColorProvider(ink.copy(alpha = 0.08f))
+    val capsule = ColorProvider(colors.capsule)
     Box(GlanceModifier.fillMaxSize().background(ImageProvider(backdrop)).cornerRadius(26.dp)) {
         Column(GlanceModifier.fillMaxSize().padding(16.dp)) {
             Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
@@ -144,7 +134,8 @@ private fun SearchWidgetContent(backdrop: Bitmap, inkIsLight: Boolean) {
                     GlanceModifier
                         .defaultWeight()
                         .height(44.dp)
-                        .background(ImageProvider(R.drawable.widget_capsule), colorFilter = ColorFilter.tint(capsule))
+                        .background(capsule)
+                        .cornerRadius(22.dp)
                         .padding(horizontal = 14.dp)
                         .clickable(ArdiaWidgets.open(context, SystemLink.Search(null)))
                         .semantics { contentDescription = context.getString(R.string.widget_search) },
@@ -168,7 +159,8 @@ private fun SearchWidgetContent(backdrop: Bitmap, inkIsLight: Boolean) {
                     Box(
                         GlanceModifier
                             .size(44.dp)
-                            .background(ImageProvider(R.drawable.widget_circle), colorFilter = ColorFilter.tint(capsule))
+                            .background(capsule)
+                            .cornerRadius(22.dp)
                             .clickable(ArdiaWidgets.open(context, SystemLink.VoiceSearch))
                             .semantics { contentDescription = context.getString(R.string.widget_voice_search) },
                         contentAlignment = Alignment.Center,
@@ -190,19 +182,7 @@ class MacTabsWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Responsive(setOf(MEDIUM, LARGE))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val store = SystemStore.shared(context)
-        val snapshot = withContext(Dispatchers.IO) { store.loadSnapshot() }
-        val icons = withContext(Dispatchers.IO) {
-            snapshot.macTabs.flatMap { it.tabs }.mapNotNull { tab ->
-                val name = tab.favicon ?: return@mapNotNull null
-                val file = store.favicon(name)
-                if (!file.isFile) return@mapNotNull null
-                BitmapFactory.decodeFile(file.path)?.let { name to it }
-            }.toMap()
-        }
-        val look = snapshot.look
-        val backdrop = ArdiaWidgets.backdrop(look, ArdiaWidgets.isDark(context), themed = false, softened = true)
-        provideContent { MacTabsWidgetContent(snapshot, icons, backdrop) }
+        provideContent { MacTabsWidgetContent() }
     }
 
     companion object {
@@ -229,13 +209,24 @@ class MacTabsWidget : GlanceAppWidget() {
 }
 
 @Composable
-private fun MacTabsWidgetContent(snapshot: SystemSnapshot, icons: Map<String, Bitmap>, backdrop: Bitmap) {
+private fun MacTabsWidgetContent() {
     val context = LocalContext.current
+    val store = SystemStore.shared(context)
+    val snapshot = store.loadSnapshot()
+    val icons = snapshot.macTabs.flatMap { it.tabs }.mapNotNull { tab ->
+        val name = tab.favicon ?: return@mapNotNull null
+        val file = store.favicon(name)
+        if (!file.isFile) return@mapNotNull null
+        BitmapFactory.decodeFile(file.path)?.let { name to it }
+    }.toMap()
+    val dark = ArdiaWidgets.isDark(context)
+    val colors = WidgetColors.of(snapshot.look, dark, themed = false)
+    val backdrop = ArdiaWidgets.backdrop(snapshot.look, dark, themed = false, softened = true)
     val large = LocalSize.current.height >= MacTabsWidget.LARGE.height
     Box(GlanceModifier.fillMaxSize().background(ImageProvider(backdrop)).cornerRadius(26.dp).padding(16.dp)) {
         when {
-            !snapshot.isSyncEnabled -> MacTabsEmpty(R.string.widget_mac_tabs_sync_title, R.string.widget_mac_tabs_sync_message, R.drawable.ic_shortcut_mac_tabs, large)
-            !snapshot.hasMacTabs -> MacTabsEmpty(R.string.widget_mac_tabs_empty_title, R.string.widget_mac_tabs_empty_message, R.drawable.ic_shortcut_mac_tabs, large)
+            !snapshot.isSyncEnabled -> MacTabsEmpty(R.string.widget_mac_tabs_sync_title, R.string.widget_mac_tabs_sync_message, R.drawable.ic_shortcut_mac_tabs, large, colors)
+            !snapshot.hasMacTabs -> MacTabsEmpty(R.string.widget_mac_tabs_empty_title, R.string.widget_mac_tabs_empty_message, R.drawable.ic_shortcut_mac_tabs, large, colors)
             else -> Column(GlanceModifier.fillMaxSize()) {
                 val sections = MacTabsWidget.sections(snapshot, if (large) MacTabsWidget.LARGE_ROWS else MacTabsWidget.MEDIUM_ROWS, large)
                 sections.forEachIndexed { index, section ->
@@ -248,20 +239,20 @@ private fun MacTabsWidgetContent(snapshot: SystemSnapshot, icons: Map<String, Bi
                             ImageProvider(R.drawable.ic_shortcut_mac_tabs),
                             contentDescription = null,
                             modifier = GlanceModifier.size(14.dp),
-                            colorFilter = ColorFilter.tint(ArdiaWidgets.accent),
+                            colorFilter = ColorFilter.tint(ColorProvider(colors.accent)),
                         )
                         Spacer(GlanceModifier.width(5.dp))
                         Text(
                             section.device.name,
                             maxLines = 1,
                             modifier = GlanceModifier.defaultWeight(),
-                            style = TextStyle(color = ArdiaWidgets.accent, fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                            style = TextStyle(color = ColorProvider(colors.accent), fontSize = 12.sp, fontWeight = FontWeight.Medium),
                         )
                         Image(ImageProvider(R.drawable.ardia_logo_plain), contentDescription = null, modifier = GlanceModifier.size(18.dp, 14.dp))
                     }
                     section.tabs.forEach { tab ->
                         Spacer(GlanceModifier.height(10.dp))
-                        MacTabRow(tab, tab.favicon?.let(icons::get))
+                        MacTabRow(tab, tab.favicon?.let(icons::get), colors)
                     }
                 }
             }
@@ -270,7 +261,7 @@ private fun MacTabsWidgetContent(snapshot: SystemSnapshot, icons: Map<String, Bi
 }
 
 @Composable
-private fun MacTabRow(tab: SystemTab, icon: Bitmap?) {
+private fun MacTabRow(tab: SystemTab, icon: Bitmap?, colors: WidgetColors) {
     val context = LocalContext.current
     Row(
         GlanceModifier.fillMaxWidth().clickable(ArdiaWidgets.open(context, SystemLink.Open(tab.url))),
@@ -279,33 +270,33 @@ private fun MacTabRow(tab: SystemTab, icon: Bitmap?) {
         if (icon != null) {
             Image(ImageProvider(icon), contentDescription = null, modifier = GlanceModifier.size(22.dp).cornerRadius(5.dp))
         } else {
-            Box(GlanceModifier.size(22.dp).background(ArdiaWidgets.monogramFill).cornerRadius(5.dp), contentAlignment = Alignment.Center) {
+            Box(GlanceModifier.size(22.dp).background(ColorProvider(colors.monogramFill)).cornerRadius(5.dp), contentAlignment = Alignment.Center) {
                 Text(
                     Monogram.host(tab.url)?.take(1)?.uppercase().orEmpty(),
-                    style = TextStyle(color = ArdiaWidgets.secondaryLabel, fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                    style = TextStyle(color = ColorProvider(colors.secondaryLabel), fontSize = 12.sp, fontWeight = FontWeight.Medium),
                 )
             }
         }
         Spacer(GlanceModifier.width(10.dp))
         Column(GlanceModifier.defaultWeight()) {
-            Text(tab.displayTitle, maxLines = 1, style = TextStyle(color = ArdiaWidgets.label, fontSize = 15.sp, fontWeight = FontWeight.Medium))
-            tab.host?.let { Text(it, maxLines = 1, style = TextStyle(color = ArdiaWidgets.secondaryLabel, fontSize = 11.sp)) }
+            Text(tab.displayTitle, maxLines = 1, style = TextStyle(color = ColorProvider(colors.label), fontSize = 15.sp, fontWeight = FontWeight.Medium))
+            tab.host?.let { Text(it, maxLines = 1, style = TextStyle(color = ColorProvider(colors.secondaryLabel), fontSize = 11.sp)) }
         }
     }
 }
 
 @Composable
-private fun MacTabsEmpty(title: Int, message: Int, icon: Int, large: Boolean) {
+private fun MacTabsEmpty(title: Int, message: Int, icon: Int, large: Boolean, colors: WidgetColors) {
     val context = LocalContext.current
     Column(GlanceModifier.fillMaxSize().clickable(ArdiaWidgets.open(context, SystemLink.MacTabs))) {
         Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Image(ImageProvider(icon), contentDescription = null, modifier = GlanceModifier.size(26.dp), colorFilter = ColorFilter.tint(ArdiaWidgets.accent))
+            Image(ImageProvider(icon), contentDescription = null, modifier = GlanceModifier.size(26.dp), colorFilter = ColorFilter.tint(ColorProvider(colors.accent)))
             Spacer(GlanceModifier.defaultWeight())
             Image(ImageProvider(R.drawable.ardia_logo), contentDescription = null, modifier = GlanceModifier.size(32.dp, 26.dp))
         }
         Spacer(GlanceModifier.defaultWeight())
-        Text(context.getString(title), style = TextStyle(color = ArdiaWidgets.label, fontSize = 17.sp, fontWeight = FontWeight.Bold))
-        Text(context.getString(message), maxLines = if (large) 4 else 2, style = TextStyle(color = ArdiaWidgets.secondaryLabel, fontSize = 15.sp))
+        Text(context.getString(title), style = TextStyle(color = ColorProvider(colors.label), fontSize = 17.sp, fontWeight = FontWeight.Bold))
+        Text(context.getString(message), maxLines = if (large) 4 else 2, style = TextStyle(color = ColorProvider(colors.secondaryLabel), fontSize = 15.sp))
     }
 }
 
