@@ -29,7 +29,6 @@ export const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip 
   const m = useSidebarScale();
   const cleaned = useCleanedCount(windowId);
   const { hovered, hoverProps } = useHover();
-  const m = useSidebarScale();
   const pressMotion = usePressScaleMotion(true, buttonMotion.iconPressScale);
   const iconScale = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : undefined;
   const [moved, movedRef] = useShift(shift);
