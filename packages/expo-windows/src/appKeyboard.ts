@@ -2,8 +2,8 @@ import type { Fiber } from "./fiber";
 import type { FocusOnWindows } from "./textFocus";
 
 type TakesKeyboard = Pick<FocusOnWindows, "takeKeyboardFromPage">;
-type FocusedField = { field: unknown; windowId: string; tabId?: string } | null;
-type FieldPlace = { windowId: string; tabId: string };
+type FocusedField = { field: unknown; windowId: string; contentAreaOf?: string } | null;
+type FieldPlace = { windowId: string; contentAreaOf: string };
 
 const MOST_ANCESTORS = 4096;
 
@@ -22,7 +22,7 @@ export function notePagePressed(windowId: string) {
 export function fieldFocusedIn(windowId: string, forTab = ""): boolean {
   const focused = readFocusedField();
   if (!focused || (focused.windowId && focused.windowId !== windowId)) return false;
-  if (forTab && focused.tabId && focused.tabId !== forTab) return false;
+  if (forTab && focused.contentAreaOf && focused.contentAreaOf !== forTab) return false;
   return pressedOver.get(windowId) !== focused.field;
 }
 
@@ -33,13 +33,13 @@ export function noteFieldAsked(windowId: string) {
 
 export function placeOfField(field: unknown): FieldPlace {
   let fiber = (field as { __internalInstanceHandle?: Fiber | null } | null)?.__internalInstanceHandle ?? null;
-  const place = { windowId: "", tabId: "" };
+  const place = { windowId: "", contentAreaOf: "" };
   for (let steps = 0; fiber && steps < MOST_ANCESTORS; steps++, fiber = fiber.return) {
     const props = fiber.memoizedProps;
     if (!props || typeof props !== "object") continue;
-    const { windowId, tabId } = props as { windowId?: unknown; tabId?: unknown };
+    const { windowId, contentAreaOf } = props as { windowId?: unknown; contentAreaOf?: unknown };
     if (typeof windowId === "string" && windowId) place.windowId = windowId;
-    if (!place.tabId && typeof tabId === "string" && tabId) place.tabId = tabId;
+    if (!place.contentAreaOf && typeof contentAreaOf === "string" && contentAreaOf) place.contentAreaOf = contentAreaOf;
   }
   return place;
 }
