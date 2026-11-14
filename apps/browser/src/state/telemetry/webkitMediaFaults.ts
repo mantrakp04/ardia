@@ -1,3 +1,5 @@
+import type { MediaFault } from "../../platform/media";
+
 export const MEDIA_FAULT_REASONS = [
   ...(["widevine", "playready", "fairplay", "other"] as const).flatMap((system) =>
     (["granted", "refused_not_supported", "refused_security", "refused_not_allowed", "refused_other"] as const).map((answer) => `eme_${system}_${answer}`),
@@ -14,8 +16,6 @@ export const MEDIA_FAULT_REASONS = [
   "play_rejected_other",
 ];
 
-export type WebKitMediaFault = { reason: string; muted?: boolean; blockerActive?: boolean };
-
 type Tally = { reasons: Map<string, number>; muted: number; blockerActive: number };
 
 const known = new Set(MEDIA_FAULT_REASONS);
@@ -24,7 +24,7 @@ const empty = (): Tally => ({ reasons: new Map(), muted: 0, blockerActive: 0 });
 let pending = empty();
 const session = empty();
 
-export function noteWebKitMediaFault(fault: WebKitMediaFault) {
+export function noteWebKitMediaFault(fault: MediaFault) {
   if (typeof fault?.reason !== "string" || !known.has(fault.reason)) return;
   for (const tally of [pending, session]) {
     tally.reasons.set(fault.reason, (tally.reasons.get(fault.reason) ?? 0) + 1);
