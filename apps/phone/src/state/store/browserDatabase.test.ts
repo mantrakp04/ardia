@@ -8,6 +8,7 @@ import {
   countArchivedTabs,
   deleteArchivedTabs,
   expiredArchivedIds,
+  knownReceivedKeys,
   readArchivedTabs,
   readOpenTabs,
   readPreferences,
@@ -121,4 +122,26 @@ test("preferences keep Android's keys and fall back on bad values", () => {
   assert.equal(prefs.searchEngineId, "google");
   writePreference(db, "tabs.autoArchiveInterval", null);
   assert.equal(parsePreferences(readPreferences(db)).autoArchiveInterval, "day");
+});
+
+test("received keys already in the store are known, and the Mac's history removals cut only their profile's visits", () => {
+  const db = nodeDatabase();
+  migrate(db);
+  writeTabs(db, [tab("A", { receivedKey: "k1" }), tab("B", { receivedKey: "k2", archivedAt: 5 }), tab("C")], []);
+  assert.deepEqual([...knownReceivedKeys(db, ["k1", "k2", "k3"])].sort(), ["k1", "k2"]);
+  assert.deepEqual([...knownReceivedKeys(db, [])], []);
+  const log = createHistoryLog(db);
+  log.record("https://a.example/", "A", "link", "work", 10);
+  log.record("https://a.example/", "A", "link", null, 11);
+  log.record("https://b.example/", "B", "link", "work", 12);
+  log.removeVisits(["https://a.example/"], "work");
+  assert.deepEqual(
+    log.search("", 10).map((v) => `${v.url}|${v.profileSyncId}`),
+    ["https://b.example/|work", "https://a.example/|null"],
+  );
+  log.removeVisits(["https://a.example/"], null);
+  assert.deepEqual(
+    log.search("", 10).map((v) => v.url),
+    ["https://b.example/"],
+  );
 });

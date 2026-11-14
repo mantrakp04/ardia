@@ -117,6 +117,19 @@ export const deleteVisitsBefore = (db: SqlDatabase, cutoff: number) => db.run("D
 export const deleteVisitsSince = (db: SqlDatabase, since: number | null) =>
   since === null ? db.run("DELETE FROM visits") : db.run("DELETE FROM visits WHERE visitedAt >= ?", [since]);
 
+export function knownReceivedKeys(db: SqlDatabase, keys: readonly string[]): Set<string> {
+  if (!keys.length) return new Set();
+  const marks = keys.map(() => "?").join(",");
+  return new Set(db.all<{ receivedKey: string }>(`SELECT receivedKey FROM tabs WHERE receivedKey IN (${marks})`, [...keys]).map((row) => row.receivedKey));
+}
+
+export function deleteVisitsFor(db: SqlDatabase, urls: readonly string[], profileSyncId: string | null) {
+  if (!urls.length) return;
+  const marks = urls.map(() => "?").join(",");
+  if (profileSyncId === null) db.run(`DELETE FROM visits WHERE url IN (${marks}) AND profileSyncId IS NULL`, [...urls]);
+  else db.run(`DELETE FROM visits WHERE url IN (${marks}) AND profileSyncId = ?`, [...urls, profileSyncId]);
+}
+
 export const countVisits = (db: SqlDatabase) => db.first<{ n: number }>("SELECT count(*) AS n FROM visits")?.n ?? 0;
 
 export function readPreferences(db: SqlDatabase): Record<string, string> {

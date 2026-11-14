@@ -36,6 +36,7 @@ export type OpenRequest = {
   after?: string | null;
   selecting?: boolean;
   profileSyncId?: string | null;
+  received?: { key: string; fromDevice: string | null } | null;
 };
 
 export const UNDO_LIMIT = 20;
@@ -144,8 +145,8 @@ export function openTab(data: TabsData, request: OpenRequest, now: number, id: s
     themeColorHex: null,
     snapshotFileName: null,
     origin: request.origin,
-    receivedKey: null,
-    receivedFromDevice: null,
+    receivedKey: request.received?.key ?? null,
+    receivedFromDevice: request.received?.fromDevice ?? null,
     isPrivate: false,
   };
   const selecting = request.selecting ?? true;
