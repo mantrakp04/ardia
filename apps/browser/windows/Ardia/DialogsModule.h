@@ -248,13 +248,17 @@ inline void Log(std::string const &what) noexcept {
 }
 
 struct ModalOverWindow {
-  ModalOverWindow(HWND owner, std::string_view kind) noexcept : pages(owner), watch(owner) {
+  ModalOverWindow(HWND owner, std::string_view kind) noexcept : watch(owner), pages(owner) {
     if (pages.Count()) LaunchLog::Write(L"info", Paths::Wide(std::string{kind} + " holds " + std::to_string(pages.Count()) + " page window(s) until it closes"));
     ModalWatch::OnTick([this] { pages.Refresh(); });
   }
+  ~ModalOverWindow() noexcept { ModalWatch::OnTick(nullptr); }
+  ModalOverWindow(ModalOverWindow const &) = delete;
+  ModalOverWindow &operator=(ModalOverWindow const &) = delete;
+
+  ModalWatch watch;
   OpenDialogScope open;
   HeldPageWindows pages;
-  ModalWatch watch;
 };
 
 inline std::vector<std::wstring> TakePicks() noexcept {

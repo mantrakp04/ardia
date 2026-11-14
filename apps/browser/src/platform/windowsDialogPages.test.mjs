@@ -47,7 +47,7 @@ test("every native modal runs through RunModal off the UI thread, and the app st
     assert.equal(native(file).split("ModalOverWindow modal(owner,").length - 1, count, file);
     assert.equal(native(file).split("ModalWatch::OnAbandon(").length - 1, count, file);
   }
-  assert.match(module, /HeldPageWindows pages;\n  ModalWatch watch;\n\};/);
+  assert.match(module, /  ModalWatch watch;\n  OpenDialogScope open;\n  HeldPageWindows pages;\n\};/);
   assert.match(module, /ModalWatch::OnTick\(\[this\] \{ pages\.Refresh\(\); \}\);/);
   assert.match(native("ModalThread.h"), /SetThreadDpiAwarenessContext\(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2\);/);
   assert.match(native("Ardia.cpp"), /void ArdiaAppStop\(void\) \{\n  Ardia::DialogParts::StopAllModals\(\);/);
