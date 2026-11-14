@@ -42,7 +42,7 @@ final class WindowDragRegion: ExpoView {
         return nil
       }
       self.doubleClickDown = nil
-      guard let place = self.pressPlace(event) else { return event }
+      guard NSApp.isActive, let place = self.pressPlace(event) else { return event }
       OutsidePressArea.tellAreas(event)
       self.press(event, place, releaseFollows: true)
       return nil
