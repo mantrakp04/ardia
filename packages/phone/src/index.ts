@@ -2,6 +2,30 @@ export { blocking } from "./blocking";
 export { downloads } from "./downloads";
 export { closePage, PageView } from "./PageView";
 export { pages } from "./pages";
+export { sync } from "./sync";
+export type {
+  BookmarkItem,
+  ConnectResult,
+  DeviceTabs,
+  HistoryRemoval,
+  PhoneInbox,
+  PhraseCheck,
+  PinnedGroup,
+  PinnedSection,
+  PinnedTab,
+  PinnedTile,
+  ReceivedTab,
+  RemoteTab,
+  SyncAttention,
+  SyncedDevice,
+  SyncedHistoryItem,
+  SyncedProfile,
+  SyncedSearch,
+  SyncedView,
+  SyncEvent,
+  SyncPhase,
+  SyncStatus,
+} from "./sync";
 export type {
   BlockingCategory,
   BlockingEvent,
