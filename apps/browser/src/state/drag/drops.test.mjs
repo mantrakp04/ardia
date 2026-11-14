@@ -127,6 +127,38 @@ test("clicks: ⌘ adds to the selection from the shown tab, ⇧ selects the rang
   assert.deepEqual(S().selection[w], [], "⌘-clicking the shown tab alone selects nothing");
 });
 
+test("clicks: ⌘ on a Top App opens its pinned page in a tab behind, ⇧⌘ shows that tab, and neither selects or changes the Top App", () => {
+  reset();
+  const { w, ids: [app, row, a] } = windowWith("app", "row", "a");
+  S().pinTabs([app], true);
+  S().pinTabs([row], true, true);
+  S().updateTab(app, { url: "https://app.com/inbox" });
+  const shown = () => S().windows[w].activeTabIds[S().windows[w].profileId];
+  const opened = () => S().windows[w].tabIds.filter((id) => ![app, row, a].includes(id));
+
+  S().clickTab(w, app, { metaKey: true });
+  assert.equal(opened().length, 1, "one new tab");
+  const [behind] = opened();
+  assert.equal(S().tabs[behind].url, "https://app.com/");
+  assert.equal(S().tabs[behind].pin, null);
+  assert.equal(shown(), a, "the shown tab stays");
+  assert.deepEqual(S().selection[w] ?? [], []);
+  assert.equal(S().tabs[app].url, "https://app.com/inbox", "the Top App keeps its page");
+  assert.deepEqual(S().tabs[app].pin, { as: "tile" });
+
+  S().clickTab(w, app, { metaKey: true, shiftKey: true });
+  assert.equal(opened().length, 2);
+  const front = opened().find((id) => id !== behind);
+  assert.equal(S().tabs[front].url, "https://app.com/");
+  assert.equal(shown(), front, "⇧⌘ shows the new tab");
+  assert.deepEqual(S().selection[w] ?? [], []);
+
+  S().clickTab(w, a);
+  S().clickTab(w, row, { metaKey: true });
+  assert.deepEqual(S().selection[w], [a, row], "⌘ on a pinned row still selects");
+  assert.equal(opened().length, 2);
+});
+
 const shape = (w) => S().windows[w].tabIds.map((id) => {
   const g = Object.values(S().groups).find((x) => x.tabIds.includes(id));
   return g ? `${host(id)}{${g.name}}` : host(id);

@@ -8,7 +8,7 @@ import { launch, reporter, session, sleep } from "../../../scripts/lib/instance.
 const args = process.argv.slice(2);
 const appArg = args.find((a) => !a.startsWith("--"));
 if (!appArg) {
-  console.error("usage: node sidebar-click-test.mjs <Debug Ardia.app> [--port=<DevTools port>] [--keep-data]\n\nOne click on a sidebar tab or pinned tile opens it, through AppKit's event path: as its hover card appears, under another tile's appearing card, after a New Tab, after closing a pinned tab, when the pointer drifts up to 9 pt between press and release, and right after a press whose mouse up a menu took. A plain press switches on mouse down; a drag from it reorders the selected tab; ⌘/⇧-click, a press in a multi-selection, the shown tab, double-click rename, the close button, middle- and right-click keep their own behaviour.");
+  console.error("usage: node sidebar-click-test.mjs <Debug Ardia.app> [--port=<DevTools port>] [--keep-data]\n\nOne click on a sidebar tab or pinned tile opens it, through AppKit's event path: as its hover card appears, under another tile's appearing card, after a New Tab, after closing a pinned tab, when the pointer drifts up to 9 pt between press and release, and right after a press whose mouse up a menu took. A plain press switches on mouse down; a drag from it reorders the selected tab; ⌘-click on a Top App opens its page in a tab behind; ⌘/⇧-click on a tab, a press in a multi-selection, the shown tab, double-click rename, the close button, middle- and right-click keep their own behaviour.");
   process.exit(2);
 }
 const appPath = resolve(appArg);
@@ -161,6 +161,18 @@ try {
     assert.equal(shift.down, "a", "⇧-click doesn't switch on press");
     assert.equal(shift.up, "a", "⇧-click doesn't switch on release");
     assert.ok(shift.selection.includes("c") && shift.selection.includes("a"), `⇧-click selects a range (${shift.selection})`);
+  });
+
+  await rep.check("⌘-click on a Top App opens its page in a tab behind, ⇧⌘-click shows that tab, and neither selects or changes the Top App", async () => {
+    await run(`st().activate("a"); st().setSelection("w1", []); return settle(400);`);
+    const opening = (flags) => run(`const had = st().windows.w1.tabIds.slice(); return pressHeld("p1", 120, ${flags}).then((r) => {
+      const made = st().windows.w1.tabIds.filter((id) => !had.includes(id));
+      return { down: r.down, up: made.includes(r.up) ? "new" : r.up, selection: st().selection.w1 ?? [], made: made.map((id) => [st().tabs[id].url, !!st().tabs[id].pin]), tile: st().tabs.p1.pin?.as };
+    });`);
+    const made = [[url("p1"), false]];
+    assert.deepEqual(await opening(1 << 20), { down: "a", up: "a", selection: [], made, tile: "tile" }, "⌘-click");
+    assert.deepEqual(await opening((1 << 20) | (1 << 17)), { down: "a", up: "new", selection: [], made, tile: "tile" }, "⇧⌘-click");
+    await run(`st().closeTabs(st().windows.w1.tabIds.filter((id) => !["p1", "p2", "pr", "a", "b", "c", "e"].includes(id))); st().activate("a"); return settle(400);`);
   });
 
   await rep.check("a press inside a multi-selection keeps it for a drag, and the release picks the one tab", async () => {
