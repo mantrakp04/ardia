@@ -166,6 +166,7 @@ export const settingsTint = {
   onboarding: "#FF901A",
   swipe: "#458AFF",
   appLinks: "#3EA82E",
+  defaultBrowser: "#007AFF",
   bottomBar: "#30B0C7",
 } as const;
 

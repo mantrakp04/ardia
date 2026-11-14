@@ -15,6 +15,7 @@ export type MenuInput = {
   systemDark: boolean;
   blockersEnabled: boolean;
   blockedRequests: number;
+  isDefaultBrowser?: boolean;
 };
 
 export type MenuModel = {
@@ -34,6 +35,7 @@ export type MenuModel = {
   desktopSite: boolean;
   blockersEnabled: boolean;
   blockedCount: string | null;
+  offersDefaultBrowser: boolean;
 };
 
 export const zoomPercent = (zoom: number) => `${Math.round(zoom * 100)}%`;
@@ -67,6 +69,7 @@ export function menuModel(input: MenuInput): MenuModel {
     desktopSite: input.isDesktopSite,
     blockersEnabled: input.blockersEnabled,
     blockedCount: input.blockersEnabled && input.blockedRequests > 0 ? grouped(input.blockedRequests) : null,
+    offersDefaultBrowser: !input.isDefaultBrowser,
   };
 }
 

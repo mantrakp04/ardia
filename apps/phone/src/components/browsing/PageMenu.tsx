@@ -73,8 +73,10 @@ export function PageMenu({ tabId, open, onHidden }: { tabId: string; open: boole
                 detail={model.blockedCount}
                 onChange={setBlockersOn}
               />
-              <Row icon="gearshape" title="Site Settings" enabled onPress={openSiteSettings} />
-              <Row icon="globe" title="Open in Default Browser" enabled={model.isWebPage} divider={false} onPress={openInDefaultBrowser} />
+              <Row icon="gearshape" title="Site Settings" enabled divider={model.offersDefaultBrowser} onPress={openSiteSettings} />
+              {model.offersDefaultBrowser ? (
+                <Row icon="safariFill" title="Open in Default Browser" enabled={model.isWebPage} divider={false} onPress={openInDefaultBrowser} />
+              ) : null}
             </Group>
           </>
         ) : null}

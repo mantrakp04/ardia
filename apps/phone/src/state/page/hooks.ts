@@ -5,6 +5,7 @@ import { useTabs } from "../tabs/store";
 import { menuModel, menuTitle, searchQuery, type MenuModel } from "./pageMenu";
 import { usePageUi } from "./store";
 import { display } from "../search/omnibox";
+import { useDefaultBrowser } from "../settings/defaultBrowser";
 import type { Request } from "./pagePrompts";
 
 export const useMenuOpen = () => usePageUi((s) => s.menuOpen);
@@ -25,6 +26,7 @@ export function useMenuModel(id: string): MenuModel {
   const tabUrl = useTabs((s) => s.open.find((t) => t.id === id)?.url ?? s.privates.find((t) => t.id === id)?.url ?? "");
   const site = usePageUi((s) => s.menuSite);
   const levels = usePageUi((s) => s.zoomLevels);
+  const isDefault = useDefaultBrowser((s) => s.status?.isDefault ?? false);
   return menuModel({
     url: state?.url ?? tabUrl,
     hasPage: state !== null,
@@ -38,6 +40,7 @@ export function useMenuModel(id: string): MenuModel {
     systemDark: dark,
     blockersEnabled: site?.blockersEnabled ?? true,
     blockedRequests: state?.blockedRequests ?? 0,
+    isDefaultBrowser: isDefault,
   });
 }
 

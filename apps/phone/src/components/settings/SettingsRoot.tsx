@@ -71,7 +71,7 @@ export function SettingsRoot() {
       </Group>
       <Group>
         <NavRow title="Site Settings" icon="globe" tint={settingsTint.neutral} divider={offersDefault} onPress={() => pushSettings({ page: "siteSettings" })} />
-        {offersDefault ? <NavRow title="Default Browser" icon="globe" tint={settingsTint.sync} onPress={() => pushSettings({ page: "defaultBrowser" })} /> : null}
+        {offersDefault ? <NavRow title="Default Browser" icon="safariFill" tint={settingsTint.defaultBrowser} onPress={() => pushSettings({ page: "defaultBrowser" })} /> : null}
       </Group>
       <Group>
         <NavRow title="Search Engine" icon="magnifyingglass" tint={settingsTint.search} value={engineName} divider onPress={() => pushSettings({ page: "searchEngine" })} />

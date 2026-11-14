@@ -16,6 +16,7 @@ const SF_SYMBOLS: Record<string, string> = {
   "square.and.arrow.up.fill": "squareAndArrowUp",
   trash: "trash",
   mic: "mic",
+  "safari.fill": "safariFill",
   "arrow.up.forward.app.fill": "arrowUpForwardAppFill",
   "mic.fill": "micFill",
   "stop.fill": "stopFill",

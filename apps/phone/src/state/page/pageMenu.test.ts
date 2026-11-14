@@ -202,3 +202,23 @@ test("each long-press action acts on the press it was chosen from", () => {
   assert.deepEqual(pressPlan(image, "openInNewTab", false, web).kind, "open");
   assert.equal((pressPlan(image, "copyLink", false, web) as { url: string }).url, "https://a.example/p");
 });
+
+test("Open in Default Browser hides while Ardia is the default browser", () => {
+  const input = {
+    url: "https://example.com/",
+    hasPage: true,
+    canGoBack: false,
+    canGoForward: false,
+    isLoading: false,
+    pageZoom: 1,
+    zoomLevels: [1],
+    isDesktopSite: false,
+    nightShade: "disabled" as const,
+    systemDark: false,
+    blockersEnabled: true,
+    blockedRequests: 0,
+  };
+  assert.equal(menuModel({ ...input, isDefaultBrowser: true }).offersDefaultBrowser, false);
+  assert.equal(menuModel({ ...input, isDefaultBrowser: false }).offersDefaultBrowser, true);
+  assert.equal(menuModel(input).offersDefaultBrowser, true);
+});
