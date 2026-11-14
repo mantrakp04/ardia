@@ -22,5 +22,7 @@ export { browseLayout, capsule, font, ink, radius, space, dialogLayout, menuLayo
 export { useCoverFocus } from "./coverFocus";
 export { FullSheet, SheetBackground, useSheetFrame } from "./FullSheet";
 export { SwipeToDelete } from "./SwipeToDelete";
-export { useIncreasedContrast } from "./contrast";
+export { useIncreasedContrast, useReduceTransparency } from "./contrast";
 export { FadingBackdrop } from "./FadingBackdrop";
+export { DeckLookBackdrop, GrainOver, LookBackdrop, LookFrost, SURFACES_FROST } from "./LookViews";
+export { FrostSource } from "@ardia/phone-native";

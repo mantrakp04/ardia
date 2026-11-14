@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Backdrop } from "./Backdrop";
 import { useCoverFocus } from "./coverFocus";
+import { LookBackdrop } from "./LookViews";
 import { tabsMotion } from "./motion";
 import { useTheme } from "./theme";
 import { menuLayout } from "./tokens";
@@ -55,7 +55,7 @@ export function Sheet({ open, onDismiss, onHidden, children }: Props) {
         }}
         style={[styles.sheet, { maxHeight: settled, paddingBottom: insets.bottom, shadowColor: theme.trayShadow }, slide]}
       >
-        <Backdrop colors={theme.backdrop} />
+        <LookBackdrop />
         {children}
       </Animated.View>
     </View>

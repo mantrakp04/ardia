@@ -1,11 +1,21 @@
 import { useEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import { noteDeckBarTop, watchDeckBar } from "../../state/toasts/store";
-import { browseLayout, capsule, PressScale, Symbol, tabsLayout, useTheme, type SymbolName } from "../ui";
+import type { FrostVariant } from "@ardia/phone-native";
+import { browseLayout, capsule, LookFrost, PressScale, Symbol, tabsLayout, useTheme, type SymbolName } from "../ui";
 
-type Props = { leading: { icon: SymbolName; label: string; onPress: () => void } | null; plusLabel: string; onPlus: () => void; onPlusMenu: () => void; onSettings: () => void };
+export type DeckBarFrost = { source: string; variant: FrostVariant; dark?: boolean };
 
-export function DeckBar({ leading, plusLabel, onPlus, onPlusMenu, onSettings }: Props) {
+type Props = {
+  leading: { icon: SymbolName; label: string; onPress: () => void } | null;
+  plusLabel: string;
+  frost: DeckBarFrost;
+  onPlus: () => void;
+  onPlusMenu: () => void;
+  onSettings: () => void;
+};
+
+export function DeckBar({ leading, plusLabel, frost, onPlus, onPlusMenu, onSettings }: Props) {
   const theme = useTheme();
   const plus = tabsLayout.barPlus;
   const row = useRef<View>(null);
@@ -19,9 +29,9 @@ export function DeckBar({ leading, plusLabel, onPlus, onPlusMenu, onSettings }: 
       <View style={styles.side}>
         {leading ? (
           <PressScale label={leading.label} onPress={leading.onPress} style={styles.hit}>
-            <View style={[styles.circle, { backgroundColor: theme.deckControl, borderColor: theme.controlEdge }]}>
+            <LookFrost {...frost} cornerRadius={circleRadius} fill={theme.deckControl} style={[styles.circle, { borderColor: theme.controlEdge }]}>
               <Symbol name={leading.icon} size={17} color={theme.secondaryLabel} />
-            </View>
+            </LookFrost>
           </PressScale>
         ) : null}
       </View>
@@ -30,20 +40,24 @@ export function DeckBar({ leading, plusLabel, onPlus, onPlusMenu, onSettings }: 
         hint="Touch and hold for more options."
         onPress={onPlus}
         onLongPress={onPlusMenu}
-        style={[styles.plus, { width: plus.width, height: plus.height, borderRadius: capsule(plus.height), backgroundColor: theme.deckControl, borderColor: theme.controlEdge }]}
+        style={{ width: plus.width, height: plus.height }}
       >
-        <Symbol name="plus" size={22} color={theme.label} />
+        <LookFrost {...frost} cornerRadius={capsule(plus.height)} fill={theme.deckControl} style={[styles.plus, { borderColor: theme.controlEdge }]}>
+          <Symbol name="plus" size={22} color={theme.label} />
+        </LookFrost>
       </PressScale>
       <View style={[styles.side, styles.end]}>
         <PressScale label="Settings" onPress={onSettings} style={styles.hit}>
-          <View style={[styles.circle, { backgroundColor: theme.deckControl, borderColor: theme.controlEdge }]}>
+          <LookFrost {...frost} cornerRadius={circleRadius} fill={theme.deckControl} style={[styles.circle, { borderColor: theme.controlEdge }]}>
             <Symbol name="gearshape" size={17} color={theme.secondaryLabel} />
-          </View>
+          </LookFrost>
         </PressScale>
       </View>
     </View>
   );
 }
+
+const circleRadius = capsule(tabsLayout.barCircle);
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", height: browseLayout.hitTarget },
@@ -53,10 +67,9 @@ const styles = StyleSheet.create({
   circle: {
     width: tabsLayout.barCircle,
     height: tabsLayout.barCircle,
-    borderRadius: capsule(tabsLayout.barCircle),
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
     justifyContent: "center",
   },
-  plus: { alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth },
+  plus: { flex: 1, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth },
 });

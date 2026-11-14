@@ -3,10 +3,9 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { copy } from "../../lib/platformCopy";
-import { windowTintStops } from "../../lib/profileLook";
 import { PROBLEM_TEXT, voiceControl, type Dictation } from "../../state/voice/dictation";
 import { closeVoiceSearch, openSpeechSettings, searchSpoken, startListening, stopListening, useDictation, useVoiceLevels, useVoicePresented } from "../../state/voice/store";
-import { ArdiaLogo, Backdrop, capsule, font, space, Symbol, useCoverFocus, useProfileLook, voiceInk, voiceLayout, type SymbolName } from "../ui";
+import { ArdiaLogo, capsule, font, FrostSource, LookBackdrop, LookFrost, space, Symbol, useCoverFocus, voiceInk, voiceLayout, type SymbolName } from "../ui";
 
 export function VoiceSearchView() {
   const presented = useVoicePresented();
@@ -15,13 +14,14 @@ export function VoiceSearchView() {
 
 function VoiceCover() {
   const insets = useSafeAreaInsets();
-  const look = useProfileLook();
   const dictation = useDictation();
   const cancel = useRef<View>(null);
   useCoverFocus(cancel);
   return (
     <View style={StyleSheet.absoluteFill} accessibilityViewIsModal>
-      <Backdrop colors={windowTintStops(look, true)} />
+      <FrostSource name={VOICE_FROST} style={StyleSheet.absoluteFill} pointerEvents="none">
+        <LookBackdrop dark />
+      </FrostSource>
       <View style={[styles.column, { paddingTop: insets.top, paddingBottom: insets.bottom + space.xl, paddingLeft: insets.left + space.xl, paddingRight: insets.right + space.xl }]}>
         <View style={styles.fill} />
         <LevelLogo level={dictation.level} />
@@ -37,7 +37,9 @@ function VoiceCover() {
         onPress={closeVoiceSearch}
         style={[styles.cancel, { top: insets.top + space.s, right: insets.right + space.l }]}
       >
-        <Symbol name="xmark" size={voiceLayout.icon} color={voiceInk.label} />
+        <LookFrost source={VOICE_FROST} variant="glass" dark cornerRadius={capsule(voiceLayout.cancel)} fill={voiceInk.glass} style={styles.cancelFace}>
+          <Symbol name="xmark" size={voiceLayout.icon} color={voiceInk.label} />
+        </LookFrost>
       </Pressable>
     </View>
   );
@@ -105,12 +107,16 @@ function Controls({ dictation }: { dictation: Dictation }) {
 
 function GlassPill({ title, icon, onPress }: { title: string; icon?: SymbolName; onPress: () => void }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={styles.pill}>
-      {icon ? <Symbol name={icon} size={voiceLayout.icon} color={voiceInk.label} /> : null}
-      <Text style={[font.body, styles.medium, { color: voiceInk.label }]}>{title}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={styles.pillHit}>
+      <LookFrost source={VOICE_FROST} variant="glass" dark cornerRadius={capsule(voiceLayout.pill)} fill={voiceInk.glass} style={styles.pill}>
+        {icon ? <Symbol name={icon} size={voiceLayout.icon} color={voiceInk.label} /> : null}
+        <Text style={[font.body, styles.medium, { color: voiceInk.label }]}>{title}</Text>
+      </LookFrost>
     </Pressable>
   );
 }
+
+const VOICE_FROST = "voice";
 
 const styles = StyleSheet.create({
   column: { flex: 1, alignItems: "center", gap: space.huge },
@@ -124,6 +130,7 @@ const styles = StyleSheet.create({
   wave: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: voiceLayout.barGap, height: voiceLayout.waveHeight, alignSelf: "stretch" },
   bar: { width: voiceLayout.bar, borderRadius: voiceLayout.bar / 2, backgroundColor: voiceInk.bar },
   controls: { alignSelf: "stretch", minHeight: voiceLayout.pill },
+  pillHit: { alignSelf: "stretch" },
   pill: {
     flexDirection: "row",
     alignItems: "center",
@@ -131,17 +138,11 @@ const styles = StyleSheet.create({
     gap: space.s,
     minHeight: voiceLayout.pill,
     paddingHorizontal: space.xl,
-    borderRadius: capsule(voiceLayout.pill),
-    backgroundColor: voiceInk.glass,
-    alignSelf: "stretch",
   },
   cancel: {
     position: "absolute",
     width: voiceLayout.cancel,
     height: voiceLayout.cancel,
-    borderRadius: capsule(voiceLayout.cancel),
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: voiceInk.glass,
   },
+  cancelFace: { flex: 1, alignItems: "center", justifyContent: "center" },
 });

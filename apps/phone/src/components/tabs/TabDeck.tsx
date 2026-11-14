@@ -34,7 +34,7 @@ import {
 } from "../../state/browse/store";
 import { canShareTab, copyTabLink, menuOpenedHaptic, shareTab } from "../../state/browse/tabMenus";
 import { useCanReopen, useDeckOrder, useHasArchivedTabs, useIncognito, usePrivateCount } from "../../state/tabs/hooks";
-import { archiveCardLayout, Backdrop, ConfirmDialog, Menu, Shade, space, tabsCurve, tabsLayout, tabsMotion, useTheme, type Confirmation, type MenuItem } from "../ui";
+import { archiveCardLayout, ConfirmDialog, DeckLookBackdrop, FrostSource, Menu, Shade, space, tabsCurve, tabsLayout, tabsMotion, type Confirmation, type MenuItem } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { useSyncEnabled } from "../../state/sync/hooks";
 import { DeckBar } from "./DeckBar";
@@ -55,7 +55,6 @@ function roleOf(phase: Phase, id: string, index: number, order: readonly string[
 }
 
 export function TabDeck() {
-  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const g = useMemo(() => deckGeometry(width, height, insets.top, insets.bottom), [width, height, insets.top, insets.bottom]);
@@ -278,7 +277,9 @@ export function TabDeck() {
 
   return (
     <View style={StyleSheet.absoluteFill}>
-      <Backdrop colors={theme.backdrop} />
+      <FrostSource name={DECK_FROST} style={StyleSheet.absoluteFill} pointerEvents="none">
+        <DeckLookBackdrop />
+      </FrostSource>
       <Shade shaded={menu !== null || cardMenu !== null || confirmation !== null}>
         <GestureDetector gesture={Gesture.Race(pan, longPress, tap)}>
           <View style={[styles.touch, { height: g.barCenterY - tabsLayout.barTouchClearance }]} collapsable={false}>
@@ -312,6 +313,7 @@ export function TabDeck() {
                 syncEnabled ? { icon: "laptop", label: "Synced Tabs", onPress: openSpaces } : { icon: "archivebox", label: "Archive", onPress: openArchive }
               }
               plusLabel={incognito ? "New Incognito Tab" : "New Tab"}
+              frost={{ source: DECK_FROST, variant: "bar" }}
               onPlus={newTab}
               onPlusMenu={() => setMenu("plus")}
               onSettings={() => openSettings()}
@@ -348,6 +350,8 @@ export function TabDeck() {
     </View>
   );
 }
+
+const DECK_FROST = "deck";
 
 const styles = StyleSheet.create({
   touch: { position: "absolute", left: 0, right: 0, top: 0 },

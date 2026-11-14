@@ -212,6 +212,8 @@ export const archiveCardLayout = { radius: 16, tile: 28, maxWidth: 520, rise: 76
 
 export const onboardingArt = { appIcon: 60, linkCardWidth: 210, linkCardRadius: 18, stripHeight: 64, arrowLift: 26, shadowRadius: 12, sheetRadius: 38 } as const;
 
+export const grainInk = { light: 0.06, dark: 0.03 } as const;
+
 export const sheetInk = { scrim: "rgba(0,0,0,0.25)" } as const;
 
 export const sheetLayout = { topGap: 10, radius: 32, backgroundRadius: 24 } as const;

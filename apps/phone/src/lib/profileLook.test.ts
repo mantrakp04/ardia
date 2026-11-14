@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { backdropStops, choiceAfterMatchToggle, lookForApp, lookOf, presetLook, showsTheme, spaceTone, windowTintStops } from "./profileLook.ts";
+import { backdropStops, choiceAfterMatchToggle, lookForApp, lookOf, nativeLookColors, presetLook, showsTheme, spaceTone, windowTintStops } from "./profileLook.ts";
 
 const presets = [
   { key: "plum", swatch: "#C07A98", tint: "#B25B6B" },
@@ -81,4 +81,9 @@ test("synced Spaces take the shown profile's own colours, softened toward the ba
 test("with Increased Contrast the Spaces tone moves further toward the background", () => {
   assert.deepEqual(spaceTone(macTheme, false, true, presets, "plum"), ["#FFF0E6", "#F2ECFF"]);
   assert.deepEqual(spaceTone(macTheme, true, true, presets, "plum"), ["#200D00", "#0F0820"]);
+});
+
+test("the native look views get a preset by name, and the Mac's own look by its colour and theme", () => {
+  assert.deepEqual(nativeLookColors(presetLook(presets[1]!)), { color: "blue", themeColors: [], darkThemeColors: null });
+  assert.deepEqual(nativeLookColors(lookOf(macTheme, presets, "plum")), { color: "#BD5380", themeColors: ["#FF6A00", "#7A3CFF"], darkThemeColors: ["#401A00", "#1E0F40"] });
 });

@@ -9,7 +9,7 @@ import { useSearchFieldVersion, useSearchInitialText, useSearchOpen, useSearchOr
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
 import { searchState, setSearchText, typeSearch } from "../../state/search/store";
 import { useIncognito } from "../../state/tabs/hooks";
-import { browseLayout, capsule, FloatingMenu, font, ink, radius, rolesFor, space, springs, Symbol, tabsInk, tabsLayout, trayShadow, useTheme } from "../ui";
+import { browseLayout, capsule, FloatingMenu, font, ink, LookFrost, radius, rolesFor, space, springs, Symbol, SURFACES_FROST, tabsInk, tabsLayout, trayShadow, useTheme } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { canSearchByVoice, presentVoiceSearch } from "../../state/voice/store";
 
@@ -29,6 +29,7 @@ export function SearchTray() {
   const origin = useSearchOrigin();
   const session = useSearchSession();
   const theme = useTrayTheme();
+  const incognito = useIncognito();
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const { lift } = useBottomLift();
@@ -67,7 +68,7 @@ export function SearchTray() {
             bottom: 0,
             height: height + lift,
             paddingBottom: lift,
-            backgroundColor: theme.surface,
+            backgroundColor: incognito ? theme.surface : ink.clear,
             shadowColor: theme.trayShadow,
             shadowOpacity: trayShadow.opacity,
             shadowRadius: trayShadow.radius,
@@ -76,6 +77,7 @@ export function SearchTray() {
           },
         ]}
       >
+        {incognito ? null : <LookFrost source={SURFACES_FROST} variant="sheet" cornerRadius={radius.sheet} fill={theme.surface} style={styles.frost} />}
         <TrayField key={session} />
         <TrayRows />
       </Animated.View>
@@ -257,6 +259,7 @@ const styles = StyleSheet.create({
     elevation: trayShadow.elevation,
     overflow: "hidden",
   },
+  frost: { position: "absolute", top: 0, left: 0, right: 0, bottom: -radius.sheet },
   fieldArea: { paddingHorizontal: browseLayout.searchFieldInset, paddingTop: browseLayout.trayFieldTop, paddingBottom: space.s },
   field: {
     minHeight: browseLayout.searchFieldHeight,

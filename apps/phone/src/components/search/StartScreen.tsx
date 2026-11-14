@@ -4,14 +4,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { newIncognitoTab, newRegularTab, newTab, openArchive, reopenLastClosed, showDeck } from "../../state/browse/store";
 import { useSearchOpen } from "../../state/search/hooks";
 import { useCanReopen, useHasTabs, useIncognito } from "../../state/tabs/hooks";
-import { ArdiaLogo, Backdrop, browseLayout, deckCenterFromBottom, Menu, tabsInk, tabsLayout, useTheme, type MenuItem } from "../ui";
+import { ArdiaLogo, Backdrop, browseLayout, deckCenterFromBottom, FrostSource, GrainOver, LookBackdrop, Menu, tabsInk, tabsLayout, type MenuItem } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { DeckBar } from "../tabs/DeckBar";
 
 const BAR_RESERVE = 58;
 
 export function StartScreen() {
-  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const trayUp = useSearchOpen();
   const hasTabs = useHasTabs();
@@ -31,7 +30,16 @@ export function StartScreen() {
       ];
   return (
     <View style={StyleSheet.absoluteFill}>
-      {incognito ? <Backdrop colors={tabsInk.incognitoBackdrop} /> : <Backdrop colors={theme.start.colors} diagonal={theme.start.diagonal} />}
+      <FrostSource name={START_FROST} style={StyleSheet.absoluteFill} pointerEvents="none">
+        {incognito ? (
+          <>
+            <Backdrop colors={tabsInk.incognitoBackdrop} />
+            <GrainOver dark />
+          </>
+        ) : (
+          <LookBackdrop themed />
+        )}
+      </FrostSource>
       <View style={[styles.logo, { paddingBottom: BAR_RESERVE / 2, opacity: trayUp ? 0 : 1 }]} pointerEvents="none">
         <ArdiaLogo width={browseLayout.logoWidth} />
       </View>
@@ -40,6 +48,7 @@ export function StartScreen() {
           <DeckBar
             leading={hasTabs ? { icon: "squareOnSquare", label: "Tabs", onPress: showDeck } : { icon: "archivebox", label: "Archive", onPress: openArchive }}
             plusLabel={incognito ? "New Incognito Tab" : "New Tab"}
+            frost={{ source: START_FROST, variant: "glass", dark: incognito || undefined }}
             onPlus={newTab}
             onPlusMenu={() => setMenu(true)}
             onSettings={() => openSettings()}
@@ -56,6 +65,8 @@ export function StartScreen() {
     </View>
   );
 }
+
+const START_FROST = "start";
 
 const styles = StyleSheet.create({
   logo: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },

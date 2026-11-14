@@ -4,7 +4,7 @@ import Animated, { FadeIn, FadeOut, SlideInLeft, SlideInRight, useAnimatedStyle,
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { advanceOnboarding, finishOnboarding, useOnboarding } from "../../state/onboarding/hooks";
 import { refreshSettings, setBlockingCategory, useBlocking } from "../../state/settings/actions";
-import { ArdiaLogo, Backdrop, capsule, onboardingArt, font, radius, settingsLayout, settingsTint, shadowRadius, space, spring, Symbol, tabsMotion, useTheme, type SymbolName } from "../ui";
+import { ArdiaLogo, capsule, LookBackdrop, onboardingArt, font, radius, settingsLayout, settingsTint, shadowRadius, space, spring, Symbol, tabsMotion, useTheme, type SymbolName } from "../ui";
 import { ToggleRow } from "../settings/SettingsKit";
 import { SyncConnect } from "../sync/SyncConnect";
 import { DefaultBrowserSteps } from "../settings/DefaultBrowserPage";
@@ -28,7 +28,7 @@ export function OnboardingView() {
   if (!showing) return null;
   return (
     <Animated.View exiting={FadeOut.duration(tabsMotion.surfaceFade)} style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }]}>
-      <Backdrop colors={theme.backdrop} />
+      <LookBackdrop softened={step !== "welcome"} />
       <Animated.View
         key={step}
         entering={(forward ? SlideInRight : SlideInLeft).springify().stiffness(tabsMotion.sheetIn.stiffness).damping(tabsMotion.sheetIn.damping)}

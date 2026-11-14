@@ -18,3 +18,20 @@ export function useIncreasedContrast(): boolean {
   }, []);
   return on;
 }
+
+export function useReduceTransparency(): boolean {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    let live = true;
+    void AccessibilityInfo.isReduceTransparencyEnabled()
+      .then((value) => live && setOn(value))
+      .catch(() => undefined);
+    const subscription = AccessibilityInfo.addEventListener("reduceTransparencyChanged", (value: boolean) => setOn(value));
+    return () => {
+      live = false;
+      subscription.remove();
+    };
+  }, []);
+  return on;
+}

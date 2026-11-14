@@ -2,7 +2,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { rememberSettingsScroll, settingsScroll } from "../../state/settings/nav";
-import { Backdrop, FloatingMenu, useSheetFrame, font, ink, settingsLayout, space, Symbol, tabsLayout, Toggle, useTheme, type MenuItem, type SymbolName } from "../ui";
+import { FloatingMenu, LookBackdrop, useSheetFrame, font, ink, settingsLayout, space, Symbol, tabsLayout, Toggle, useTheme, type MenuItem, type SymbolName } from "../ui";
 
 type PageProps = { title: string; onBack?: () => void; leading?: ReactNode; trailing?: ReactNode; children: ReactNode; scroll?: boolean };
 
@@ -14,7 +14,7 @@ export function SettingsPage({ title, onBack, leading, trailing, children, scrol
   const frame = useSheetFrame();
   return (
     <View style={StyleSheet.absoluteFill}>
-      <Backdrop colors={theme.backdrop} />
+      <LookBackdrop />
       <View style={[styles.top, { paddingTop: frame ? 0 : insets.top }]}>
         <View style={styles.topSide}>
           {onBack ? (

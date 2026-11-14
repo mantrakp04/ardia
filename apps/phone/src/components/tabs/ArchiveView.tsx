@@ -8,7 +8,7 @@ import { usePreferences } from "../../state/settings/hooks";
 import { useArchiveDays, useArchiveLoaded } from "../../state/tabs/hooks";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval, type BrowserTab } from "../../state/tabs/tabModels";
 import { clearArchivedTabs, loadArchive, searchArchive, setAutoArchiveInterval } from "../../state/tabs/store";
-import { Backdrop, ConfirmDialog, Favicon, FloatingMenu, font, radius, space, SwipeToDelete, Symbol, tabsLayout, tabsMotion, useSheetFrame, useTheme, type Confirmation, type MenuItem } from "../ui";
+import { ConfirmDialog, Favicon, FloatingMenu, font, LookBackdrop, radius, space, SwipeToDelete, Symbol, tabsLayout, tabsMotion, useSheetFrame, useTheme, type Confirmation, type MenuItem } from "../ui";
 
 const time = (at: number) => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
@@ -56,7 +56,7 @@ export function ArchiveView() {
 
   return (
     <View style={StyleSheet.absoluteFill}>
-      <Backdrop colors={theme.backdrop} />
+      <LookBackdrop />
       <View style={[styles.column, { paddingTop: frame ? 0 : insets.top }]}>
         <View style={styles.top}>
           <Pressable accessibilityRole="button" onPress={closeArchive} style={styles.topButton}>

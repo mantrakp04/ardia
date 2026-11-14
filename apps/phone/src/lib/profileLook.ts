@@ -128,3 +128,9 @@ export function spaceTone(source: LookSource | null, dark: boolean, increasedCon
   const base = parsed(lookOf({ color: source?.color ?? null, theme: null }, presets, fallback).swatch);
   return [hex(mixed(base, toward, amount)), hex(mixed(base, toward, amount + (dark ? 0.06 : -0.04)))];
 }
+
+export type NativeLookColors = { color: string; themeColors: string[]; darkThemeColors: string[] | null };
+
+export function nativeLookColors(look: ProfileLook): NativeLookColors {
+  return { color: look.preset ?? look.swatch, themeColors: [...look.theme], darkThemeColors: look.darkTheme ? [...look.darkTheme] : null };
+}

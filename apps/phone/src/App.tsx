@@ -11,7 +11,7 @@ import { OnboardingView } from "./components/onboarding/OnboardingView";
 import { SettingsView } from "./components/settings/SettingsView";
 import { SpacesView } from "./components/sync/SpacesView";
 import { ToastHost } from "./components/toasts/ToastHost";
-import { useTheme, DEFAULT_PROFILE_COLOR, FullSheet, OverlayHost, PROFILE_PRESETS, ProfileLookContext, Shade, SheetBackground } from "./components/ui";
+import { useTheme, DEFAULT_PROFILE_COLOR, FrostSource, FullSheet, OverlayHost, PROFILE_PRESETS, ProfileLookContext, Shade, SheetBackground, SURFACES_FROST } from "./components/ui";
 import { useLook } from "./state/sync/hooks";
 import { startSettingsSources } from "./state/settings/actions";
 import { startSync } from "./state/sync/actions";
@@ -92,9 +92,11 @@ function Surfaces() {
       <SheetBackground progress={sheetProgress}>
         <Layer covered={onboarding || voice} muted={front !== null}>
           <Shade shaded={searching}>
-            {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
-            {surface === "deck" ? <TabDeck /> : null}
-            {surface === "start" ? <StartScreen /> : null}
+            <FrostSource name={SURFACES_FROST} style={StyleSheet.absoluteFill} pointerEvents="box-none" collapsable={false}>
+              {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
+              {surface === "deck" ? <TabDeck /> : null}
+              {surface === "start" ? <StartScreen /> : null}
+            </FrostSource>
           </Shade>
           <SearchTray />
         </Layer>
