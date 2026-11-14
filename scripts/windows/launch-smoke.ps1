@@ -519,7 +519,7 @@ function Test-NotATestInstance([string]$DataDirectory, [string]$Case) {
   $env:ARDIA_DATA_DIR = $DataDirectory
   $env:ARDIA_TEST = "appDialog"
   $env:ARDIA_BACKGROUND = "1"
-  $run = Start-Process -FilePath $App -ArgumentList "--log-file=`"$caseLog`"" -PassThru
+  $run = Start-Process -FilePath $gateApp -ArgumentList "--log-file=`"$caseLog`"" -PassThru
   $env:ARDIA_TEST = ""
   $refused = $null
   $deadline = (Get-Date).AddSeconds(40)
@@ -531,12 +531,12 @@ function Test-NotATestInstance([string]$DataDirectory, [string]$Case) {
   if ($refused) { Write-Host "test gate, $Case`: $($refused.Line)" } else { $script:failures += "ARDIA_TEST counted, or the launch said nothing, with $Case" }
 }
 
+$gateApp = (Resolve-Path -LiteralPath $App).Path
 $gateData = New-DataDirectory "gate-scratch"
-$marker = Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $App).Path) "Ardia.test-build"
+$marker = Join-Path (Split-Path -Parent $gateApp) "Ardia.test-build"
 Remove-Item -Force -LiteralPath $marker
 try { Test-NotATestInstance $gateData "no test-build marker" } finally { New-Item -ItemType File -Force -Path $marker | Out-Null }
-Push-Location $Out
-try { Test-NotATestInstance "gate-relative" "a relative ARDIA_DATA_DIR" } finally { Pop-Location }
+Test-NotATestInstance "gate-relative" "a relative ARDIA_DATA_DIR"
 if ($env:GITHUB_ACTIONS -eq "true") {
   $realProfile = Join-Path $env:LOCALAPPDATA "Ardia"
   New-Item -ItemType Directory -Force -Path $realProfile | Out-Null
