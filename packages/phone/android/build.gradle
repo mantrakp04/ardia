@@ -26,7 +26,7 @@ def composeSourcesInThisModule = [
   (speech): ['SpeechRecorder.kt', 'DictationTypes.kt', 'ClipboardOffer.kt'],
   (faviconPixels): ['FaviconPixels.kt'],
 ]
-def cameraXVersion = '1.5.0-rc01'
+def cameraXVersion = '1.6.0'
 def kotlinVersion = org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapperKt.getKotlinPluginVersion(project)
 def architectures = (findProperty('reactNativeArchitectures') ?: 'arm64-v8a,x86_64').split(',').collect { it.trim() }
 def reactNative = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).parentFile
@@ -220,6 +220,7 @@ dependencies {
   implementation "androidx.camera:camera-lifecycle:${cameraXVersion}"
   implementation "androidx.camera:camera-view:${cameraXVersion}"
   implementation "com.google.zxing:core:3.5.4"
+  compileOnly "com.google.guava:guava:33.3.1-android"
   testImplementation "junit:junit:4.13.2"
   testImplementation "org.json:json:20240303"
   testImplementation "org.xerial:sqlite-jdbc:3.41.2.2"

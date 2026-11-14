@@ -12,16 +12,6 @@
     },
     "ios": {
       "bundleIdentifier": "com.ardia.browser.ios"
-    },
-    "plugins": [
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Ardia uses the camera only to read the code your Mac shows when you connect.",
-          "microphonePermission": false,
-          "recordAudioAndroid": false
-        }
-      ]
-    ]
+    }
   }
 }

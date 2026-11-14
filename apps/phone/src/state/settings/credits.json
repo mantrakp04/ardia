@@ -1,5 +1,5 @@
 {
-  "inputs": "35d36d463bf98e0acc84101b332101e5d9513473b1432d579aaee8cb41956004",
+  "inputs": "2bf699388e8c62a604f214042b5f1ba46a1dc0b515b1b13e41df336e5c067914",
   "packages": [
     {
       "name": "@babel/runtime",
@@ -70,12 +70,6 @@
     {
       "name": "expo-asset",
       "version": "12.0.13",
-      "license": "MIT",
-      "url": "https://github.com/expo/expo"
-    },
-    {
-      "name": "expo-camera",
-      "version": "17.0.10",
       "license": "MIT",
       "url": "https://github.com/expo/expo"
     },
