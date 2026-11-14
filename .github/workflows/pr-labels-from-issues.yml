@@ -1,0 +1,113 @@
+name: PR labels from linked issues
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened]
+  issues:
+    types: [labeled, unlabeled]
+
+permissions:
+  issues: read
+  pull-requests: write
+
+concurrency:
+  group: pr-labels-from-issues
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  sync-pr-labels:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request_target' || contains(fromJSON('["bug","enhancement","documentation"]'), github.event.label.name)
+    steps:
+      - name: Copy the type labels of the issues each PR closes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          shopt -s inherit_errexit
+          type_label_names='["bug","enhancement","documentation"]'
+
+          open_pull_requests_closing_issue() {
+            local references
+            references=$(gh api graphql -F owner="${REPO%/*}" -F name="${REPO#*/}" -F number="$1" -f query='
+              query($owner: String!, $name: String!, $number: Int!) {
+                repository(owner: $owner, name: $name) {
+                  issue(number: $number) {
+                    closedByPullRequestsReferences(first: 100, includeClosedPrs: false) {
+                      pageInfo { hasNextPage }
+                      nodes { number repository { nameWithOwner } }
+                    }
+                  }
+                }
+              }' --jq '.data.repository.issue.closedByPullRequestsReferences')
+            if jq -e '.pageInfo.hasNextPage' <<<"$references" >/dev/null; then
+              echo "Issue #$1 is closed by more than 100 open PRs; refusing to sync a partial list." >&2
+              return 1
+            fi
+            jq -r --arg repo "$REPO" '.nodes[] | select(.repository.nameWithOwner == $repo) | .number' <<<"$references"
+          }
+
+          remove_label() {
+            local output
+            if ! output=$(gh api -X DELETE "repos/$REPO/issues/$1/labels/$2" 2>&1); then
+              grep -q "HTTP 404" <<<"$output" || { echo "$output" >&2; return 1; }
+            fi
+          }
+
+          sync_pull_request() {
+            local pr=$1 snapshot wanted current label
+            snapshot=$(gh api graphql -F owner="${REPO%/*}" -F name="${REPO#*/}" -F number="$pr" -f query='
+              query($owner: String!, $name: String!, $number: Int!) {
+                repository(owner: $owner, name: $name) {
+                  pullRequest(number: $number) {
+                    labels(first: 100) { pageInfo { hasNextPage } nodes { name } }
+                    closingIssuesReferences(first: 100) {
+                      pageInfo { hasNextPage }
+                      nodes { repository { nameWithOwner } labels(first: 100) { pageInfo { hasNextPage } nodes { name } } }
+                    }
+                  }
+                }
+              }') || return 1
+            if ! jq -e '.data.repository.pullRequest
+              | (.labels.pageInfo.hasNextPage or .closingIssuesReferences.pageInfo.hasNextPage
+                 or any(.closingIssuesReferences.nodes[]; .labels.pageInfo.hasNextPage)) | not' <<<"$snapshot" >/dev/null; then
+              echo "#$pr: more than 100 labels or closing issues; refusing to sync a partial list." >&2
+              return 1
+            fi
+            wanted=$(jq -r --arg repo "$REPO" --argjson types "$type_label_names" '
+              .data.repository.pullRequest.closingIssuesReferences.nodes[]
+              | select(.repository.nameWithOwner == $repo)
+              | .labels.nodes[].name | select(IN($types[]))' <<<"$snapshot" | sort -u) || return 1
+            if [ -z "$wanted" ]; then
+              echo "#$pr: no type label on the issues it closes in $REPO. A 'Closes #N' only counts when the PR targets the default branch."
+            fi
+            current=$(jq -r --argjson types "$type_label_names" '
+              .data.repository.pullRequest.labels.nodes[].name | select(IN($types[]))' <<<"$snapshot" | sort -u) || return 1
+            for label in $(comm -13 <(echo "$current") <(echo "$wanted")); do
+              gh api -X POST "repos/$REPO/issues/$pr/labels" -f "labels[]=$label" --silent || return 1
+              echo "#$pr: added $label"
+            done
+            for label in $(comm -23 <(echo "$current") <(echo "$wanted")); do
+              remove_label "$pr" "$label" || return 1
+              echo "#$pr: removed $label"
+            done
+          }
+
+          if [ -n "$PR_NUMBER" ]; then
+            sync_pull_request "$PR_NUMBER"
+          else
+            pull_requests=$(open_pull_requests_closing_issue "$ISSUE_NUMBER")
+            failed_pull_requests=()
+            for pr in $pull_requests; do
+              sync_pull_request "$pr" || failed_pull_requests+=("#$pr")
+            done
+            if [ ${#failed_pull_requests[@]} -gt 0 ]; then
+              echo "Failed to sync ${failed_pull_requests[*]}" >&2
+              exit 1
+            fi
+          fi
