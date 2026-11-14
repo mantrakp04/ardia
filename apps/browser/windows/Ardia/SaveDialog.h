@@ -38,7 +38,6 @@ inline std::optional<std::wstring> ShowSaveFile(HWND owner, SaveRequest const &r
     winrt::com_ptr<IFileDialogCustomize> customize = dialog.try_as<IFileDialogCustomize>();
     if (customize) customize->AddText(kSaveMessageControl, request.message.c_str());
   }
-  ModalWatch watch(owner);
   ModalWatch::OnAbandon([shown = dialog.get()] { shown->Close(HRESULT_FROM_WIN32(ERROR_CANCELLED)); });
   if (FAILED(dialog->Show(owner))) return std::nullopt;
   winrt::com_ptr<IShellItem> result;

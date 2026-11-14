@@ -56,7 +56,35 @@ async function loadWhileHeld(onUiThread: boolean, key: string, withinMs: number)
   }
 }
 
+async function countStays(count: number, forMs: number) {
+  for (let waited = 0; waited < forMs; waited += 100) {
+    if (dialogs().openCount() !== count) return false;
+    await settled(100);
+  }
+  return true;
+}
+
 export const checks: Check[] = [
+  {
+    name: "a second dialog for the same window waits until the first closes",
+    async run() {
+      const [windowId] = await windows().windowIds();
+      expectTrue(windowId, "no window is open to own the held confirms");
+      const first = dialogs().devHoldConfirm(windowId, false);
+      const second = dialogs().devHoldConfirm(windowId, false);
+      try {
+        expectTrue(await heldConfirmShown(), "the first held confirm never opened");
+        expectTrue(await countStays(1, 1000), `${dialogs().openCount()} dialogs open at once for one window`);
+        dialogs().devReleaseDialogs();
+        await first;
+        expectTrue(await heldConfirmShown(), "the second held confirm never opened after the first closed");
+      } finally {
+        dialogs().devReleaseDialogs();
+        await Promise.all([first, second]);
+      }
+      expectTrue(await countStays(0, 300), "a released confirm is still counted as open");
+    },
+  },
   {
     name: "a confirm runs on its own thread: with one open, a page created meanwhile loads",
     async run() {

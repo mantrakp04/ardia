@@ -94,10 +94,13 @@ inline bool IsPageWindow(HWND window) noexcept {
 }
 
 struct HeldPageWindows {
-  explicit HeldPageWindows(HWND owner) noexcept : m_owner(owner) {
-    if (!owner) return;
+  explicit HeldPageWindows(HWND owner) noexcept : m_owner(owner) { Refresh(); }
+
+  void Refresh() noexcept {
+    if (!m_owner) return;
+    size_t before = m_pages.size();
     EnumWindows(&HeldPageWindows::Collect, reinterpret_cast<LPARAM>(this));
-    for (HWND page : m_pages) EnableWindow(page, FALSE);
+    for (size_t i = before; i < m_pages.size(); i++) EnableWindow(m_pages[i], FALSE);
   }
   ~HeldPageWindows() noexcept {
     for (HWND page : m_pages)
@@ -245,11 +248,13 @@ inline void Log(std::string const &what) noexcept {
 }
 
 struct ModalOverWindow {
-  ModalOverWindow(HWND owner, std::string_view kind) noexcept : pages(owner) {
+  ModalOverWindow(HWND owner, std::string_view kind) noexcept : pages(owner), watch(owner) {
     if (pages.Count()) LaunchLog::Write(L"info", Paths::Wide(std::string{kind} + " holds " + std::to_string(pages.Count()) + " page window(s) until it closes"));
+    ModalWatch::OnTick([this] { pages.Refresh(); });
   }
   OpenDialogScope open;
   HeldPageWindows pages;
+  ModalWatch watch;
 };
 
 inline std::vector<std::wstring> TakePicks() noexcept {

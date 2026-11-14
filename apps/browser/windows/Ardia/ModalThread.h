@@ -34,10 +34,13 @@ inline bool Stopping() noexcept {
   return ModalRegistry::Shared().stopping.load();
 }
 
+constexpr int StopWaitMs = 2000;
+
 inline void StopAllModals() noexcept {
   ModalRegistry &registry = ModalRegistry::Shared();
   registry.stopping = true;
   registry.freed.notify_all();
+  for (int waited = 0; registry.threads.load() > 0 && waited < StopWaitMs; waited += 50) Sleep(50);
 }
 
 inline void ReleaseAllModals() noexcept {
@@ -75,6 +78,7 @@ struct ModalWatchState {
   HWND owner = nullptr;
   uint64_t release = 0;
   std::function<void()> abandon;
+  std::function<void()> tick;
 };
 
 inline ModalWatchState &WatchState() noexcept {
@@ -86,7 +90,10 @@ inline void CALLBACK WatchOwner(HWND, UINT, UINT_PTR, DWORD) noexcept {
   ModalWatchState &state = WatchState();
   bool ownerGone = state.owner && !IsWindow(state.owner);
   bool released = ModalRegistry::Shared().releases.load() != state.release;
-  if (!ownerGone && !released && !Stopping()) return;
+  if (!ownerGone && !released && !Stopping()) {
+    if (state.tick) state.tick();
+    return;
+  }
   std::function<void()> abandon = std::move(state.abandon);
   state.abandon = nullptr;
   if (abandon) abandon();
@@ -105,11 +112,13 @@ struct ModalWatch {
     ModalWatchState &state = WatchState();
     state.owner = nullptr;
     state.abandon = nullptr;
+    state.tick = nullptr;
   }
   ModalWatch(ModalWatch const &) = delete;
   ModalWatch &operator=(ModalWatch const &) = delete;
 
   static void OnAbandon(std::function<void()> abandon) noexcept { WatchState().abandon = std::move(abandon); }
+  static void OnTick(std::function<void()> tick) noexcept { WatchState().tick = std::move(tick); }
 
  private:
   UINT_PTR m_timer = 0;
@@ -134,6 +143,7 @@ bool RunModal(HWND owner, TShow &&show) noexcept {
   try {
     ModalRegistry::Shared().threads++;
     std::thread([owner, show = std::forward<TShow>(show)]() mutable noexcept {
+      SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
       {
         ComApartment apartment;
         OwnerSlot slot(owner);

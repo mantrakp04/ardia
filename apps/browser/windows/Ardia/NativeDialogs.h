@@ -36,7 +36,6 @@ inline DialogConfirmReply ShowConfirm(HWND owner, std::wstring const &title, std
   DialogConfirmReply reply;
   ModalOverWindow modal(owner, "confirm");
   HWND shown = nullptr;
-  ModalWatch watch(owner);
   ModalWatch::OnAbandon([&shown] {
     if (shown) SendMessageW(shown, TDM_CLICK_BUTTON, IDCANCEL, 0);
   });
@@ -157,7 +156,6 @@ struct DialogTemplateBuilder {
 
 inline std::optional<std::wstring> ShowPrompt(HWND owner, PromptState &state) noexcept {
   ModalOverWindow modal(owner, "prompt");
-  ModalWatch watch(owner);
   ModalWatch::OnAbandon([&state] {
     if (state.window) PostMessageW(state.window, WM_COMMAND, IDCANCEL, 0);
   });
@@ -214,7 +212,6 @@ inline std::vector<std::wstring> ShowOpenFiles(HWND owner) noexcept {
   FILEOPENDIALOGOPTIONS options = 0;
   dialog->GetOptions(&options);
   dialog->SetOptions(options | FOS_ALLOWMULTISELECT | FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST);
-  ModalWatch watch(owner);
   ModalWatch::OnAbandon([shown = dialog.get()] { shown->Close(HRESULT_FROM_WIN32(ERROR_CANCELLED)); });
   if (FAILED(dialog->Show(owner))) return picked;
   winrt::com_ptr<IShellItemArray> results;
@@ -243,7 +240,6 @@ inline std::optional<std::wstring> ShowOpenFolder(HWND owner, std::optional<std:
     winrt::com_ptr<IShellItem> folder;
     if (SUCCEEDED(SHCreateItemFromParsingName(current->c_str(), nullptr, __uuidof(IShellItem), folder.put_void())) && folder) dialog->SetFolder(folder.get());
   }
-  ModalWatch watch(owner);
   ModalWatch::OnAbandon([shown = dialog.get()] { shown->Close(HRESULT_FROM_WIN32(ERROR_CANCELLED)); });
   if (FAILED(dialog->Show(owner))) return std::nullopt;
   winrt::com_ptr<IShellItem> result;
