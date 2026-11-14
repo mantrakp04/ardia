@@ -17,6 +17,8 @@ import type { BookmarkFolderChoice } from "./menuParts";
 import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { activeLook } from "../../lib/activeLook";
 import { measureRow, setSidebarUi, sidebarUi, type Target } from "./sidebarUi";
+import { showToast } from "../app/toasts";
+import { splitOf, splitRowPanes } from "../splits/splits";
 
 const store = () => useBrowser.getState();
 
@@ -121,12 +123,26 @@ export function newGroupWithSelection(windowId: string, ids = selectedTabIds(sto
   return groupId;
 }
 
+function inPaneOrder(ids: string[]) {
+  return [...new Set(ids.flatMap((id) => {
+    const panes = splitRowPanes(store(), splitOf(store(), id));
+    return panes.includes(id) ? panes.filter((pane) => ids.includes(pane)) : [id];
+  }))];
+}
+
 export function copyUrls(ids: string[], markdown: boolean) {
-  const tabs = ids.map((id) => store().tabs[id]).filter((t): t is Tab => !!t?.url);
-  if (!tabs.length) return;
+  const tabs = inPaneOrder(ids).map((id) => store().tabs[id]).filter((t): t is Tab => !!t?.url);
+  if (!tabs.length) return 0;
   const lines = tabs.map((t) => (markdown ? markdownLink(tabTitle(t), t.url) : cleanUrl(t.url)));
   copyText(markdown && lines.length > 1 ? lines.map((l) => `- ${l}`).join("\n") : lines.join("\n"));
   for (const t of tabs) noteUrlCopied(awaitsFirstPage(t.id));
+  return tabs.length;
+}
+
+export function copyUrlsWithToast(windowId: string, ids: string[], markdown: boolean) {
+  const copied = copyUrls(ids, markdown);
+  if (copied) showToast(windowId, markdown ? "Copied URLs as Markdown" : "Copied URLs", undefined, { icon: "link" });
+  return copied;
 }
 
 export async function bookmarkTabs(windowId: string, ids: string[], folder: BookmarkFolderChoice) {

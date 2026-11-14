@@ -4,18 +4,46 @@ import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId, pinSection, plural } from "../browser/model";
 import { awayFromPin, selectedTabIds } from "../pins/organize";
 import { groupOf } from "../pins/tabGrouping";
-import { newGroupWithSelection, openIconPicker, startRename } from "./actions";
+import { copyUrlsWithToast, newGroupWithSelection, openIconPicker, startRename } from "./actions";
 import { cleanUpWithUndo, closeAllTabs } from "./clearTabs";
 import { toggleNewTabBar } from "../omnibox/newTabBar";
 import { movePinnedTitle, togglePinnedRows } from "./movePinned";
 import { setSidebarUi } from "./sidebarUi";
 import { tidy } from "./tidyUi";
 import { switcherStep } from "./switcher";
+import { noteSelectionCopiedByKey } from "../telemetry/urlCopies";
+import { splitOf, splitRowPanes } from "../splits/splits";
+
+export function keyedSelection(s: BrowserState, windowId: string): string[] {
+  if (s.peeks[windowId]) return [];
+  const selected = selectedTabIds(s, windowId);
+  return selected.length > 1 ? selected : [];
+}
+
+function sidebarRowOf(s: BrowserState, tabId: string) {
+  const split = splitOf(s, tabId);
+  return split && splitRowPanes(s, split).includes(tabId) ? split.id : tabId;
+}
+
+export function selectionToCopy(s: BrowserState, windowId: string): string[] {
+  const ids = keyedSelection(s, windowId);
+  const rows = new Set(ids.map((id) => sidebarRowOf(s, id)));
+  return rows.size > 1 && ids.some((id) => s.tabs[id]?.url) ? ids : [];
+}
 
 export function runSidebarCommand(command: BrowserCommand, arg: string | null, windowId: string): boolean {
   const s = useBrowser.getState();
   const tabId = activeTabId(s, windowId);
   switch (command) {
+    case "copyUrl":
+    case "copyUrlAsMarkdown": {
+      const ids = selectionToCopy(s, windowId);
+      if (!ids.length) return false;
+      const markdown = command === "copyUrlAsMarkdown";
+      const copied = copyUrlsWithToast(windowId, ids, markdown);
+      if (copied) noteSelectionCopiedByKey(copied, markdown);
+      return true;
+    }
     case "newTabInGroup": {
       const group = groupOf(s, tabId);
       if (toggleNewTabBar(windowId, group ? { kind: "group", groupId: group.id } : undefined)) return true;
@@ -69,7 +97,8 @@ export function sidebarMenuState(s: BrowserState, windowId: string | undefined) 
     if (!forGroup.length) disabled.push("newGroupWithTabs");
     if (forGroup.length > 1) titles.newGroupWithTabs = `New Group with ${plural(forGroup.length, "Tab")}`;
     const bar = s.windowUi[windowId]?.panel;
-    if (selected.length > 1 && !bar?.open && !bar?.newTab) titles.closeTab = `Close ${plural(selected.length, "Tab")}`;
+    const keyed = keyedSelection(s, windowId).length;
+    if (keyed && !bar?.open && !bar?.newTab) titles.closeTab = `Close ${plural(keyed, "Tab")}`;
   }
   const recentlyClosedGroups: MenuEntry[] = [...s.closedGroups]
     .reverse()
