@@ -19,10 +19,12 @@ def pageEngineOutsideThisModule = ['**/Omnibox.kt', '**/PageSurface.kt']
 def appModel = file("${androidApp}/appmodel/src/main/kotlin")
 def codeScanner = file("${androidApp}/settings/src/main/kotlin")
 def speech = file("${androidApp}/search/src/main/kotlin")
+def faviconPixels = file("${androidApp}/design/src/main/kotlin")
 def composeSourcesInThisModule = [
   (appModel): ['SystemLink.kt', 'SystemActions.kt'],
   (codeScanner): ['SyncCodeReading.kt', 'SyncCodeCamera.kt'],
   (speech): ['SpeechRecorder.kt', 'DictationTypes.kt'],
+  (faviconPixels): ['FaviconPixels.kt'],
 ]
 def cameraXVersion = '1.5.0-rc01'
 def kotlinVersion = org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapperKt.getKotlinPluginVersion(project)
@@ -164,7 +166,7 @@ android {
   }
   sourceSets {
     main {
-      java.srcDirs += ["${pageEngine}/kotlin", "${contentBlocking}/kotlin", "${scriptRuntime}/kotlin", "${syncEngine}/main/kotlin", appModel, codeScanner, speech]
+      java.srcDirs += ["${pageEngine}/kotlin", "${contentBlocking}/kotlin", "${scriptRuntime}/kotlin", "${syncEngine}/main/kotlin", appModel, codeScanner, speech, faviconPixels]
       assets.srcDirs += "${pageEngine}/assets"
       res.srcDirs += "${pageEngine}/res"
       resources.srcDirs += "${contentBlocking}/resources"

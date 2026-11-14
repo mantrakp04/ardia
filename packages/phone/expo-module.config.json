@@ -1,7 +1,7 @@
 {
   "platforms": ["android", "ios"],
   "android": {
-    "modules": ["com.ardia.phone.PageViewModule", "com.ardia.phone.BlockingModule", "com.ardia.phone.DownloadsModule", "com.ardia.phone.SyncModule", "com.ardia.phone.SystemModule", "com.ardia.phone.DefaultBrowserModule", "com.ardia.phone.ScanModule", "com.ardia.phone.SpeechModule"]
+    "modules": ["com.ardia.phone.PageViewModule", "com.ardia.phone.BlockingModule", "com.ardia.phone.DownloadsModule", "com.ardia.phone.SyncModule", "com.ardia.phone.SystemModule", "com.ardia.phone.DefaultBrowserModule", "com.ardia.phone.ScanModule", "com.ardia.phone.SpeechModule", "com.ardia.phone.FaviconModule", "com.ardia.phone.NetworkModule"]
   },
   "ios": {
     "modules": ["PageViewModule", "BlockingModule", "DownloadsModule", "SystemModule", "DefaultBrowserModule", "LegacyModule", "SyncModule"]

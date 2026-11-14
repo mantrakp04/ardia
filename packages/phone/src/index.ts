@@ -8,6 +8,8 @@ export { sync } from "./sync";
 export { syncLab, type SyncRuntimeCheck } from "./syncLab";
 export { system, type SystemLink, type SystemLinkSource } from "./system";
 export { scanner, ScanView, type ScanError, type ScanPermission, type ScanViewProps } from "./scan";
+export { favicons, type FaviconLook, type FaviconTone } from "./favicons";
+export { network, type NetworkEvent } from "./network";
 export { canUseSpeech, speech, type SpeechAccess, type SpeechEvent, type SpeechProblem } from "./voice";
 export type {
   BookmarkItem,

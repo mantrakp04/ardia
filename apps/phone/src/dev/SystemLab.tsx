@@ -1,4 +1,4 @@
-import { defaultBrowser, system, type DefaultBrowserStatus, type SystemLink } from "@ardia/phone-native";
+import { defaultBrowser, favicons, network, system, type DefaultBrowserStatus, type SystemLink } from "@ardia/phone-native";
 import { useCallback, useEffect, useState } from "react";
 import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -42,12 +42,17 @@ export function SystemLab({ note }: { note: (line: string) => void }) {
       note(`system link ${line}`);
       setLinks((all) => [line, ...all].slice(0, 6));
     });
+    const online = network.addListener((event) => {
+      console.log(`PAGELAB system network ${event.online ? "online again" : "lost"}`);
+      note(`network ${event.online ? "online again" : "lost"}`);
+    });
     const foreground = AppState.addEventListener("change", (state) => {
       if (state === "active") refresh();
     });
     refresh();
     return () => {
       subscription.remove();
+      online.remove();
       foreground.remove();
     };
   }, [note, refresh]);
@@ -57,6 +62,7 @@ export function SystemLab({ note }: { note: (line: string) => void }) {
       <Text style={styles.title}>System</Text>
       <Text style={styles.line}>initial link: {initial}</Text>
       <Text style={styles.line}>links: {links.length ? links.join("\n") : "none yet"}</Text>
+      <Text style={styles.line}>online now: {String(network.isOnline())}</Text>
       <Text style={styles.line}>default browser: {status ? `isDefault ${status.isDefault} · canAsk ${status.canAsk}` : "-"}</Text>
       <View style={styles.row}>
         <Button label="Refresh" onPress={refresh} />
@@ -69,6 +75,16 @@ export function SystemLab({ note }: { note: (line: string) => void }) {
           (error: { message?: string }) => note(`requestRole ✗ ${error.message ?? ""}`),
         )} />
         <Button label="Default apps settings" onPress={() => defaultBrowser.openDefaultAppsSettings().catch((error: { message?: string }) => note(`settings ✗ ${error.message ?? ""}`))} />
+        <Button label="Favicon looks" onPress={() => {
+          const icons = ["https://github.com/favicon.ico", "https://www.apple.com/favicon.ico", "https://www.wikipedia.org/static/favicon/wikipedia.ico"];
+          for (const icon of icons) {
+            Promise.all([favicons.look(icon, true), favicons.look(icon, false)]).then(([dark, light]) => {
+              const line = `favicon ${icon.split("/")[2]}: ${dark?.tone ?? "unreadable"}, backing dark ${dark?.backing ?? "none"}, light ${light?.backing ?? "none"}`;
+              console.log(`PAGELAB system ${line}`);
+              note(line);
+            });
+          }
+        }} />
         <Button label={hidden ? "Show in Recents" : "Hide from Recents"} onPress={() => system.setHidesFromRecents(!hidden).then((done) => {
           note(`hide from recents ${!hidden} → ${done}`);
           if (done) setHidden(!hidden);
