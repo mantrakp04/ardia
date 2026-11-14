@@ -5,9 +5,11 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "base/base_paths_win.h"
 #include "base/files/file_path.h"
+#include "base/no_destructor.h"
 #include "base/path_service.h"
 
 namespace ardia_win {
@@ -36,6 +38,22 @@ std::optional<std::wstring> OpenedFinalPath(const base::FilePath& path) {
   }
   ::CloseHandle(handle);
   return found;
+}
+
+std::optional<std::wstring> HeldFinalPath(HANDLE handle) {
+  constexpr DWORD kFlags = VOLUME_NAME_GUID | FILE_NAME_NORMALIZED;
+  DWORD size = ::GetFinalPathNameByHandleW(handle, nullptr, 0, kFlags);
+  if (size == 0) {
+    return std::nullopt;
+  }
+  std::wstring value(size, L'\0');
+  DWORD written =
+      ::GetFinalPathNameByHandleW(handle, value.data(), size, kFlags);
+  if (written == 0 || written >= size) {
+    return std::nullopt;
+  }
+  value.resize(written);
+  return value;
 }
 
 bool Exists(const base::FilePath& path) {
@@ -83,10 +101,7 @@ bool Overlaps(std::wstring_view a, std::wstring_view b) {
   return WithinOrSame(a, b) || WithinOrSame(b, a);
 }
 
-std::wstring RealFolderClash(const base::FilePath& data_dir) {
-  const base::FilePath checked[] = {
-      data_dir, data_dir.Append(FILE_PATH_LITERAL("Chromium")),
-      data_dir.Append(FILE_PATH_LITERAL("Sync"))};
+std::wstring RealFolderClashOf(const std::vector<std::wstring>& canonical) {
   for (int key : {base::DIR_LOCAL_APP_DATA, base::DIR_ROAMING_APP_DATA}) {
     base::FilePath folder;
     if (!base::PathService::Get(key, &folder) || folder.empty()) {
@@ -97,17 +112,32 @@ std::wstring RealFolderClash(const base::FilePath& data_dir) {
     if (!real) {
       return L"the real profile folder can't be resolved";
     }
-    for (const base::FilePath& mine : checked) {
-      std::optional<std::wstring> canonical = CanonicalPath(mine);
-      if (!canonical) {
-        return L"ARDIA_DATA_DIR can't be resolved on a local volume";
-      }
-      if (Overlaps(*canonical, *real)) {
+    for (const std::wstring& mine : canonical) {
+      if (Overlaps(mine, *real)) {
         return L"ARDIA_DATA_DIR is or overlaps the real profile folder";
       }
     }
   }
   return std::wstring();
+}
+
+std::wstring RealFolderClash(const base::FilePath& data_dir) {
+  std::vector<std::wstring> canonical;
+  for (const base::FilePath& mine :
+       {data_dir, data_dir.Append(FILE_PATH_LITERAL("Chromium")),
+        data_dir.Append(FILE_PATH_LITERAL("Sync"))}) {
+    std::optional<std::wstring> resolved = CanonicalPath(mine);
+    if (!resolved) {
+      return L"ARDIA_DATA_DIR can't be resolved on a local volume";
+    }
+    canonical.push_back(*resolved);
+  }
+  return RealFolderClashOf(canonical);
+}
+
+std::vector<HANDLE>& HeldFolders() {
+  static base::NoDestructor<std::vector<HANDLE>> held;
+  return *held;
 }
 
 bool TestBuild() {
@@ -123,7 +153,8 @@ bool TestBuild() {
 
 }
 
-std::wstring TestGateRefusal(const std::wstring& data_dir) {
+std::wstring TestGateRefusal(const std::wstring& data_dir,
+                             const std::wstring& chromium_user_data_dir) {
   if (data_dir.empty()) {
     return L"no scratch ARDIA_DATA_DIR";
   }
@@ -135,11 +166,50 @@ std::wstring TestGateRefusal(const std::wstring& data_dir) {
   if (!clash.empty()) {
     return clash;
   }
+  std::optional<std::wstring> expected =
+      CanonicalPath(path.Append(FILE_PATH_LITERAL("Chromium")));
+  std::optional<std::wstring> opened =
+      chromium_user_data_dir.empty()
+          ? std::nullopt
+          : CanonicalPath(base::FilePath(chromium_user_data_dir));
+  if (!expected || !opened || !SameText(*expected, *opened)) {
+    return L"Chromium would open another profile folder than ARDIA_DATA_DIR's "
+           L"(a --user-data-dir or a policy)";
+  }
   if (!TestBuild()) {
     return std::wstring(L"not a test build: no ") + kTestBuildMarker +
            L" beside the app";
   }
   return std::wstring();
+}
+
+std::wstring HoldScratchFolders(const std::wstring& data_dir) {
+  const base::FilePath path(data_dir);
+  std::vector<std::wstring> canonical;
+  for (const base::FilePath& folder :
+       {path, path.Append(FILE_PATH_LITERAL("Chromium"))}) {
+    ::CreateDirectoryW(folder.value().c_str(), nullptr);
+    HANDLE handle = ::CreateFileW(
+        folder.value().c_str(), FILE_LIST_DIRECTORY | FILE_TRAVERSE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+    if (handle == INVALID_HANDLE_VALUE) {
+      return L"ARDIA_DATA_DIR can't be held open";
+    }
+    HeldFolders().push_back(handle);
+    FILE_ATTRIBUTE_TAG_INFO tag = {};
+    if (!::GetFileInformationByHandleEx(handle, FileAttributeTagInfo, &tag,
+                                        sizeof(tag)) ||
+        (tag.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+      return L"ARDIA_DATA_DIR or its Chromium folder is a link";
+    }
+    std::optional<std::wstring> held = HeldFinalPath(handle);
+    if (!held) {
+      return L"ARDIA_DATA_DIR can't be resolved on a local volume";
+    }
+    canonical.push_back(*held);
+  }
+  return RealFolderClashOf(canonical);
 }
 
 }

@@ -800,14 +800,36 @@ Outside a test instance the launch config drops `ARDIA_TEST`, `ARDIA_TRACE`, `AR
 `ARDIA_INSTANCE` keys (`updateFeed`, `importSourceDir`, `importSafariHome`), and the launch log says once why. The other
 `ARDIA_INSTANCE` keys and `ARDIA_BACKGROUND` stay instance settings, as on the Mac.
 
-The engine applies the same decision to its own switches. Only a test instance gets `--remote-debugging-port` (with
-`remote-allow-origins=*`), `--ardia-test` and `--ardia-trace`, plus `--ardia-test-instance`, which `ardiacore`'s gate
-reads in place of the Mac's signing check (`series_win.py` `launch_switches_source()`); otherwise the launch log gets
-one `engine 0 test gate:` line saying why, and `reauth=granted`, `keychain`, `safeStorageAnswer` and the other engine
-test keys never count. Any of those switches given on the command line is dropped first. `launch-smoke.ps1` checks
-it with the engine: with no marker, a relative folder, the real profile folder and a junction to it, the launch
-asks for remote debugging and `reauth=granted`, and the engine must refuse both and leave the port closed; a scratch
-folder with the marker must get both, with the port answering `/json/version`.
+The engine applies the same decision to its own switches (`main.cc` `DecideTestGate`, before Chromium starts):
+
+- **Which process.** A launch counts as the browser process when its `--type` is missing or empty, as Chromium counts
+  it, so an empty `--type=` can't skip the gate.
+- **Which folder.** The gate judges the profile folder Chromium will really open: `install_static::GetUserDataDirectory()`,
+  which `chrome_elf` derives from the raw command line, policy and `ARDIA_DATA_DIR`. It must be `<ARDIA_DATA_DIR>\Chromium`,
+  compared by final path, so a `--user-data-dir` or a policy pointing anywhere else refuses the test instance.
+- **What a test instance gets.** `--remote-debugging-port` (with `remote-allow-origins=*`), `--ardia-test`,
+  `--ardia-trace` and `--ardia-test-instance`, which `ardiacore`'s gate reads in place of the Mac's signing check
+  (`series_win.py` `launch_switches_source()`). Those switches given on the command line are always dropped first.
+- **What everyone else loses.** Outside a test instance the engine drops the Mac's list of switches that open the
+  profile to an outsider (`--load-extension`, `--disable-web-security`, `--enable-automation`, the remote debugging and
+  proxy switches and the rest of `kSwitchesThatOpenTheProfile`) and unsets `SSLKEYLOGFILE`, before Chromium starts and
+  again after `chrome://flags` adds its switches. A second launch handed to the running instance only gives it its URLs
+  (`Relaunched`), and child processes only get switches the browser process still has. The launch log gets one
+  `engine 0 test gate:` line saying why, and `reauth=granted`, `keychain`, `safeStorageAnswer` and the other engine
+  test keys never count.
+- **The folders, held.** Once approved, the scratch folder and its `Chromium` folder are created if missing and held
+  open for the life of the process without delete sharing, then checked again through those handles; a folder held that
+  way can't be renamed away or swapped for a junction, and a folder that is itself a link is refused.
+
+What the marker does and doesn't protect: it marks a build CI tests, and only a build with it honours any of the above.
+Anyone who can write the app folder can add it, or replace `Ardia.exe` or `ArdiaApp.dll`, so it guards the installed
+build against the environment and the command line, not against code that can already write the install folder.
+
+`launch-smoke.ps1` checks it with the engine. With no marker, a relative folder, the real profile folder, a junction to
+it, an empty `--type=` on the real profile, an approved folder while `--user-data-dir` points at the real profile, and
+`--load-extension` with debugging switches outside a test instance, the engine must refuse, leave the port closed, and
+(for the extension) never run it; a scratch folder with the marker must get both powers, with the port answering
+`/json/version`.
 
 ## Checks
 

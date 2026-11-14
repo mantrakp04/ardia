@@ -42,6 +42,7 @@ source_set("win") {
     "//chrome/browser/ui:recently_audible_helper",
     "//chrome/browser/profiles:profile",
     "//chrome/common",
+    "//chrome/install_static:install_static_util",
     "//components/blocked_content",
     "//components/content_settings/core/browser",
     "//components/favicon/content",
