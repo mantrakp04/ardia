@@ -9,6 +9,7 @@ export {
   type DisplayMediaAudio,
   type DisplayMediaRequest,
   type MediaCommand,
+  type MediaFault,
   type NowPlaying,
   type ControlPress,
   type PictureInPictureState,
