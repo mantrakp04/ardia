@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
@@ -10,9 +10,25 @@ import { openPageMenu } from "../../state/page/actions";
 import { useFindOpen, useMenuOpen, useReaderTabId } from "../../state/page/hooks";
 import { captureCurrentCover, newTab, showDeck, swipeOrder, switchToNeighbour } from "../../state/browse/store";
 import { useSearchOpen } from "../../state/search/hooks";
+import { closeFrontTab, menuOpenedHaptic, recentTabs, switchToTab, tabTitle } from "../../state/browse/tabMenus";
 import { useDeckOrder } from "../../state/tabs/hooks";
 import type { BrowserTab } from "../../state/tabs/tabModels";
-import { barCenterFromBottom, barHeight, browseLayout, isDarkColor, LoadingLine, pageBottomInset, rolesFor, tabsInk, tabsMotion, useTheme } from "../ui";
+import {
+  barCenterFromBottom,
+  barHeight,
+  browseLayout,
+  isDarkColor,
+  LoadingLine,
+  Menu,
+  pageBottomInset,
+  rolesFor,
+  space,
+  tabsInk,
+  tabsLayout,
+  tabsMotion,
+  useTheme,
+  type MenuItem,
+} from "../ui";
 import { BottomBar } from "./BottomBar";
 import { FindBar } from "./FindBar";
 import { PageMenu } from "./PageMenu";
@@ -34,11 +50,19 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   const order = useDeckOrder();
   const frozen = useFrozenOrder();
   const searching = useSearchOpen();
+  const [tabsMenu, setTabsMenu] = useState(false);
   const byId = useMemo(() => new Map(order.map((t) => [t.id, t])), [order]);
   const around = useMemo(() => neighbours(swipeOrder(), tab.id), [order, frozen, tab.id]);
-  const left = around.left ? byId.get(around.left) ?? null : null;
-  const right = around.right ? byId.get(around.right) ?? null : null;
-  const pager = useTabPager({ width, selectedId: tab.id, left: left?.id ?? null, right: right?.id ?? null, onCommit: switchToNeighbour, onGrab: captureCurrentCover });
+  const left = around.left ? (byId.get(around.left) ?? null) : null;
+  const right = around.right ? (byId.get(around.right) ?? null) : null;
+  const pager = useTabPager({
+    width,
+    selectedId: tab.id,
+    left: left?.id ?? null,
+    right: right?.id ?? null,
+    onCommit: switchToNeighbour,
+    onGrab: captureCurrentCover,
+  });
   const top = tone?.top ?? theme.surface;
   const bottom = tone?.bottom ?? theme.surface;
   const barDark = isDarkColor(bottom);
@@ -67,17 +91,40 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
           <Animated.View style={[styles.bar, { height: barHeight(insets.bottom) }, barStyle]}>
             <View style={[StyleSheet.absoluteFill, { backgroundColor: barDark ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} />
             <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom) - browseLayout.hitTarget / 2 }]}>
-              <BottomBar order={order} roles={rolesFor(barDark)} showsPlus={!searching} onTabs={showDeck} onPlus={newTab} onMore={openPageMenu} />
+              <BottomBar
+                order={order}
+                roles={rolesFor(barDark)}
+                showsPlus={!searching}
+                onTabs={showDeck}
+                onTabsMenu={() => {
+                  menuOpenedHaptic();
+                  setTabsMenu(true);
+                }}
+                onPlus={newTab}
+                onMore={openPageMenu}
+              />
             </View>
           </Animated.View>
         </GestureDetector>
       )}
+      {tabsMenu ? (
+        <Menu
+          items={tabsMenuItems(order)}
+          place={{ bottom: barHeight(insets.bottom) + space.xs, left: space.l, width: Math.min(tabsLayout.menuWidth, width - space.l * 2) }}
+          onDismiss={() => setTabsMenu(false)}
+        />
+      ) : null}
       <PressMenu width={width} height={height} />
       {menuOpen ? <PageMenu tabId={tab.id} /> : null}
       {readerId === tab.id ? <ReaderView tabId={tab.id} /> : null}
       <PageRequestHost tabId={tab.id} />
     </View>
   );
+}
+
+function tabsMenuItems(order: BrowserTab[]): MenuItem[] {
+  const others = recentTabs(order).map((tab): MenuItem => ({ label: tabTitle(tab), onPress: () => switchToTab(tab.id) }));
+  return [...others, ...(others.length ? ["divider" as const] : []), { label: "Close Tab", icon: "xmark", destructive: true, onPress: closeFrontTab }];
 }
 
 const styles = StyleSheet.create({

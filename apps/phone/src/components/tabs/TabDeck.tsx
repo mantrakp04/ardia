@@ -29,8 +29,9 @@ import {
   openTab,
   reopenLastClosed,
 } from "../../state/browse/store";
+import { canShareTab, copyTabLink, menuOpenedHaptic, shareTab } from "../../state/browse/tabMenus";
 import { useCanReopen, useDeckOrder, useHasArchivedTabs, useIncognito, usePrivateCount } from "../../state/tabs/hooks";
-import { Backdrop, ConfirmDialog, Menu, tabsCurve, tabsLayout, tabsMotion, useTheme, type Confirmation, type MenuItem } from "../ui";
+import { Backdrop, ConfirmDialog, Menu, space, tabsCurve, tabsLayout, tabsMotion, useTheme, type Confirmation, type MenuItem } from "../ui";
 import { openSettings } from "../../state/settings/hooks";
 import { DeckBar } from "./DeckBar";
 import { DeckCard, type DeckMotion, type DeckRole } from "./DeckCard";
@@ -61,6 +62,7 @@ export function TabDeck() {
   const [shift, setShift] = useState({ by: 0, generation: 0 });
   const [phase, setPhase] = useState<Phase>({ kind: "settled", id: null });
   const [menu, setMenu] = useState<"plus" | "chip" | null>(null);
+  const [cardMenu, setCardMenu] = useState<{ index: number; x: number; y: number } | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const hidden = useRef(new Set<string>());
   const motion: DeckMotion = {
@@ -185,11 +187,35 @@ export function TabDeck() {
       const target = deckSettleTarget(g, scroll.value, e.velocityX, count);
       scroll.value = withSpring(target, { ...tabsMotion.settle, velocity: deckSettleVelocity(g, scroll.value, target, e.velocityX) });
     });
+  const showCardMenu = (index: number, x: number, y: number) => {
+    if (phase.kind !== "settled" || !order[index]) return;
+    menuOpenedHaptic();
+    setMenu(null);
+    setCardMenu({ index, x, y });
+  };
+  const longPress = Gesture.LongPress()
+    .minDuration(tabsMotion.longPress)
+    .onStart((e) => {
+      const card = deckCardAt(g, count, scroll.value, e.x, e.y);
+      if (card >= 0) runOnJS(showCardMenu)(card, e.x, e.y);
+    });
   const tap = Gesture.Tap().onEnd((e, success) => {
     if (!success) return;
     const card = deckCardAt(g, count, scroll.value, e.x, e.y);
     if (card >= 0) runOnJS(open)(card);
   });
+
+  const cardMenuItems = (index: number): MenuItem[] => {
+    const tab = tabs.get(order[index] ?? "");
+    const closing: MenuItem = { label: "Close Tab", icon: "xmark", destructive: true, onPress: () => close(index, 0) };
+    if (!tab || !canShareTab(tab)) return [closing];
+    return [
+      { label: "Copy Link", icon: "link", onPress: () => copyTabLink(tab) },
+      { label: "Share", icon: "squareAndArrowUp", onPress: () => shareTab(tab) },
+      "divider",
+      closing,
+    ];
+  };
 
   const confirmCloseAll = () =>
     setConfirmation({
@@ -215,7 +241,7 @@ export function TabDeck() {
   return (
     <View style={StyleSheet.absoluteFill}>
       <Backdrop colors={theme.backdrop} />
-      <GestureDetector gesture={Gesture.Race(pan, tap)}>
+      <GestureDetector gesture={Gesture.Race(pan, longPress, tap)}>
         <View style={[styles.touch, { height: g.barCenterY - tabsLayout.barTouchClearance }]} collapsable={false}>
           {order.map((id, index) => {
             const tab = tabs.get(id);
@@ -256,6 +282,17 @@ export function TabDeck() {
           items={[{ label: "Close Incognito Tabs", icon: "xmark", destructive: true, onPress: confirmLeaveIncognito }]}
           place={{ top: g.safeTop + tabsLayout.chipHeight + tabsLayout.headerGap * 2, left: (width - tabsLayout.menuWidth) / 2, width: tabsLayout.menuWidth }}
           onDismiss={() => setMenu(null)}
+        />
+      ) : null}
+      {cardMenu ? (
+        <Menu
+          items={cardMenuItems(cardMenu.index)}
+          place={{
+            top: Math.min(cardMenu.y, height - tabsLayout.cardMenuHeight),
+            left: Math.min(Math.max(cardMenu.x - tabsLayout.menuWidth / 2, space.l), width - tabsLayout.menuWidth - space.l),
+            width: tabsLayout.menuWidth,
+          }}
+          onDismiss={() => setCardMenu(null)}
         />
       ) : null}
       {confirmation ? <ConfirmDialog confirmation={confirmation} onClose={() => setConfirmation(null)} /> : null}

@@ -56,6 +56,12 @@ export const findTab = (data: TabsData, id: string): BrowserTab | undefined =>
 export const selectedTab = (data: TabsData): BrowserTab | undefined =>
   data.selectedId === null ? undefined : data.open.find((t) => t.id === data.selectedId) ?? data.privates.find((t) => t.id === data.selectedId);
 
+export const RECENT_TABS_LIMIT = 8;
+
+export const recentOtherTabs = (order: readonly BrowserTab[]): BrowserTab[] => order.slice(0, -1).slice(-RECENT_TABS_LIMIT).reverse();
+
+export const tabMenuTitle = (tab: BrowserTab, host: string): string => tab.title.trim() || host || "New Tab";
+
 export const deckOrder = (data: TabsData): BrowserTab[] => recencyOrder([...data.open, ...data.privates], data.selectedId);
 
 export const isPrivateTab = (data: TabsData, id: string) => data.privates.some((t) => t.id === id);

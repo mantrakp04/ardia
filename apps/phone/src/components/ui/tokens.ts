@@ -196,6 +196,7 @@ export const tabsLayout = {
   chipHeight: 32,
   faviconRadius: 4,
   menuWidth: 250,
+  cardMenuHeight: 190,
   emptyWidth: 300,
   archiveTop: 52,
   archiveButton: 44,

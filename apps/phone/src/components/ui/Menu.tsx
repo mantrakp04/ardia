@@ -31,7 +31,7 @@ export function Menu({ items, place, onDismiss }: Props) {
           const color = item.destructive ? theme.destructive : theme.label;
           return (
             <Pressable
-              key={item.label}
+              key={`${index}:${item.label}`}
               accessibilityRole="menuitem"
               accessibilityLabel={item.label}
               accessibilityState={{ checked: item.checked }}

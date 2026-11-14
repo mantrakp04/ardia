@@ -5,6 +5,8 @@ import {
   archiveTabs,
   clearArchive,
   closeAllTabs,
+  recentOtherTabs,
+  tabMenuTitle,
   closeTab,
   deckOrder,
   emptyTabs,
@@ -186,4 +188,27 @@ test("launch selects the most recently active tab", () => {
   const tabs = data.open.map((t) => (t.id === b.id ? { ...t, lastActive: 99 } : t));
   assert.equal(launchTabs([...tabs].reverse(), 0).selectedId, b.id);
   assert.deepEqual(launchTabs([...tabs].reverse(), 0).open.map((t) => t.position), [0, POSITION_STEP, 2 * POSITION_STEP]);
+});
+
+test("the Tabs button menu lists the other tabs, most recent first, at most eight", () => {
+  let data = emptyTabs();
+  const ids: string[] = [];
+  for (let i = 0; i < 11; i++) {
+    const made = opened(data, `https://t${i}.example/`, i + 1);
+    data = made.change.data;
+    ids.push(made.tab.id);
+  }
+  const order = deckOrder(data);
+  const recent = recentOtherTabs(order);
+  assert.equal(recent.length, 8);
+  assert.equal(recent[0]!.id, order.at(-2)!.id);
+  assert.ok(!recent.some((t) => t.id === data.selectedId));
+  assert.deepEqual(recentOtherTabs(order.slice(-1)), []);
+});
+
+test("a tab with no title is listed by its host, then as New Tab", () => {
+  const { a } = threeTabs();
+  assert.equal(tabMenuTitle({ ...a, title: "Otter" }, "en.wikipedia.org"), "Otter");
+  assert.equal(tabMenuTitle({ ...a, title: "  " }, "example.com"), "example.com");
+  assert.equal(tabMenuTitle({ ...a, title: "" }, ""), "New Tab");
 });

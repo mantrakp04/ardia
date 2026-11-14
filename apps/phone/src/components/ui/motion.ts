@@ -24,6 +24,7 @@ export const tabsMotion = {
   flyAway: 200,
   barTone: 250,
   menu: 160,
+  longPress: 400,
   sheetIn: spring(0.39, 1),
   sheetOut: spring(0.32, 1),
   surfaceFade: 200,
