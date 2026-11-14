@@ -39,6 +39,10 @@ abstract class CompileSyncBundle extends DefaultTask {
   @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getCheckScript()
   @InputFiles @PathSensitive(PathSensitivity.NONE) abstract ConfigurableFileCollection getCompanionHooks()
   @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getCompanionTests()
+  @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getBabelPins()
+  @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getRuntimeChecks()
+  @InputFile @PathSensitive(PathSensitivity.NONE) abstract RegularFileProperty getMakeChecksScript()
+  @Input abstract Property<Boolean> getLab()
   @Internal abstract DirectoryProperty getPhoneApp()
   @OutputDirectory abstract DirectoryProperty getOutputDir()
   @Inject abstract ExecOperations getExec()
@@ -63,15 +67,30 @@ abstract class CompileSyncBundle extends DefaultTask {
       commandLine 'node', '--import', register.toURI().toString(), '--test', '--test-reporter=dot', companionTests.get().asFile.absolutePath
     }
     exec.exec { commandLine compiler.absolutePath, '-emit-binary', '-O', '-w', '-out', bytecode.absolutePath, transpiled.absolutePath }
-    def head = new byte[8]
-    bytecode.withInputStream { it.read(head) }
-    if (bytecode.length() < 1024 || !Arrays.equals(head, HERMES_BYTECODE_MAGIC)) throw new GradleException("hermesc wrote no Hermes bytecode to ${bytecode}")
+    checkBytecode(bytecode)
+    def results = [bytecode]
+    if (lab.get()) {
+      exec.exec { commandLine 'node', makeChecksScript.get().asFile.absolutePath, runtimeChecks.get().asFile.absolutePath, work.absolutePath, phoneApp.get().asFile.absolutePath }
+      def checksBytecode = new File(work, 'ardia-sync-checks.hbc')
+      exec.exec { commandLine compiler.absolutePath, '-emit-binary', '-O', '-w', '-out', checksBytecode.absolutePath, new File(work, 'ardia-sync-checks.js').absolutePath }
+      checkBytecode(checksBytecode, 256)
+      results += [checksBytecode, new File(work, 'ardia-sync-checks.json')]
+    }
     def out = outputDir.get().asFile
     out.mkdirs()
-    out.listFiles()?.findAll { it.name != 'ardia-sync.hbc' }?.each { it.delete() }
-    def staged = new File(out, 'ardia-sync.hbc.partial')
-    java.nio.file.Files.copy(bytecode.toPath(), staged.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
-    java.nio.file.Files.move(staged.toPath(), new File(out, 'ardia-sync.hbc').toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+    def names = results*.name as Set
+    out.listFiles()?.findAll { !(it.name in names) }?.each { it.delete() }
+    results.each { result ->
+      def staged = new File(out, "${result.name}.partial")
+      java.nio.file.Files.copy(result.toPath(), staged.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+      java.nio.file.Files.move(staged.toPath(), new File(out, result.name).toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+    }
+  }
+
+  private static void checkBytecode(File bytecode, long smallest = 1024) {
+    def head = new byte[8]
+    bytecode.withInputStream { it.read(head) }
+    if (bytecode.length() < smallest || !Arrays.equals(head, HERMES_BYTECODE_MAGIC)) throw new GradleException("hermesc wrote no Hermes bytecode to ${bytecode}")
   }
 }
 
@@ -91,6 +110,10 @@ androidComponents {
       checkScript.set(file("${projectDir}/scripts/check-sync-bundle.mjs"))
       companionHooks.from(file("${projectDir}/scripts/sync-bundle-register.mjs"), file("${projectDir}/scripts/sync-bundle-hooks.mjs"))
       companionTests.set(file("${repository}/packages/sync/src/companion/companion.test.ts"))
+      babelPins.set(file("${projectDir}/scripts/sync-babel-pins.json"))
+      runtimeChecks.set(file("${projectDir}/scripts/sync-runtime-checks.js"))
+      makeChecksScript.set(file("${projectDir}/scripts/make-sync-checks.mjs"))
+      lab.set(findProperty('ardiaLab') == 'true')
       it.phoneApp.set(phoneApp)
     }
     variant.sources.assets?.addGeneratedSourceDirectory(task, { CompileSyncBundle compile -> compile.outputDir })

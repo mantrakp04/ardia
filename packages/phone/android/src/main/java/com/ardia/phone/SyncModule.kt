@@ -123,6 +123,10 @@ class SyncModule : Module() {
 
         AsyncFunction("inbox") { -> SyncPayloads.inbox(PhoneSync.inbox(context).entries()) }
 
+        AsyncFunction("runtimeChecks") { ->
+            SyncRuntimeChecks.run(context.assets).map { mapOf("name" to it.name, "pass" to it.pass, "actual" to it.actual, "expected" to it.expected) }
+        }
+
         AsyncFunction("inboxApplied") { ids: List<Double> -> PhoneSync.inbox(context).applied(ids.map { it.toLong() }.toSet()) }
     }
 

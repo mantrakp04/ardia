@@ -5,6 +5,7 @@ export { legacy, type LegacyData, type LegacyTab, type LegacyVisit } from "./leg
 export { closePage, PageView } from "./PageView";
 export { pages } from "./pages";
 export { sync } from "./sync";
+export { syncLab, type SyncRuntimeCheck } from "./syncLab";
 export { system, type SystemLink, type SystemLinkSource } from "./system";
 export type {
   BookmarkItem,

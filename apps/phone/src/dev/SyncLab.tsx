@@ -1,4 +1,4 @@
-import { sync, type PhoneInbox, type ReceivedTab, type SyncedView, type SyncStatus } from "@ardia/phone-native";
+import { sync, syncLab, type PhoneInbox, type ReceivedTab, type SyncedView, type SyncStatus } from "@ardia/phone-native";
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
@@ -102,6 +102,20 @@ export function SyncLab({ note }: { note: (line: string) => void }) {
       <View style={styles.row}>
         <Button label="Ack reset" onPress={() => run("acknowledge reset", () => sync.acknowledgeReset())} />
         <Button label="Rename device" onPress={() => run("rename", () => sync.setDeviceName(`Lab ${localTime(Date.now()).slice(0, 5)}`))} />
+        <Button label="Runtime checks" onPress={() => {
+          note("runtime checks: running in a second sync runtime");
+          syncLab.runtimeChecks().then(
+            (checks) => {
+              for (const check of checks) {
+                const line = `PAGELAB ${check.pass ? "PASS" : "FAIL"} sync runtime ${check.name}${check.pass ? "" : `: device ${check.actual} · node ${check.expected}`}`;
+                console.log(line);
+                note(line.replace("PAGELAB ", "").slice(0, 400));
+              }
+              note(`runtime checks: ${checks.filter((check) => check.pass).length} of ${checks.length} pass`);
+            },
+            (error: { message?: string }) => note(`runtime checks ✗ ${error.message ?? ""}`),
+          );
+        }} />
         <Button label="Next profile" onPress={() => {
           const profiles = view?.profiles ?? [];
           if (!profiles.length) return;
