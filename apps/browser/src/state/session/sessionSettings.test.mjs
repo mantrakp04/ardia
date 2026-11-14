@@ -32,6 +32,7 @@ for (const version of [3, 4, 7]) {
       stub.docs.set("session.json", JSON.stringify(doc(version, structuredClone(settings))));
       S().hydrate(loadSession());
       assert.deepEqual(loaded(), BEFORE[name]);
+      assert.equal(S().settings.showClosedGroupsInBookmarksBar, true);
       assert.equal("chosen" in S().settings || "inferred" in S().settings, false);
     });
   }
@@ -59,4 +60,19 @@ test("settings and their bookkeeping save apart, read back the same, and a chang
   S().hydrate(loadSession());
   assert.deepEqual(S().settingsMeta, { chosen: ["tabLayout", "appearance"], inferred: [] });
   assert.equal(S().settings.appearance, "light");
+});
+
+
+test("hiding closed groups on the bookmarks bar survives saving and relaunch loading", () => {
+  for (const value of [false, true]) {
+    stub.docs.clear();
+    stub.docs.set("session.json", JSON.stringify(doc(7, {})));
+    const stop = startPersistence();
+    S().updateSettings({ showClosedGroupsInBookmarksBar: value });
+    flushPersistence();
+    stop();
+    assert.equal(JSON.parse(stub.docs.get("session.json")).settings.showClosedGroupsInBookmarksBar, value);
+    S().hydrate(loadSession());
+    assert.equal(S().settings.showClosedGroupsInBookmarksBar, value);
+  }
 });

@@ -133,6 +133,7 @@ export const SETTING_SPECS = {
   cliControl: flag(false),
   showBookmarks: flag(true, SYNCED),
   bookmarksBar: oneOf(["always", "newTab", "never"], "never", SYNCED),
+  showClosedGroupsInBookmarksBar: flag(true, SYNCED),
   bookmarksBarSize: oneOf(["default", "large"], "default", SYNCED),
   hideBookmarksBarImport: flag(false),
   appearance: oneOf(["auto", "light", "dark"], "auto", SYNCED),

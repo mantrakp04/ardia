@@ -100,3 +100,10 @@ export const splitsChecked = <T extends { splits?: Pick<SplitView, "orientation"
   });
   return { ...saved, splits };
 };
+
+export const sessionWithClosedGroupBarVisibility = (doc: SavedObject): SavedObject => ({
+  ...doc,
+  closedGroups: Array.isArray(doc.closedGroups)
+    ? doc.closedGroups.map((entry: unknown) => isFields(entry) ? { ...entry, hiddenFromBar: entry.hiddenFromBar === true } : entry)
+    : doc.closedGroups,
+});

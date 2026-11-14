@@ -73,6 +73,12 @@ export const appearanceRows = {
           keywords: ["bookmarks bar", "favorites bar", "favourites bar", "toolbar", "hide bookmarks", "show bookmarks"],
           shown: (s) => s.showBookmarks,
         },
+        showClosedGroupsInBookmarksBar: {
+          title: "Show closed groups in bookmarks bar",
+          description: "Keep closed tab groups below the toolbar. Click a group to reopen it; hiding them keeps them saved.",
+          keywords: ["closed groups", "saved groups", "reopen groups", "hide groups", "bookmarks bar", "chrome"],
+          shown: (s) => s.showBookmarks,
+        },
         bookmarksBarSize: {
           title: "Size",
           description: "Large makes the bar, its icons and its text bigger, and its folder menus roomier.",

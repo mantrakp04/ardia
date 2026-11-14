@@ -23,6 +23,7 @@ export function BookmarksBarSection() {
             minWidth={160}
           />
         </Row>
+        <SettingToggle anchor="appearance.showClosedGroupsInBookmarksBar" />
         <Row anchor="appearance.bookmarksBarSize">
           <PopUp
             value={size}

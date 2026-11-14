@@ -10,6 +10,8 @@ let package = Package(
     .library(name: "ArdiaReportCore", targets: ["ArdiaReportCore"]),
   ],
   targets: [
+    .target(name: "ArdiaMenuCore", path: "ios/MenuCore"),
+    .testTarget(name: "ArdiaMenuCoreTests", dependencies: ["ArdiaMenuCore"], path: "menu-tests"),
     .target(name: "ArdiaUpdaterCore", path: "ios/UpdaterCore"),
     .testTarget(name: "ArdiaUpdaterCoreTests", dependencies: ["ArdiaUpdaterCore"], path: "tests"),
     .target(name: "ArdiaTranslateCore", path: "ios/TranslateCore"),

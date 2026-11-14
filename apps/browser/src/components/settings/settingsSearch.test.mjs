@@ -289,6 +289,12 @@ test("panes leave showing and hiding an anchored row to the row's own rule", () 
   assert.deepEqual(wrapped, SHOWN_BY_LOADED_DATA);
 });
 
+
+test("closed group display is searchable by its visible choice and synonyms", () => {
+  for (const query of ["closed groups", "saved groups", "hide groups", "reopen groups"]) {
+    assert.equal(first(query), "appearance.showClosedGroupsInBookmarksBar", query);
+  }
+});
 test("a one-letter query matches setting names, not sections or pane names", () => {
   const titleWords = (id) => SETTINGS_INDEX.find((p) => p.entry.id === id).entry.title.toLowerCase().split(/[^a-z0-9]+/);
   for (const q of ["c", "t", "p"]) {
