@@ -4,7 +4,7 @@ import { activeTabId } from "../browser/model";
 import { useBrowser } from "../browser/store";
 import { clickTab } from "./actions";
 import { dismissHover } from "./hover";
-import { notePressEnded, notePressStarted } from "../telemetry/tabPresses";
+import { notePressEnded, notePressStarted, noteRowPress } from "../telemetry/tabPresses";
 
 export const TAB_CLICK_SLOP = 10;
 
@@ -25,7 +25,14 @@ function switchesOnPress(windowId: string, tabId: string, press: GestureResponde
   return !(s.selection[windowId] ?? []).includes(tabId);
 }
 
+export function noteRowPressIn(windowId: string) {
+  const s = useBrowser.getState();
+  const shown = activeTabId(s, windowId);
+  void noteRowPress(!!shown && !s.tabs[shown]?.url);
+}
+
 export function holdTabPress(windowId: string, tabId: string, press: GestureResponderEvent) {
+  noteRowPressIn(windowId);
   const switched = switchesOnPress(windowId, tabId, press);
   heldPress = { windowId, tabId, startedAt: pressStart(press), switched };
   notePressStarted(switched);

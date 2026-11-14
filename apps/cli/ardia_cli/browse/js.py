@@ -6,6 +6,7 @@ LIBRARY = r"""
     "menuitemcheckbox", "menuitemradio", "slider", "spinbutton", "switch", "tab", "treeitem", "searchbox"]);
   const norm = (s) => String(s == null ? "" : s).replace(/\s+/g, " ").trim();
   const suggestionWatches = new WeakMap();
+  let reactionWatch = null;
   const SUGGESTION_ATTRIBUTES = ["hidden", "style", "class", "id", "role", "aria-busy", "aria-selected", "aria-disabled", "aria-label", "data-value",
     "value", "aria-controls", "aria-owns", "aria-expanded", "aria-activedescendant"];
   const CONTROLS = "input:not([type=hidden]), textarea, select, button[aria-haspopup], [aria-haspopup=listbox], [aria-haspopup=true], [role=combobox], [role=searchbox], [role=textbox], [contenteditable=true]";
@@ -13,8 +14,14 @@ LIBRARY = r"""
     main: "main", navigation: "nav", banner: "body > header", contentinfo: "body > footer", dialog: "dialog", form: "form",
     table: "table", row: "tr", cell: "td", columnheader: "th", list: "ul, ol", listitem: "li", article: "article", search: "search",
     button: "button, input[type=button], input[type=submit], input[type=reset], summary", link: "a[href], area[href]",
-    heading: "h1, h2, h3, h4, h5, h6", checkbox: "input[type=checkbox]", radio: "input[type=radio]", combobox: "select",
-    textbox: "input:not([type]), input[type=text], input[type=email], input[type=tel], input[type=url], textarea", img: "img[alt]",
+    heading: "h1, h2, h3, h4, h5, h6", checkbox: "input[type=checkbox]", radio: "input[type=radio]",
+    combobox: "select:not([multiple]):not([size]), select[size='']:not([multiple]), select[size='0']:not([multiple]), select[size='1']:not([multiple]), input[list]:not([type]), input[list][type=text], input[list][type=search], input[list][type=email], input[list][type=tel], input[list][type=url]",
+    listbox: "select[multiple], select[size]:not([size='']):not([size='0']):not([size='1']), datalist", option: "option",
+    textbox: "input:not([type]):not([list]), input[type=text]:not([list]), input[type=email]:not([list]), input[type=tel]:not([list]), input[type=url]:not([list]), textarea",
+    searchbox: "input[type=search]:not([list])", spinbutton: "input[type=number]", slider: "input[type=range]",
+    progressbar: "progress", meter: "meter", separator: "hr", group: "fieldset, details, optgroup", complementary: "aside",
+    region: "section[aria-label], section[aria-labelledby]", figure: "figure", rowgroup: "thead, tbody, tfoot", status: "output",
+    img: "img:not([alt=''])",
   };
   const ROLE_WORDS = new Set([...Object.keys(IMPLICIT_ROLES), "grid", "gridcell", "rowgroup", "tab", "tablist", "tabpanel", "menu", "menubar",
     "menuitem", "option", "listbox", "tree", "treeitem", "toolbar", "tooltip", "alert", "alertdialog", "status", "switch", "slider", "region"]);
@@ -52,6 +59,11 @@ LIBRARY = r"""
     },
     query(selector, root) {
       root = root || document;
+      const chain = api.chainParts(selector);
+      if (chain.length > 1) {
+        const found = api.queryAll(selector, root);
+        return /^nth=-?\d+$/.test(chain[chain.length - 1]) ? found[0] || null : found.find((el) => api.visible(el)) || found[0] || null;
+      }
       if (/^(\/\/|\(\/\/|xpath=)/.test(selector)) {
         const expr = selector.replace(/^xpath=/, "");
         const r = document.evaluate(expr, root, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
@@ -62,6 +74,20 @@ LIBRARY = r"""
     },
     queryAll(selector, root) {
       root = root || document;
+      const chain = api.chainParts(selector);
+      if (chain.length > 1) {
+        let found = api.queryAll(chain[0], root);
+        for (const part of chain.slice(1)) {
+          const nth = /^nth=(-?\d+)$/.exec(part);
+          if (nth) {
+            const picked = found.at(Number(nth[1]));
+            found = picked ? [picked] : [];
+          } else {
+            found = [...new Set(found.flatMap((el) => api.queryAll(part, el)))];
+          }
+        }
+        return found;
+      }
       if (/^(\/\/|\(\/\/|xpath=)/.test(selector)) {
         const expr = selector.replace(/^xpath=/, "");
         const r = document.evaluate(expr, root, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
@@ -83,20 +109,88 @@ LIBRARY = r"""
         return role[3] == null ? all : all.filter((el) => matches(api.accessibleText(el), role[3], false));
       }
       let css = selector.replace(/^css=/, "").replace(/\[role=(["']?)([A-Za-z]+)\1\]/g, (whole, q, name) => api.roleCss(name.toLowerCase()) === `[role="${name.toLowerCase()}"]` ? whole : `:is(${api.roleCss(name.toLowerCase())})`);
+      css = api.outsideStrings(css, (piece) => piece.replace(/:text\(/g, ":has-text("));
       if (/^[a-z]+$/.test(css) && ROLE_WORDS.has(css) && !root.querySelector(css)) css = api.roleCss(css);
-      const parts = css.split(/:has-text\(\s*(["'])(.*?)\1\s*\)/);
+      const parts = api.textPseudos(css);
       if (parts.length === 1) return Array.from(root.querySelectorAll(css));
       let found = null;
-      for (let i = 0; i < parts.length; i += 3) {
+      for (let i = 0; i < parts.length; i += 4) {
         const piece = parts[i];
         if (piece.trim() || found === null) {
           const scoped = found === null ? Array.from(root.querySelectorAll(piece.trim() ? piece : "*"))
             : found.flatMap((el) => Array.from(el.querySelectorAll(":scope " + piece)));
           found = [...new Set(scoped)];
         }
-        if (i + 2 < parts.length) found = found.filter((el) => matches(el.innerText != null ? el.innerText : el.textContent, parts[i + 2], false));
+        if (i + 3 < parts.length) {
+          const exact = parts[i + 1] === "text-is";
+          found = found.filter((el) => matches(el.innerText != null ? el.innerText : el.textContent, parts[i + 3], exact));
+        }
       }
       return found;
+    },
+    textPseudos(css) {
+      const parts = [];
+      const pseudo = /:(has-text|text-is)\(\s*(["'])(.*?)\2\s*\)/y;
+      let quote = "";
+      let bracket = 0;
+      let start = 0;
+      for (let i = 0; i < css.length; i++) {
+        const c = css[i];
+        if (c === "\\") { i++; continue; }
+        if (quote) { if (c === quote) quote = ""; continue; }
+        if (c === '"' || c === "'") { quote = c; continue; }
+        if (c === "[") { bracket++; continue; }
+        if (c === "]") { bracket--; continue; }
+        if (bracket || c !== ":") continue;
+        pseudo.lastIndex = i;
+        const hit = pseudo.exec(css);
+        if (!hit) continue;
+        parts.push(css.slice(start, i), hit[1], hit[2], hit[3]);
+        start = pseudo.lastIndex;
+        i = start - 1;
+      }
+      parts.push(css.slice(start));
+      return parts;
+    },
+    outsideStrings(css, change) {
+      let out = "";
+      let plain = "";
+      let quote = "";
+      let bracket = 0;
+      for (let i = 0; i < css.length; i++) {
+        const c = css[i];
+        const free = !quote && !bracket;
+        if (free && c !== "\\" && c !== '"' && c !== "'" && c !== "[") { plain += c; continue; }
+        if (plain) { out += change(plain); plain = ""; }
+        if (c === "\\") { out += c + (css[i + 1] || ""); i++; continue; }
+        out += c;
+        if (quote) { if (c === quote) quote = ""; }
+        else if (c === '"' || c === "'") quote = c;
+        else if (c === "[") bracket++;
+        else if (c === "]") bracket--;
+      }
+      return out + (plain ? change(plain) : "");
+    },
+    chainParts(selector) {
+      const parts = [];
+      let depth = 0;
+      let quote = "";
+      let start = 0;
+      for (let i = 0; i < selector.length; i++) {
+        const c = selector[i];
+        if (c === "\\") { i++; continue; }
+        if (quote) { if (c === quote) quote = ""; continue; }
+        if (c === '"' || c === "'") quote = c;
+        else if (c === "(" || c === "[") depth++;
+        else if (c === ")" || c === "]") depth--;
+        else if (depth === 0 && c === ">" && selector[i + 1] === ">") {
+          parts.push(selector.slice(start, i).trim());
+          start = i + 2;
+          i++;
+        }
+      }
+      parts.push(selector.slice(start).trim());
+      return parts.filter(Boolean).length === parts.length ? parts : [selector];
     },
     roleCss(name) {
       const implicit = IMPLICIT_ROLES[name];
@@ -239,11 +333,36 @@ LIBRARY = r"""
     innermost(candidates) {
       return candidates.filter((el) => !candidates.some((other) => other !== el && el.contains(other)));
     },
+    matchRank(value, wanted, exact) {
+      const v = norm(value);
+      if (!v) return 0;
+      if (exact) return v === wanted ? 3 : 0;
+      const have = v.toLowerCase();
+      const want = norm(wanted).toLowerCase();
+      if (!want) return 0;
+      if (have === want || have.replace(/[\s*:]+$/, "") === want) return 3;
+      const at = have.indexOf(want);
+      if (at < 0) return 0;
+      const word = (c) => /[\p{L}\p{N}]/u.test(c || "");
+      const whole = (index) => !word(have[index - 1]) && !word(have[index + want.length]);
+      for (let index = at; index >= 0; index = have.indexOf(want, index + 1)) if (whole(index)) return 2;
+      return 1;
+    },
+    bestMatch(candidates, rank) {
+      let best = 0;
+      let picked = [];
+      for (const el of candidates) {
+        const level = rank(el);
+        if (level > best) { best = level; picked = [el]; }
+        else if (level && level === best) picked.push(el);
+      }
+      return picked.find((el) => api.visible(el)) || picked[0] || null;
+    },
     findText(text, exact) {
       const hits = deep(document).filter((el) => !["SCRIPT", "STYLE", "HEAD", "TITLE", "NOSCRIPT"].includes(el.tagName)
         && matches(el.innerText != null ? el.innerText : el.textContent, text, exact));
       const inner = api.innermost(hits);
-      return inner.find((el) => api.visible(el)) || inner[0] || null;
+      return api.bestMatch(inner, (el) => api.matchRank(el.innerText != null ? el.innerText : el.textContent, text, exact));
     },
     labelText(el) {
       const parts = [];
@@ -254,16 +373,10 @@ LIBRARY = r"""
       return parts;
     },
     findLabel(text, exact) {
-      for (const el of deep(document)) {
-        if (api.labelText(el).some((t) => matches(t, text, exact))) return el;
-      }
-      return null;
+      return api.bestMatch(deep(document), (el) => Math.max(0, ...api.labelText(el).map((t) => api.matchRank(t, text, exact))));
     },
     findAttr(attr, text, exact) {
-      for (const el of deep(document)) {
-        if (el.hasAttribute(attr) && matches(el.getAttribute(attr), text, exact)) return el;
-      }
-      return null;
+      return api.bestMatch(deep(document).filter((el) => el.hasAttribute(attr)), (el) => api.matchRank(el.getAttribute(attr), text, exact));
     },
     styles(el) {
       const style = getComputedStyle(el);
@@ -339,7 +452,77 @@ LIBRARY = r"""
       if (activeNode) roots.push(activeNode.closest("[role=listbox]") || activeNode.parentElement);
       if (roots.length || api.popupIds(el).length || active) return roots;
       const component = api.componentOf(el);
-      return component ? Array.from(component.querySelectorAll("[role=listbox]")) : [];
+      if (component) return Array.from(component.querySelectorAll("[role=listbox]"));
+      const opened = api.openedList(el);
+      return opened ? [opened] : [];
+    },
+    filterField(el) {
+      if (!el || el.nodeType !== 1) return false;
+      const role = (el.getAttribute("role") || "").toLowerCase();
+      const editable = el.isContentEditable || ((el.tagName === "INPUT" || el.tagName === "TEXTAREA") && !el.readOnly);
+      if (!editable) return false;
+      if (role === "searchbox" || (el.tagName === "INPUT" && (el.type || "").toLowerCase() === "search") || el.closest("[role=search], search")) return true;
+      if (el.getAttribute("aria-controls")) return true;
+      const words = [el.getAttribute("placeholder"), el.getAttribute("aria-label"), el.getAttribute("name"), el.id, ...api.labelText(el)].join(" ");
+      return /\b(search|filter|find)\b/i.test(words);
+    },
+    watchReaction(el, id) {
+      const field = el || document.activeElement;
+      if (!api.filterField(field)) return false;
+      api.unwatchReaction();
+      const watch = { id, field, lastInput: performance.now(), last: 0, observer: null, timer: 0 };
+      const expire = () => {
+        clearTimeout(watch.timer);
+        watch.timer = setTimeout(() => { if (reactionWatch === watch) api.unwatchReaction(); }, 3000);
+      };
+      watch.onInput = () => { watch.lastInput = performance.now(); expire(); };
+      field.addEventListener("input", watch.onInput, true);
+      field.addEventListener("keydown", watch.onInput, true);
+      const results = api.popupIds(field).map((name) => document.getElementById(name)).filter(Boolean);
+      const relevant = (record) => !field.contains(record.target)
+        && (!results.length || results.some((node) => !node.isConnected || node === record.target || node.contains(record.target)));
+      watch.observer = new MutationObserver((records) => {
+        if (records.some(relevant)) watch.last = performance.now();
+      });
+      watch.observer.observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true });
+      expire();
+      reactionWatch = watch;
+      return true;
+    },
+    reactionState(id) {
+      const watch = reactionWatch;
+      if (!watch || watch.id !== id) return null;
+      const now = performance.now();
+      const busy = watch.field.getAttribute("aria-busy") === "true" || Boolean(document.querySelector("[aria-busy=true]"));
+      return { sinceInput: now - watch.lastInput, sinceLast: watch.last > watch.lastInput ? now - watch.last : null, busy };
+    },
+    unwatchReaction(id) {
+      const watch = reactionWatch;
+      if (!watch || (id !== undefined && watch.id !== id)) return true;
+      watch.observer.disconnect();
+      clearTimeout(watch.timer);
+      watch.field.removeEventListener("input", watch.onInput, true);
+      watch.field.removeEventListener("keydown", watch.onInput, true);
+      reactionWatch = null;
+      return true;
+    },
+    usedOpenedList(el) {
+      const watch = suggestionWatches.get(el);
+      return Boolean(watch && watch.opened && !watch.ambiguous);
+    },
+    visibleListboxes(el) {
+      return deep(el.ownerDocument).filter((node) => node.getAttribute && node.getAttribute("role") === "listbox" && api.visible(node));
+    },
+    openedList(el) {
+      const watch = suggestionWatches.get(el);
+      if (!watch || !watch.listsBefore) return null;
+      const now = performance.now();
+      if (watch.checkedAt && now - watch.checkedAt < 50 && (!watch.opened || watch.opened.isConnected && api.visible(watch.opened))) return watch.ambiguous ? null : watch.opened;
+      watch.checkedAt = now;
+      const fresh = api.visibleListboxes(el).filter((node) => !watch.listsBefore.has(node) && !api.ownerOf(node, el));
+      watch.opened = fresh.length === 1 ? fresh[0] : null;
+      if (fresh.length > 1) watch.ambiguous = true;
+      return watch.ambiguous ? null : watch.opened;
     },
     componentOf(el) {
       const mine = (owner) => !owner || owner === el || owner.contains(el) || el.contains(owner);
@@ -397,7 +580,9 @@ LIBRARY = r"""
     },
     watchSuggestions(el) {
       api.unwatchSuggestions(el);
-      const watch = { lastInput: 0, lastChange: 0, observer: null, signature: api.optionSignature(el) };
+      const linked = api.popupIds(el).length || el.getAttribute("aria-activedescendant") || api.componentOf(el);
+      const watch = { lastInput: 0, lastChange: 0, observer: null, listsBefore: linked ? null : new Set(api.visibleListboxes(el)), opened: null };
+      watch.signature = api.optionSignature(el);
       watch.observer = new MutationObserver(() => {
         const signature = api.optionSignature(el);
         if (signature !== watch.signature) {

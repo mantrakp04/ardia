@@ -43,10 +43,8 @@ bool IsWebFrame(content::RenderFrameHost* frame);
 bool IsPendingWebFrameHost(content::DevToolsAgentHost* host);
 bool IsWebHost(content::DevToolsAgentHost* host);
 bool IsWebTarget(const std::string* target_id);
+bool IsOffscreenTarget(const std::string* target_id);
 
-void NoteCreatedTarget(const std::string& target_id);
-void ForgetCreatedTarget(const std::string& target_id);
-bool IsCreatedTarget(const std::string& target_id);
 bool MetricsOverrideAllowed(const base::DictValue& params);
 
 std::string ErrorReply(int id,

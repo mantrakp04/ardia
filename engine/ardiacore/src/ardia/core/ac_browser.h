@@ -99,6 +99,8 @@ class WindowHost : public TabStripModelObserver,
   bool IsActiveBrowser(const Browser* browser) const;
   void set_internal(bool internal) { internal_ = internal; }
   bool internal() const { return internal_; }
+  void set_automation(bool automation) { automation_ = automation; }
+  bool automation() const { return automation_; }
   bool closing() const { return close_state_ == CloseState::kClosing; }
   void Close();
   void CloseRequestedByUser();
@@ -166,6 +168,7 @@ class WindowHost : public TabStripModelObserver,
   int close_attempt_ = 0;
   bool widget_close_allowed_ = false;
   bool internal_ = false;
+  bool automation_ = false;
   bool acted_fullscreen_ = false;
   OpenOrigin pending_open_;
   base::ObserverList<web_modal::ModalDialogHostObserver> modal_observers_;

@@ -53,6 +53,7 @@ export function GeneralPane() {
           }
         />
         <SettingToggle anchor="general.littleArdiaOpensNewTabLinks" />
+        <SettingToggle anchor="general.littleWindowGestures" />
       </Group>
 
       <SectionHeader title={`When quitting ${APP}:`} />

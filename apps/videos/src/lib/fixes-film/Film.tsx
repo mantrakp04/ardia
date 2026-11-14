@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { AbsoluteFill, Easing, Freeze, Img, interpolate, OffthreadVideo, Sequence, staticFile, useCurrentFrame } from "remotion";
+import { AbsoluteFill, Easing, Img, interpolate, OffthreadVideo, Sequence, staticFile, useCurrentFrame } from "remotion";
 import { color, font, loadFonts } from "../ac-launch/theme";
 import { AlertReplica, MenuReplica, NoteBubble, NotificationBanner, OverlayWindow, PageGoneCover, WindowGoneCover } from "./extras";
 import { CARD, clamp, FPS, HOLD_IN, HOLD_OUT, INTRO, label, OUTRO } from "./look";
@@ -82,6 +82,8 @@ function boxFor(seg: Segment) {
   return { w: Math.round(cw * k), h: Math.round(ch * k), k };
 }
 
+const HELD_RATE = 0.0001;
+
 function Footage({ clip, seg, play, symbols }: { clip: Clip; seg: Segment; play: number; symbols: string }) {
   const t = useClipTime(clip, seg, play);
   const rate = rateOf(seg);
@@ -104,19 +106,21 @@ function Footage({ clip, seg, play, symbols }: { clip: Clip; seg: Segment; play:
       style={place}
     />
   ) : null;
+  const heldAt = (frame: number) =>
+    clip.file ? <OffthreadVideo src={staticFile(clip.file)} trimBefore={frame} muted playbackRate={HELD_RATE} style={place} /> : null;
   const gone = clip.gone;
   return (
     <>
       {video ? (
         <>
           <Sequence durationInFrames={HOLD_IN} layout="none">
-            <Freeze frame={0}>{video}</Freeze>
+            {heldAt(Math.round(clip.inS * FPS))}
           </Sequence>
           <Sequence from={HOLD_IN} durationInFrames={play} layout="none">
             {video}
           </Sequence>
           <Sequence from={HOLD_IN + play} layout="none">
-            <Freeze frame={play - 1}>{video}</Freeze>
+            {heldAt(Math.round(clip.inS * FPS + (play - 1) * rate))}
           </Sequence>
         </>
       ) : (

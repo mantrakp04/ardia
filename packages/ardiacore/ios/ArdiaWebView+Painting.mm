@@ -215,6 +215,7 @@ BOOL Above(NSView *a, NSView *b) {
 
 - (void)applyPainting {
   if (_frameHold.awaiting && !_visible && !_reveal.active) [self finishFrameHold];
+  if (_visible || _reveal.active) [self exposePage];
   if (_visible) [self sinkLingeringPane];
   if (_visible) [self takeFocusFromLingeringPane];
   [self beginFrameHoldIfCold];
@@ -228,9 +229,10 @@ BOOL Above(NSView *a, NSView *b) {
   }
   [CATransaction commit];
   if (TraceVisibility())
-    NSLog(@"[ardiacore-vis] %@ paint visible=%d warm=%d tab=%d page=%@ inWindow=%ld hiddenAncestor=%d", _transferKey,
-          _visible, _warm, _tab ? (int)_tab.tabId : -1, _tab.view.superview == self ? @"here" : @"elsewhere",
-          (long)self.window.windowNumber, _tab.view.isHiddenOrHasHiddenAncestor);
+    NSLog(@"[ardiacore-vis] %@ paint visible=%d warm=%d tab=%d page=%@ inWindow=%ld hiddenAncestor=%d alpha=%d reveal=%d awaiting=%d",
+          _transferKey, _visible, _warm, _tab ? (int)_tab.tabId : -1, _tab.view.superview == self ? @"here" : @"elsewhere",
+          (long)self.window.windowNumber, _tab.view.isHiddenOrHasHiddenAncestor, (int)self.alphaValue, _reveal.active,
+          _frameHold.awaiting);
 }
 
 + (void)noteShown:(ArdiaCoreTab *)tab {
@@ -335,6 +337,10 @@ BOOL Above(NSView *a, NSView *b) {
   NSView *page = _tab.view;
   return [self sharesScreenWith:incoming] && page.superview == self && !page.hidden && !_frameHold.awaiting &&
          self.alphaValue > 0 && !self.isHiddenOrHasHiddenAncestor;
+}
+
+- (void)exposePage {
+  if (_tab && self.window && _tab.view.superview == self) [_tab noteInShownSlot];
 }
 
 - (void)beginFrameHoldIfCold {
