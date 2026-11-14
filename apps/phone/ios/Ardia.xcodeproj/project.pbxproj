@@ -7,36 +7,157 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2AD7749D39910494876A4C18 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 60119260E8B4561A9942EB56 /* PrivacyInfo.xcprivacy */; };
+		11FFB9F549C69942E821B3FF /* Intents.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6166E8701513BBA380FF130 /* Intents.swift */; };
+		1E97042909625EE3C2A8E72D /* ArdiaOpen.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B9BE34AB56816C03B9E533EA /* ArdiaOpen.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		1F3F2691FBF6CA7332EF59FF /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C149E7851D84E010E3A99076 /* SwiftUI.framework */; };
+		1F77BBD3054EC45D2D0E854E /* ArdiaShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D07F546A651D6A4E87729FC5 /* ArdiaShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		36087538CB5DDC5F75967B7A /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 988A1C28E98E1E7E3DB2F376 /* SceneDelegate.swift */; };
+		3E3DD82057CABEECD46CCA24 /* ArdiaDesign in Frameworks */ = {isa = PBXBuildFile; productRef = 29A8DF82757F0B98305E30AD /* ArdiaDesign */; };
+		462385C8073E08D7879C5C9D /* ArdiaBrowser in Frameworks */ = {isa = PBXBuildFile; productRef = 995BCC861D01B3C0852D7F9F /* ArdiaBrowser */; };
+		596222949C2FF1F2331D3FF8 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2F4DDAC9D3853A29800877EF /* WidgetKit.framework */; };
 		6F0FEF273337CB5893C689D7 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 4CB1152D27B6DB022221EC1B /* Expo.plist */; };
-		9F8986AD19D546C3550E2C78 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00D94839B202FE3FDA8FFAD1 /* SceneDelegate.swift */; };
 		9FB587F662537416C9270B8F /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 8BA01EFB947C5DEA183FF11E /* AppIcon.icon */; };
+		B91E47E39B3312246CF1D125 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = C2E36794E1C4D02A24A90498 /* PrivacyInfo.xcprivacy */; };
+		BF185DCBD38D8A6E913708C4 /* ArdiaDesign in Frameworks */ = {isa = PBXBuildFile; productRef = DFF5F15EFEB2D7F87112ED60 /* ArdiaDesign */; };
+		C366317EC7AD23D44CB4771D /* ArdiaDesign in Frameworks */ = {isa = PBXBuildFile; productRef = 0BFA1A32F8AADE8672E62A39 /* ArdiaDesign */; };
+		C5AD9EA5780FA48F9A8B9C49 /* ArdiaWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B18B7A3A82D521D51E08DD1A /* ArdiaWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C827FF3825C00D852775B334 /* ArdiaBrowser in Frameworks */ = {isa = PBXBuildFile; productRef = 2FE0468935C1A87C30704B4C /* ArdiaBrowser */; };
 		D76E0C50EF1617CBDAB4A89C /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09CE5C51DF5E57B4681F6F1E /* AppDelegate.swift */; };
-		DFDA11ADB5A3AEDFAEB96D9E /* libPods-Ardia.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 6CAAD580F92B2FDCB1EE3E69 /* libPods-Ardia.a */; };
-		F759B05D2CF14704A991820A /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A84A376CCD2F54F683FFED /* ExpoModulesProvider.swift */; };
+		E92739BA410E1DDD7C90F175 /* libPods-Ardia.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 1E2787D929803092B234BAE9 /* libPods-Ardia.a */; };
+		EA36DB3066C67AD6086C1CE7 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A50E468EDC930AAC33080CE /* ExpoModulesProvider.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		253AC173665C8574D3C14E8D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2DC703FC63331EE47436A006 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CF60F2D18AB253CC46A4E428;
+			remoteInfo = ArdiaOpen;
+		};
+		2EF1755F758C897D9C30D5F6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2DC703FC63331EE47436A006 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DD96EB2018C132DC7649EED8;
+			remoteInfo = ArdiaShare;
+		};
+		A020EA10A043A692F70494CB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2DC703FC63331EE47436A006 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AF56FEA9443A3F2A9D139653;
+			remoteInfo = ArdiaWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		34A50696B9F0B47369C218C5 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C5AD9EA5780FA48F9A8B9C49 /* ArdiaWidgets.appex in Embed Foundation Extensions */,
+				1F77BBD3054EC45D2D0E854E /* ArdiaShare.appex in Embed Foundation Extensions */,
+				1E97042909625EE3C2A8E72D /* ArdiaOpen.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
-		00D94839B202FE3FDA8FFAD1 /* SceneDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		09CE5C51DF5E57B4681F6F1E /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		1E2787D929803092B234BAE9 /* libPods-Ardia.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Ardia.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		2F4DDAC9D3853A29800877EF /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		44BF920C59AC742FE06653E7 /* ArdiaKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ArdiaKit; path = ../../ios/Packages/ArdiaKit; sourceTree = SOURCE_ROOT; };
+		4A50E468EDC930AAC33080CE /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Ardia/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		4CB1152D27B6DB022221EC1B /* Expo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Expo.plist; sourceTree = "<group>"; };
-		60119260E8B4561A9942EB56 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = ../PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		6CAAD580F92B2FDCB1EE3E69 /* libPods-Ardia.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Ardia.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		4FD90E245DFB5335ACF4F908 /* Pods-Ardia.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Ardia.debug.xcconfig"; path = "Target Support Files/Pods-Ardia/Pods-Ardia.debug.xcconfig"; sourceTree = "<group>"; };
 		8BA01EFB947C5DEA183FF11E /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
-		90A84A376CCD2F54F683FFED /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Ardia/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		94EF7EA4153B1D166E6E931D /* Pods-Ardia.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Ardia.release.xcconfig"; path = "Target Support Files/Pods-Ardia/Pods-Ardia.release.xcconfig"; sourceTree = "<group>"; };
+		988A1C28E98E1E7E3DB2F376 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		AE704818C60C688ED50FBD96 /* Pods-Ardia.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Ardia.release.xcconfig"; path = "Target Support Files/Pods-Ardia/Pods-Ardia.release.xcconfig"; sourceTree = "<group>"; };
+		B18B7A3A82D521D51E08DD1A /* ArdiaWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ArdiaWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B9BE34AB56816C03B9E533EA /* ArdiaOpen.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ArdiaOpen.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		BECC038EC0D62B75EFF2BF13 /* Ardia.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Ardia.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C149E7851D84E010E3A99076 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		C2E36794E1C4D02A24A90498 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = ../PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		C6166E8701513BBA380FF130 /* Intents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Intents.swift; sourceTree = "<group>"; };
+		D07F546A651D6A4E87729FC5 /* ArdiaShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ArdiaShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		DB8C15C26E994C22C114C47A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		EFC049DA52AC3B3F5B84BF63 /* Pods-Ardia.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Ardia.debug.xcconfig"; path = "Target Support Files/Pods-Ardia/Pods-Ardia.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		85F597FD9DA819E9827E9DA5 /* Share */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = Share;
+			sourceTree = "<group>";
+		};
+		B6838BB2DAD53AEA560C0E56 /* Action */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = Action;
+			sourceTree = "<group>";
+		};
+		BDB45B039CE72773F193594D /* Widgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = Widgets;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
 /* Begin PBXFrameworksBuildPhase section */
-		4CFD70031EE6F3AC1C100877 /* Frameworks */ = {
+		067433FEE4C8A1B9BEB3DB0B /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DFDA11ADB5A3AEDFAEB96D9E /* libPods-Ardia.a in Frameworks */,
+				C827FF3825C00D852775B334 /* ArdiaBrowser in Frameworks */,
+				3E3DD82057CABEECD46CCA24 /* ArdiaDesign in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		453182BE0118A510173B2919 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E92739BA410E1DDD7C90F175 /* libPods-Ardia.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9B000752DB309C62BE186347 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C366317EC7AD23D44CB4771D /* ArdiaDesign in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C4BCEA7742C4C8964D4E99D5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				462385C8073E08D7879C5C9D /* ArdiaBrowser in Frameworks */,
+				BF185DCBD38D8A6E913708C4 /* ArdiaDesign in Frameworks */,
+				596222949C2FF1F2331D3FF8 /* WidgetKit.framework in Frameworks */,
+				1F3F2691FBF6CA7332EF59FF /* SwiftUI.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -46,17 +167,12 @@
 		02FB3211357F11E6C9CB111D /* ios */ = {
 			isa = PBXGroup;
 			children = (
+				B6838BB2DAD53AEA560C0E56 /* Action */,
 				E5D3BCCC73C5C2AE0D9D57F9 /* App */,
+				85F597FD9DA819E9827E9DA5 /* Share */,
+				BDB45B039CE72773F193594D /* Widgets */,
 			);
 			path = ios;
-			sourceTree = "<group>";
-		};
-		0AB21BBC305B79C2A504C537 /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				C7B5E6E89DBFCA904997C860 /* Ardia */,
-			);
-			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		156B1225DB7F25EA69EF17D6 /* apps */ = {
@@ -66,16 +182,6 @@
 			);
 			name = apps;
 			path = ../..;
-			sourceTree = "<group>";
-		};
-		1C239784C1D26C5725296D8E /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				EFC049DA52AC3B3F5B84BF63 /* Pods-Ardia.debug.xcconfig */,
-				94EF7EA4153B1D166E6E931D /* Pods-Ardia.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
 			sourceTree = "<group>";
 		};
 		4CF68B70FCED3A93A01F77BA /* Packages */ = {
@@ -94,24 +200,35 @@
 			path = Supporting;
 			sourceTree = "<group>";
 		};
+		7ECF730A0D458ED49804475E /* Ardia */ = {
+			isa = PBXGroup;
+			children = (
+				4A50E468EDC930AAC33080CE /* ExpoModulesProvider.swift */,
+			);
+			name = Ardia;
+			sourceTree = "<group>";
+		};
+		8AD6ED66562F8651295DCF3F /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				4FD90E245DFB5335ACF4F908 /* Pods-Ardia.debug.xcconfig */,
+				AE704818C60C688ED50FBD96 /* Pods-Ardia.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
 		92BAAB3973651DBF28BC5E2E /* Ardia */ = {
 			isa = PBXGroup;
 			children = (
 				7754184895DD73E45A1D6DBE /* Supporting */,
 				09CE5C51DF5E57B4681F6F1E /* AppDelegate.swift */,
 				DB8C15C26E994C22C114C47A /* Info.plist */,
-				60119260E8B4561A9942EB56 /* PrivacyInfo.xcprivacy */,
-				00D94839B202FE3FDA8FFAD1 /* SceneDelegate.swift */,
+				C6166E8701513BBA380FF130 /* Intents.swift */,
+				988A1C28E98E1E7E3DB2F376 /* SceneDelegate.swift */,
+				C2E36794E1C4D02A24A90498 /* PrivacyInfo.xcprivacy */,
 			);
 			path = Ardia;
-			sourceTree = "<group>";
-		};
-		956DF4740E34EFE1045BBB8E /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				6CAAD580F92B2FDCB1EE3E69 /* libPods-Ardia.a */,
-			);
-			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		A7333FB8D37A78466BEEBDE0 = {
@@ -120,10 +237,10 @@
 				156B1225DB7F25EA69EF17D6 /* apps */,
 				92BAAB3973651DBF28BC5E2E /* Ardia */,
 				4CF68B70FCED3A93A01F77BA /* Packages */,
+				F79F208BB74F1D58D05F5B6D /* Frameworks */,
 				B09FAA87FD6285383A2BCD2E /* Products */,
-				1C239784C1D26C5725296D8E /* Pods */,
-				956DF4740E34EFE1045BBB8E /* Frameworks */,
-				0AB21BBC305B79C2A504C537 /* ExpoModulesProviders */,
+				8AD6ED66562F8651295DCF3F /* Pods */,
+				D6BB62497409B8D7FEFA07E4 /* ExpoModulesProviders */,
 			);
 			sourceTree = "<group>";
 		};
@@ -131,16 +248,19 @@
 			isa = PBXGroup;
 			children = (
 				BECC038EC0D62B75EFF2BF13 /* Ardia.app */,
+				B9BE34AB56816C03B9E533EA /* ArdiaOpen.appex */,
+				D07F546A651D6A4E87729FC5 /* ArdiaShare.appex */,
+				B18B7A3A82D521D51E08DD1A /* ArdiaWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		C7B5E6E89DBFCA904997C860 /* Ardia */ = {
+		D6BB62497409B8D7FEFA07E4 /* ExpoModulesProviders */ = {
 			isa = PBXGroup;
 			children = (
-				90A84A376CCD2F54F683FFED /* ExpoModulesProvider.swift */,
+				7ECF730A0D458ED49804475E /* Ardia */,
 			);
-			name = Ardia;
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		E5D3BCCC73C5C2AE0D9D57F9 /* App */ = {
@@ -151,30 +271,115 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		F79F208BB74F1D58D05F5B6D /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C149E7851D84E010E3A99076 /* SwiftUI.framework */,
+				2F4DDAC9D3853A29800877EF /* WidgetKit.framework */,
+				1E2787D929803092B234BAE9 /* libPods-Ardia.a */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		DD52C294A990971E005E6738 /* Ardia */ = {
+		AF56FEA9443A3F2A9D139653 /* ArdiaWidgets */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 3DC31916F7C8488E19F48214 /* Build configuration list for PBXNativeTarget "Ardia" */;
+			buildConfigurationList = 9B481E7B38C8C589E9A5851B /* Build configuration list for PBXNativeTarget "ArdiaWidgets" */;
 			buildPhases = (
-				EB431DA00A9BA41DDF1E5A81 /* [CP] Check Pods Manifest.lock */,
-				F51F9A96E9AF50C1C9FD9053 /* [Expo] Configure project */,
-				93F9A54CC6A3D72FFF0EF959 /* Sources */,
-				814334B35401A3C235E78795 /* Resources */,
-				4CFD70031EE6F3AC1C100877 /* Frameworks */,
-				528C953F1082DF6FFEF79A9B /* Bundle React Native code and images */,
-				22B3AE0291CA8D801549BFEC /* [CP] Embed Pods Frameworks */,
-				80294FB7B4B42DA83B5C8C48 /* [CP] Copy Pods Resources */,
+				BE674F4C4683AAE760EFFF2B /* Sources */,
+				38D8C623447817DB0D981BF5 /* Resources */,
+				C4BCEA7742C4C8964D4E99D5 /* Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
+			fileSystemSynchronizedGroups = (
+				BDB45B039CE72773F193594D /* Widgets */,
+			);
+			name = ArdiaWidgets;
+			packageProductDependencies = (
+				995BCC861D01B3C0852D7F9F /* ArdiaBrowser */,
+				DFF5F15EFEB2D7F87112ED60 /* ArdiaDesign */,
+			);
+			productName = ArdiaWidgets;
+			productReference = B18B7A3A82D521D51E08DD1A /* ArdiaWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		CF60F2D18AB253CC46A4E428 /* ArdiaOpen */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2121AAE0CF215A6F01986146 /* Build configuration list for PBXNativeTarget "ArdiaOpen" */;
+			buildPhases = (
+				C8E85046EE4D591828B6F76B /* Sources */,
+				3CF843C93347B248DDCA03B0 /* Resources */,
+				9B000752DB309C62BE186347 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				B6838BB2DAD53AEA560C0E56 /* Action */,
+			);
+			name = ArdiaOpen;
+			packageProductDependencies = (
+				0BFA1A32F8AADE8672E62A39 /* ArdiaDesign */,
+			);
+			productName = ArdiaOpen;
+			productReference = B9BE34AB56816C03B9E533EA /* ArdiaOpen.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		DD52C294A990971E005E6738 /* Ardia */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3DC31916F7C8488E19F48214 /* Build configuration list for PBXNativeTarget "Ardia" */;
+			buildPhases = (
+				10EF131AF3125488B5BC7474 /* [CP] Check Pods Manifest.lock */,
+				B30E85FBB6A826D7394F66EA /* [Expo] Configure project */,
+				93F9A54CC6A3D72FFF0EF959 /* Sources */,
+				814334B35401A3C235E78795 /* Resources */,
+				34A50696B9F0B47369C218C5 /* Embed Foundation Extensions */,
+				528C953F1082DF6FFEF79A9B /* Bundle React Native code and images */,
+				453182BE0118A510173B2919 /* Frameworks */,
+				8C2A0C11E0F51EC3EA0EC614 /* [CP] Embed Pods Frameworks */,
+				300A36C7EB151964291D5296 /* [CP] Copy Pods Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1D389A635087CF91F958C26F /* PBXTargetDependency */,
+				87E82D8C2A00D0E8788BE072 /* PBXTargetDependency */,
+				86D6225EF354C1EF14F295BE /* PBXTargetDependency */,
+			);
 			name = Ardia;
 			productName = Ardia;
 			productReference = BECC038EC0D62B75EFF2BF13 /* Ardia.app */;
 			productType = "com.apple.product-type.application";
+		};
+		DD96EB2018C132DC7649EED8 /* ArdiaShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AF259D16E5A3FA7DF344FE21 /* Build configuration list for PBXNativeTarget "ArdiaShare" */;
+			buildPhases = (
+				858DF191E15311E727D6EE67 /* Sources */,
+				BE7C31B6B7BDCD6B07CAB503 /* Resources */,
+				067433FEE4C8A1B9BEB3DB0B /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				85F597FD9DA819E9827E9DA5 /* Share */,
+			);
+			name = ArdiaShare;
+			packageProductDependencies = (
+				2FE0468935C1A87C30704B4C /* ArdiaBrowser */,
+				29A8DF82757F0B98305E30AD /* ArdiaDesign */,
+			);
+			productName = ArdiaShare;
+			productReference = D07F546A651D6A4E87729FC5 /* ArdiaShare.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -185,7 +390,20 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					AF56FEA9443A3F2A9D139653 = {
+						DevelopmentTeam = U5L5T3NGVV;
+						ProvisioningStyle = Automatic;
+					};
+					CF60F2D18AB253CC46A4E428 = {
+						DevelopmentTeam = U5L5T3NGVV;
+						ProvisioningStyle = Automatic;
+					};
 					DD52C294A990971E005E6738 = {
+						DevelopmentTeam = U5L5T3NGVV;
+						ProvisioningStyle = Automatic;
+					};
+					DD96EB2018C132DC7649EED8 = {
+						DevelopmentTeam = U5L5T3NGVV;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -208,39 +426,85 @@
 			projectRoot = "";
 			targets = (
 				DD52C294A990971E005E6738 /* Ardia */,
+				AF56FEA9443A3F2A9D139653 /* ArdiaWidgets */,
+				DD96EB2018C132DC7649EED8 /* ArdiaShare */,
+				CF60F2D18AB253CC46A4E428 /* ArdiaOpen */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		38D8C623447817DB0D981BF5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3CF843C93347B248DDCA03B0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		814334B35401A3C235E78795 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				9FB587F662537416C9270B8F /* AppIcon.icon in Resources */,
 				6F0FEF273337CB5893C689D7 /* Expo.plist in Resources */,
-				2AD7749D39910494876A4C18 /* PrivacyInfo.xcprivacy in Resources */,
+				B91E47E39B3312246CF1D125 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE7C31B6B7BDCD6B07CAB503 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		22B3AE0291CA8D801549BFEC /* [CP] Embed Pods Frameworks */ = {
+		10EF131AF3125488B5BC7474 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Ardia/Pods-Ardia-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			name = "[CP] Embed Pods Frameworks";
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
 			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Ardia/Pods-Ardia-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-Ardia-checkManifestLockResult.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Ardia/Pods-Ardia-frameworks.sh\"\n";
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		300A36C7EB151964291D5296 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Ardia/Pods-Ardia-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Ardia/Pods-Ardia-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Ardia/Pods-Ardia-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		528C953F1082DF6FFEF79A9B /* Bundle React Native code and images */ = {
@@ -264,46 +528,24 @@
 			shellPath = /bin/sh;
 			shellScript = "if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env\"\nfi\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\nexport PROJECT_ROOT=\"$PROJECT_DIR\"/..\nif [[ \"$CONFIGURATION\" = *Debug* ]]; then\n  export SKIP_BUNDLING=1\nfi\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\nif [[ -z \"$CLI_PATH\" ]]; then\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n`\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\"`\n";
 		};
-		80294FB7B4B42DA83B5C8C48 /* [CP] Copy Pods Resources */ = {
+		8C2A0C11E0F51EC3EA0EC614 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Ardia/Pods-Ardia-resources-${CONFIGURATION}-input-files.xcfilelist",
+				"${PODS_ROOT}/Target Support Files/Pods-Ardia/Pods-Ardia-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			name = "[CP] Copy Pods Resources";
+			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Ardia/Pods-Ardia-resources-${CONFIGURATION}-output-files.xcfilelist",
+				"${PODS_ROOT}/Target Support Files/Pods-Ardia/Pods-Ardia-frameworks-${CONFIGURATION}-output-files.xcfilelist",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Ardia/Pods-Ardia-resources.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Ardia/Pods-Ardia-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		EB431DA00A9BA41DDF1E5A81 /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-Ardia-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-		F51F9A96E9AF50C1C9FD9053 /* [Expo] Configure project */ = {
+		B30E85FBB6A826D7394F66EA /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -314,6 +556,7 @@
 			inputPaths = (
 				"$(SRCROOT)/.xcode.env",
 				"$(SRCROOT)/.xcode.env.local",
+				"$(SRCROOT)/$(ARDIA_ENTITLEMENTS_$(ARDIA_DEFAULT_BROWSER))",
 				"$(SRCROOT)/Pods/Target Support Files/Pods-Ardia/expo-configure-project.sh",
 			);
 			name = "[Expo] Configure project";
@@ -329,19 +572,85 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		858DF191E15311E727D6EE67 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		93F9A54CC6A3D72FFF0EF959 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				D76E0C50EF1617CBDAB4A89C /* AppDelegate.swift in Sources */,
-				F759B05D2CF14704A991820A /* ExpoModulesProvider.swift in Sources */,
-				9F8986AD19D546C3550E2C78 /* SceneDelegate.swift in Sources */,
+				11FFB9F549C69942E821B3FF /* Intents.swift in Sources */,
+				36087538CB5DDC5F75967B7A /* SceneDelegate.swift in Sources */,
+				EA36DB3066C67AD6086C1CE7 /* ExpoModulesProvider.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE674F4C4683AAE760EFFF2B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C8E85046EE4D591828B6F76B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		1D389A635087CF91F958C26F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AF56FEA9443A3F2A9D139653 /* ArdiaWidgets */;
+			targetProxy = A020EA10A043A692F70494CB /* PBXContainerItemProxy */;
+		};
+		86D6225EF354C1EF14F295BE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CF60F2D18AB253CC46A4E428 /* ArdiaOpen */;
+			targetProxy = 253AC173665C8574D3C14E8D /* PBXContainerItemProxy */;
+		};
+		87E82D8C2A00D0E8788BE072 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DD96EB2018C132DC7649EED8 /* ArdiaShare */;
+			targetProxy = 2EF1755F758C897D9C30D5F6 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		0AE21C58634201F9FF33F20E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ../../ios/Config/Share.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "../../ios/Config/Share-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Ardia;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = com.ardia.browser.ios.share;
+				PRODUCT_NAME = ArdiaShare;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 		3D426F71D100D08DAE349E2B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -375,9 +684,11 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = U5L5T3NGVV;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -411,13 +722,68 @@
 			};
 			name = Debug;
 		};
+		577AF5FA563D1CF1711188F3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ../../ios/Config/Share.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "../../ios/Config/Share-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Ardia;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
+				PRODUCT_BUNDLE_IDENTIFIER = com.ardia.browser.ios.share;
+				PRODUCT_NAME = ArdiaShare;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		637D5F3EC61773CC7143A50F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ../../ios/Config/Widgets.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "../../ios/Config/Widgets-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Ardia;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = com.ardia.browser.ios.widgets;
+				PRODUCT_NAME = ArdiaWidgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 		647775899F7D37AA0128335E /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = EFC049DA52AC3B3F5B84BF63 /* Pods-Ardia.debug.xcconfig */;
+			baseConfigurationReference = 4FD90E245DFB5335ACF4F908 /* Pods-Ardia.debug.xcconfig */;
 			buildSettings = {
+				ARDIA_DEFAULT_BROWSER = NO;
+				ARDIA_ENTITLEMENTS_NO = ../../ios/Config/Ardia.entitlements;
+				ARDIA_ENTITLEMENTS_YES = "../../ios/Config/Ardia-DefaultBrowser.entitlements";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "$(ARDIA_ENTITLEMENTS_$(ARDIA_DEFAULT_BROWSER))";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = Ardia/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -435,10 +801,38 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_INCLUDE_PATHS = "$(inherited) ${SYMROOT}/${CONFIGURATION}${EFFECTIVE_PLATFORM_NAME}";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
+		};
+		861DCD81D4C8A8B6F6731131 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = ../../ios/Config/Open.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "../../ios/Config/Open-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Open in Ardia";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = com.ardia.browser.ios.open;
+				PRODUCT_NAME = ArdiaOpen;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
 		};
 		9F8E00AE98322C4CD5881181 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -473,9 +867,11 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = U5L5T3NGVV;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -502,13 +898,42 @@
 			};
 			name = Release;
 		};
+		AE6A4CAC24E1FC803F3A6748 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ../../ios/Config/Widgets.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "../../ios/Config/Widgets-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Ardia;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
+				PRODUCT_BUNDLE_IDENTIFIER = com.ardia.browser.ios.widgets;
+				PRODUCT_NAME = ArdiaWidgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
 		CD1B9158481D7B8B0345A098 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 94EF7EA4153B1D166E6E931D /* Pods-Ardia.release.xcconfig */;
+			baseConfigurationReference = AE704818C60C688ED50FBD96 /* Pods-Ardia.release.xcconfig */;
 			buildSettings = {
+				ARDIA_DEFAULT_BROWSER = NO;
+				ARDIA_ENTITLEMENTS_NO = ../../ios/Config/Ardia.entitlements;
+				ARDIA_ENTITLEMENTS_YES = "../../ios/Config/Ardia-DefaultBrowser.entitlements";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "$(ARDIA_ENTITLEMENTS_$(ARDIA_DEFAULT_BROWSER))";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CODE_SIGN_STYLE = Automatic;
 				INFOPLIST_FILE = Ardia/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -526,14 +951,51 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_INCLUDE_PATHS = "$(inherited) ${SYMROOT}/${CONFIGURATION}${EFFECTIVE_PLATFORM_NAME}";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
+		E405F46DCC9D42788DD8900D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = ../../ios/Config/Open.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "../../ios/Config/Open-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Open in Ardia";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
+				PRODUCT_BUNDLE_IDENTIFIER = com.ardia.browser.ios.open;
+				PRODUCT_NAME = ArdiaOpen;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		2121AAE0CF215A6F01986146 /* Build configuration list for PBXNativeTarget "ArdiaOpen" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E405F46DCC9D42788DD8900D /* Debug */,
+				861DCD81D4C8A8B6F6731131 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		3DC31916F7C8488E19F48214 /* Build configuration list for PBXNativeTarget "Ardia" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -552,6 +1014,24 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		9B481E7B38C8C589E9A5851B /* Build configuration list for PBXNativeTarget "ArdiaWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AE6A4CAC24E1FC803F3A6748 /* Debug */,
+				637D5F3EC61773CC7143A50F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AF259D16E5A3FA7DF344FE21 /* Build configuration list for PBXNativeTarget "ArdiaShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				577AF5FA563D1CF1711188F3 /* Debug */,
+				0AE21C58634201F9FF33F20E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -560,6 +1040,29 @@
 			relativePath = ../../ios/Packages/ArdiaKit;
 		};
 /* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0BFA1A32F8AADE8672E62A39 /* ArdiaDesign */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ArdiaDesign;
+		};
+		29A8DF82757F0B98305E30AD /* ArdiaDesign */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ArdiaDesign;
+		};
+		2FE0468935C1A87C30704B4C /* ArdiaBrowser */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ArdiaBrowser;
+		};
+		995BCC861D01B3C0852D7F9F /* ArdiaBrowser */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ArdiaBrowser;
+		};
+		DFF5F15EFEB2D7F87112ED60 /* ArdiaDesign */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ArdiaDesign;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 2DC703FC63331EE47436A006 /* Project object */;
 }

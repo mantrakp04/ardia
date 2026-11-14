@@ -4,6 +4,6 @@
     "modules": ["com.ardia.phone.PageViewModule", "com.ardia.phone.BlockingModule", "com.ardia.phone.DownloadsModule"]
   },
   "ios": {
-    "modules": ["PageViewModule", "BlockingModule", "DownloadsModule"]
+    "modules": ["PageViewModule", "BlockingModule", "DownloadsModule", "SystemModule", "DefaultBrowserModule", "LegacyModule"]
   }
 }

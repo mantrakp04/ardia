@@ -67,11 +67,13 @@ link_ardia_kit = lambda do |installer|
   end
   target = project.targets.find { |t| t.name == 'ArdiaPhoneNative' }
   next unless target
-  next if target.package_product_dependencies.any? { |d| d.product_name == 'ArdiaBrowser' }
-  dependency = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
-  dependency.package = reference
-  dependency.product_name = 'ArdiaBrowser'
-  target.package_product_dependencies << dependency
+  %w[ArdiaBrowser ArdiaDesign].each do |product|
+    next if target.package_product_dependencies.any? { |d| d.product_name == product }
+    dependency = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+    dependency.package = reference
+    dependency.product_name = product
+    target.package_product_dependencies << dependency
+  end
 end
 
 target 'Ardia' do

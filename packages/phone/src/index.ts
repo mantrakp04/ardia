@@ -1,8 +1,11 @@
 export { blocking } from "./blocking";
+export { defaultBrowser, type DefaultBrowserStatus } from "./defaultBrowser";
 export { downloads } from "./downloads";
+export { legacy, type LegacyData, type LegacyTab, type LegacyVisit } from "./legacy";
 export { closePage, PageView } from "./PageView";
 export { pages } from "./pages";
 export { sync } from "./sync";
+export { system, type SystemLink, type SystemLinkSource } from "./system";
 export type {
   BookmarkItem,
   ConnectResult,
