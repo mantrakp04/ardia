@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, SectionList, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { closeArchive, reopenArchived } from "../../state/browse/store";
+import { closeArchive } from "../../state/browse/store";
+import { canShareTab, copyTabLink, deleteArchivedTab, menuOpenedHaptic, openArchivedTab, shareTab } from "../../state/browse/tabMenus";
 import { display } from "../../state/search/omnibox";
 import { usePreferences } from "../../state/settings/hooks";
 import { useArchiveDays, useArchiveLoaded } from "../../state/tabs/hooks";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval, type BrowserTab } from "../../state/tabs/tabModels";
 import { clearArchivedTabs, loadArchive, searchArchive, setAutoArchiveInterval } from "../../state/tabs/store";
-import { Backdrop, ConfirmDialog, font, Menu, radius, space, Symbol, tabsLayout, useTheme, type Confirmation, type MenuItem } from "../ui";
+import { Backdrop, ConfirmDialog, font, Menu, radius, space, Symbol, tabsLayout, tabsMotion, useTheme, type Confirmation, type MenuItem } from "../ui";
 
 const time = (at: number) => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
@@ -24,12 +25,13 @@ function dayTitle(at: number): string {
 export function ArchiveView() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const days = useArchiveDays();
   const loaded = useArchiveLoaded();
   const interval = usePreferences((p) => p.autoArchiveInterval);
   const [query, setQuery] = useState("");
   const [menu, setMenu] = useState(false);
+  const [rowMenu, setRowMenu] = useState<{ tab: BrowserTab; y: number } | null>(null);
   useEffect(() => loadArchive(), []);
   const trimmed = query.trim();
   const results = useMemo(() => (trimmed ? searchArchive(trimmed) : null), [trimmed, days]);
@@ -99,31 +101,63 @@ export function ArchiveView() {
             renderSectionHeader={({ section }) =>
               section.title ? <Text style={[font.footnote, styles.section, { color: theme.secondaryLabel }]}>{section.title}</Text> : null
             }
-            renderItem={({ item }) => <ArchiveRow tab={item} />}
+            renderItem={({ item }) => (
+              <ArchiveRow
+                tab={item}
+                onMenu={(y) => {
+                  menuOpenedHaptic();
+                  setRowMenu({ tab: item, y });
+                }}
+              />
+            )}
           />
         )}
       </View>
       {menu ? <Menu items={items} place={{ top: insets.top + tabsLayout.archiveTop, right: space.s, width: Math.min(tabsLayout.menuWidth, width - space.l) }} onDismiss={() => setMenu(false)} /> : null}
+      {rowMenu ? (
+        <Menu
+          items={rowMenuItems(rowMenu.tab)}
+          place={{ top: Math.min(rowMenu.y, height - tabsLayout.cardMenuHeight - insets.bottom), left: space.xl, width: Math.min(tabsLayout.menuWidth, width - space.xl * 2) }}
+          onDismiss={() => setRowMenu(null)}
+        />
+      ) : null}
       {confirmation ? <ConfirmDialog confirmation={confirmation} onClose={() => setConfirmation(null)} /> : null}
     </View>
   );
 }
 
-function ArchiveRow({ tab }: { tab: BrowserTab }) {
+function rowMenuItems(tab: BrowserTab): MenuItem[] {
+  const sharing: MenuItem[] = canShareTab(tab)
+    ? [
+        { label: "Copy Link", icon: "link", onPress: () => copyTabLink(tab) },
+        { label: "Share", icon: "squareAndArrowUp", onPress: () => shareTab(tab) },
+      ]
+    : [];
+  return [
+    { label: "Open", icon: "arrowUpForward", onPress: () => openArchivedTab(tab) },
+    ...sharing,
+    "divider",
+    { label: "Delete", icon: "trash", destructive: true, onPress: () => deleteArchivedTab(tab) },
+  ];
+}
+
+function ArchiveRow({ tab, onMenu }: { tab: BrowserTab; onMenu: (y: number) => void }) {
   const theme = useTheme();
   const shown = display(tab.url);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityHint="Reopens the tab."
-      onPress={() => reopenArchived(tab)}
+      onPress={() => openArchivedTab(tab)}
+      onLongPress={(event) => onMenu(event.nativeEvent.pageY)}
+      delayLongPress={tabsMotion.longPress}
       style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}
     >
       <View style={[styles.icon, { backgroundColor: theme.fieldFill }]}>
         <Symbol name="globe" size={tabsLayout.faviconSize} color={theme.rowIcon} />
       </View>
       <View style={styles.label}>
-        <Text style={[font.body, { color: theme.label }]} numberOfLines={1}>
+        <Text style={[font.body, { color: theme.label }]} numberOfLines={2}>
           {tab.title || shown.host}
         </Text>
         <Text style={[font.footnote, { color: theme.secondaryLabel }]} numberOfLines={1}>
