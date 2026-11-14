@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { activateRow, cancelSearch, submitSearch, toggleTrayIncognito } from "../../state/browse/store";
+import { menuOpenedHaptic, trayRowActions } from "../../state/browse/tabMenus";
 import { useSearchInitialText, useSearchOpen, useSearchOrigin, useSearchRows, useSearchSession, useSearchText } from "../../state/search/hooks";
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
 import { typeSearch } from "../../state/search/store";
 import { useIncognito } from "../../state/tabs/hooks";
-import { browseLayout, capsule, font, ink, radius, rolesFor, space, springs, Symbol, tabsInk, trayShadow, useTheme } from "../ui";
+import { browseLayout, capsule, font, ink, Menu, radius, rolesFor, space, springs, Symbol, tabsInk, tabsLayout, trayShadow, useTheme } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
 import { useBottomLift } from "./useKeyboardHeight";
 
@@ -138,6 +139,13 @@ function TrayRows() {
   const [room, setRoom] = useState(0);
   const [bottoms, setBottoms] = useState<Record<string, number>>({});
   const refine = (row: TrayRow) => typeSearch(refinedText(row));
+  const [menu, setMenu] = useState<{ row: TrayRow; y: number } | null>(null);
+  const window = useWindowDimensions();
+  const showMenu = (row: TrayRow, y: number) => {
+    if (!trayRowActions(row).length) return;
+    menuOpenedHaptic();
+    setMenu({ row, y });
+  };
   const shown = keyboard ? null : wholeRowsHeight(rows.map((row) => bottoms[row.key] ?? 0), room);
   if (incognito && !typed.trim()) {
     return (
@@ -162,10 +170,23 @@ function TrayRows() {
               setBottoms((known) => (known[row.key] === bottom ? known : { ...known, [row.key]: bottom }));
             }}
           >
-            <SuggestionRow row={row} typed={typed} roles={theme} onActivate={activateRow} onRefine={refine} />
+            <SuggestionRow row={row} typed={typed} roles={theme} onActivate={activateRow} onRefine={refine} onMenu={showMenu} />
           </View>
         ))}
       </ScrollView>
+      {menu ? (
+        <Modal transparent animationType="none" onRequestClose={() => setMenu(null)}>
+          <Menu
+            items={trayRowActions(menu.row).map((action) => ({ label: action.label, icon: action.icon, onPress: action.run }))}
+            place={{
+              top: Math.max(space.l, Math.min(menu.y, window.height - tabsLayout.cardMenuHeight)),
+              left: space.xl,
+              width: Math.min(tabsLayout.menuWidth, window.width - space.xl * 2),
+            }}
+            onDismiss={() => setMenu(null)}
+          />
+        </Modal>
+      ) : null}
     </View>
   );
 }

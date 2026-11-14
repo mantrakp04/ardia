@@ -4,13 +4,16 @@ import { browseLayout, font, radius, space, Symbol, type ColorRoles, type Symbol
 
 const LEADING: Record<TrayRow["kind"], SymbolName> = { query: "magnifyingglass", page: "globe", calc: "equalCircleFill" };
 
-type Props = { row: TrayRow; typed: string; roles: ColorRoles; onActivate: (row: TrayRow) => void; onRefine: (row: TrayRow) => void };
+type Props = { row: TrayRow; typed: string; roles: ColorRoles; onActivate: (row: TrayRow) => void; onRefine: (row: TrayRow) => void; onMenu: (row: TrayRow, y: number) => void };
 
-export function SuggestionRow({ row, typed, roles, onActivate, onRefine }: Props) {
+export function SuggestionRow({ row, typed, roles, onActivate, onRefine, onMenu }: Props) {
   return (
     <Pressable
       accessibilityRole="button"
       onPress={() => onActivate(row)}
+      onLongPress={(event) => onMenu(row, event.nativeEvent.pageY)}
+      accessibilityActions={[{ name: "longpress", label: "More Actions" }]}
+      onAccessibilityAction={() => onMenu(row, 0)}
       style={({ pressed }) => [styles.row, { backgroundColor: pressed ? roles.rowHighlight : undefined }]}
     >
       <View style={styles.leading}>
