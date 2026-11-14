@@ -265,3 +265,21 @@ test("a host with a trailing dot keeps its site name and its own allowance, and 
   assert.deepEqual((await apps.list("Ardia p-1")).map((allowance) => allowance.origin), ["https://example.com."]);
   assert.notEqual(await apps.request(ask({ id: "x2", origin: "https://example.com" }), "Ardia p-1", "tab-1"), null);
 });
+
+test("the engine hears of every ask the app drops without asking it again, so it never keeps one", async () => {
+  const dropped = [];
+  const native = { describe: async (scheme) => HANDLERS[scheme] ?? null, open: async () => true };
+  const apps = windowsExternalApps(() => native, () => null, async () => true, (page, id) => dropped.push(`${page}/${id}`));
+  const cancelled = await apps.request(ask({ id: "x1" }), "Ardia p-1", "tab-1");
+  await apps.resolve(cancelled.id, false, false);
+  await apps.request(ask({ id: "x2", url: "nohandler:hello" }), "Ardia p-1", "tab-1");
+  const forgotten = await apps.request(ask({ id: "x3" }), "Ardia p-1", "tab-1");
+  apps.forget(forgotten.id);
+  await apps.request(ask({ id: "x4" }), "Ardia p-1", "tab-2");
+  apps.forgetPage("tab-2");
+  await apps.request(ask({ id: "x5" }), "Ardia p-2", "tab-3");
+  apps.forgetProfile("Ardia p-2");
+  const opened = await apps.request(ask({ id: "x6" }), "Ardia p-1", "tab-1");
+  await apps.resolve(opened.id, true, false);
+  assert.deepEqual(dropped, ["tab-1/x1", "tab-1/x2", "tab-1/x3", "tab-2/x4", "tab-3/x5"], "a no, no handler, a forgotten prompt, a closed page and a forgotten profile; an opened ask was consumed by externalAppAlive");
+});

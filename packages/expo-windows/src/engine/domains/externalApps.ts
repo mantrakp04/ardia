@@ -8,6 +8,7 @@ export type ExternalAppAsk = { id: string; url: string; origin: string | null; u
 type Pending = { ask: string; handler: ExternalHandler; url: string; scheme: string; profile: string; page: string; origin: string | null; rememberable: boolean };
 
 type StillAsked = (page: string, id: string) => Promise<boolean>;
+type DropAsk = (page: string, id: string) => void;
 
 type Saved = { version: 1; allowances: Record<string, Record<string, string[]>> };
 
@@ -70,8 +71,14 @@ export function windowsExternalApps(
   native: () => ExternalAppsModule | null,
   documents: () => Pick<DocumentsNative, "readDocument" | "writeDocument"> | null,
   stillAsked: StillAsked,
+  dropAsk: DropAsk = () => {},
 ) {
   const pending = new Map<string, Pending>();
+  const drop = (asked: Pending) => {
+    try {
+      dropAsk(asked.page, asked.ask);
+    } catch {}
+  };
   const forgottenProfiles = new Map<string, number>();
   let asksMade = 0;
   const generationOf = (profile: string) => forgottenProfiles.get(profile) ?? 0;
@@ -111,7 +118,10 @@ export function windowsExternalApps(
     if (!scheme || !ASK_ID.test(ask.id) || ask.url.length > LONGEST_LINK) return null;
     const generation = generationOf(profile);
     const handler = await describe(scheme);
-    if (generationOf(profile) !== generation) return null;
+    if (generationOf(profile) !== generation) {
+      dropAsk(page, ask.id);
+      return null;
+    }
     const origin = serializedOrigin(ask.origin);
     const rememberable = !!handler && !!origin && !ask.offTheRecord && !isPrivateProfile(profile) && trustworthyOrigin(origin);
     if (handler && rememberable && ask.userGesture && allowed(profile, origin!, scheme)) {
@@ -121,8 +131,13 @@ export function windowsExternalApps(
     }
     const id = `w${++asksMade}`;
     if (handler) {
-      if (pending.size >= PENDING_LIMIT) pending.clear();
+      if (pending.size >= PENDING_LIMIT) {
+        for (const asked of pending.values()) drop(asked);
+        pending.clear();
+      }
       pending.set(id, { ask: ask.id, handler, url: ask.url, scheme, profile, page, origin, rememberable });
+    } else {
+      dropAsk(page, ask.id);
     }
     const name = handler?.name ?? null;
     return {
@@ -142,7 +157,11 @@ export function windowsExternalApps(
   async function resolve(id: string, openIt: boolean, remember: boolean): Promise<boolean> {
     const asked = pending.get(id);
     pending.delete(id);
-    if (!asked || !openIt) return false;
+    if (!asked) return false;
+    if (!openIt) {
+      drop(asked);
+      return false;
+    }
     const generation = generationOf(asked.profile);
     if (!(await asking(asked.page, asked.ask)) || generationOf(asked.profile) !== generation) {
       launches.refused += 1;
@@ -180,16 +199,18 @@ export function windowsExternalApps(
   }
 
   function forget(id: string) {
+    const asked = pending.get(id);
     pending.delete(id);
+    if (asked) drop(asked);
   }
 
   function forgetPage(page: string) {
-    for (const [id, asked] of pending) if (asked.page === page) pending.delete(id);
+    for (const [id, asked] of pending) if (asked.page === page) (pending.delete(id), drop(asked));
   }
 
   function forgetProfile(profile: string) {
     forgottenProfiles.set(profile, generationOf(profile) + 1);
-    for (const [id, asked] of pending) if (asked.profile === profile) pending.delete(id);
+    for (const [id, asked] of pending) if (asked.profile === profile) (pending.delete(id), drop(asked));
     if (!allowances().allowances[profile]) return;
     delete allowances().allowances[profile];
     store();

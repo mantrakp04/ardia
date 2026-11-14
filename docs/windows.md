@@ -81,7 +81,7 @@ what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidde
 | Downloads (download, panel, Ctrl+J) | Works: the panel opens for a new download and lists it; Ctrl+J opens it | #1519 |
 | History (Ctrl+H), Clear Browsing Data (Ctrl+Shift+Del) | Works | |
 | Bookmarks (Ctrl+D, Ctrl+Shift+O) | Works | |
-| mailto and other app links | Does nothing until the engine announces the request (no prompt, no launch) | #1425 (engine), #1590 |
+| mailto and other app links | Works: the app's prompt, then the handler (`mailto` opens the mail app without a prompt, as Chromium and the Mac allow it by default) | #1590, #1425 |
 | Translate | Not offered | #1520 |
 | Network error page | Works (Chromium's) | |
 | DevTools (F12), Task Manager (Shift+Esc) | Works (Chromium's) | |
@@ -534,7 +534,6 @@ is plain Chromium.
 | `media.devShowBluetoothChooser`, `media.devChooserEvents` | Default | Mac test hooks. |
 | `passwords.autofillEnabled`, `passwords.setAutofillEnabled` | Engine | The profile's `credentials_enable_service` pref, as for autofill. Today Settings › Passwords' offer-to-save toggle reads off and changes nothing. |
 | `permissions.resolve` | Engine | Permission prompts drawn by the app; Chromium's own prompt shows today. |
-| `externalApp` tab event (no verb) | Engine | The app answers `permissions.resolveExternalApp`, `externalAppAllowances` and `removeExternalAppAllowance` (`domains/externalApps.ts`, `ArdiaExternalApps`), but the Windows engine never raises the request: the `external protocol dialog` hook that `engine/ardiacore/apply.sh` adds to Chromium's `ExternalProtocolHandler` is not in the Windows series. The engine also needs the `externalAppAlive` page call (`tab.call`, `{ id }`, answers `true` while the asking document is alive, like the Mac's `ResolveExternalApp`): the app opens nothing until it answers `true`. The payload and the call are on #1425. |
 | `permissions.devExternalLaunches` | Default | Mac test hook. |
 | `profiles.loaded` | Engine | The profiles the engine has loaded, plus the `profiles.loaded` event. Today the call fails and the app counts every profile as open, as with lazy loading off. |
 | Profile folder names (no verb) | App | The engine names a profile's folder `Ardia ` plus its id, with lowercase letters, digits and `-` kept and every other byte written `_` and two lowercase hex digits (`profiles.cc`), so each name has its own folder even on a case-insensitive disk and Ardia's own ids (`p-<base36>-<base36>`) keep the folder they always had. `profiles.deleteData` still maps only ids of that shape and refuses the rest; it could map the escape too. |
@@ -567,7 +566,16 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
 `unpacked.ts` and `systemState.ts`, with the dialogs, file reads and power reading passed in as the domain engine's
 `desktop` (`domains/desktop.ts`):
 
-- Links to other apps: the engine's `externalApp` tab event (once it sends one, #1425) goes to `domains/externalApps.ts`.
+- Links to other apps: `chromium-win-external-protocol-dialog.patch` gives Chromium's `ExternalProtocolHandler` the
+  hook the Mac's `apply.sh` adds (`g_ardia_win_external_protocol_dialog`, called after Chromium's own block state and
+  denied schemes, with the request's user gesture). For a tab the host keeps, `ardia/win/external_apps.cc` sends the
+  `externalApp` tab event (`id`, `url`, `origin` or null, `userGesture`, `offTheRecord`) to `domains/externalApps.ts`
+  and keeps the asking document. The `externalAppAlive` page call answers `{ alive: true }` once per request while
+  that document lives (a request with no page origin, from the browser or an extension, only needs its tab), as the
+  Mac's `ResolveExternalApp` checks. The engine keeps a page's 8 newest asks at most, and the app tells it
+  (`externalAppForget`) whenever it drops one without launching: a no, no handler, a closed page or a forgotten
+  profile. `mailto` never asks: Chromium allows it by default and opens the mail app itself,
+  as on the Mac.
   - **Describe:** `ArdiaExternalApps.describe` names the scheme's handler and draws its icon (`AssocQueryStringW` with
     `ASSOCSTR_FRIENDLYAPPNAME` and `ASSOCSTR_EXECUTABLE`, then `SystemShell::FileIcon`). A classic scheme under
     `Software\Classes` (how Zoom and Slack register) gets no name from `AssocQueryString` on Windows 11 build 26200,
@@ -929,8 +937,6 @@ App side, an agent can do these now:
 8. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
 
 Engine work (#1425): the walk found nothing new missing beyond what is already listed there:
-- an `externalApp` tab event and the `externalAppAlive` page call, so the app can ask before launching mailto and other
-  app links (the Mac's hook is `g_ardia_external_protocol_dialog`; the app side is done, #1590);
 - `ac_passwords_logins` answering on Windows, where Chromium's `kSkipUndecryptablePasswords` is on by default (password
   sync);
 - the password, permission and picture-in-picture events the app needs to draw its own prompts and windows;

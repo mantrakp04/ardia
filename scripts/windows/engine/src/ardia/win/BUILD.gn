@@ -6,6 +6,8 @@ source_set("win") {
     "ac_calls.h",
     "api.cc",
     "api.h",
+    "external_apps.cc",
+    "external_apps.h",
     "frame_view.cc",
     "frame_view.h",
     "hooks.h",
