@@ -95,14 +95,22 @@ object PagePayloads {
                 "isSecure" to kind.isSecure,
             )
             is PageRequest.Kind.Permission -> mapOf("kind" to "permission", "permission" to permission(kind.permission))
-            is PageRequest.Kind.FileChooser -> mapOf(
-                "kind" to "fileChooser",
-                "acceptTypes" to kind.acceptTypes,
-                "allowsMultiple" to kind.allowsMultiple,
-                "prefersCapture" to kind.prefersCapture,
-            )
+            is PageRequest.Kind.FileChooser -> fileChooser(kind)
         }
         return base + kind
+    }
+
+    fun fileChooser(kind: PageRequest.Kind.FileChooser): Map<String, Any?> {
+        val plan = com.ardia.browsing.FileChooserPlan.of(kind.acceptTypes, kind.prefersCapture)
+        return mapOf(
+            "kind" to "fileChooser",
+            "acceptTypes" to kind.acceptTypes,
+            "allowsMultiple" to kind.allowsMultiple,
+            "prefersCapture" to kind.prefersCapture,
+            "offersPhoto" to plan.offersPhoto,
+            "offersVideo" to plan.offersVideo,
+            "capturesDirectly" to plan.capturesDirectly,
+        )
     }
 
     fun externalApp(app: ExternalApp): String = when (app) {
@@ -132,6 +140,8 @@ object PagePayloads {
         data class Page(val answer: PageRequest.Answer) : Answer
 
         data object PickFiles : Answer
+
+        data class Capture(val photo: Boolean) : Answer
     }
 
     fun answer(type: String, text: String?, user: String?, password: String?, uris: List<String>?): Answer = when (type) {
@@ -143,6 +153,8 @@ object PagePayloads {
         )
         "files" -> Answer.Page(PageRequest.Answer.Files((uris ?: throw badArgs("A files answer needs uris")).map(Uri::parse)))
         "pickFiles" -> Answer.PickFiles
+        "takePhoto" -> Answer.Capture(photo = true)
+        "recordVideo" -> Answer.Capture(photo = false)
         else -> throw badArgs("Unknown answer type $type")
     }
 

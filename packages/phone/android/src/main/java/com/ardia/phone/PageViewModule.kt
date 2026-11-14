@@ -54,6 +54,7 @@ class RequestAnswerRecord : Record {
 
 class PageViewModule : Module() {
     private var picking: Pair<PageRequest, Promise>? = null
+    private var capturing: Triple<PageRequest, Promise, Uri>? = null
 
     private val context: Context get() = appContext.reactContext ?: throw CodedException("ERR_NO_CONTEXT", "The app context is gone", null)
 
@@ -79,6 +80,14 @@ class PageViewModule : Module() {
         }
 
         OnActivityResult { _, payload ->
+            if (payload.requestCode == CAPTURE_REQUEST) {
+                val (request, promise, uri) = capturing ?: return@OnActivityResult
+                capturing = null
+                val answer = if (payload.resultCode == Activity.RESULT_OK) com.ardia.browsing.PickedFiles.answer(context, listOf(uri), captureUri = uri) else PageRequest.Answer.Dismissed
+                request.answer(answer)
+                promise.resolve(answer is PageRequest.Answer.Files && answer.uris.isNotEmpty())
+                return@OnActivityResult
+            }
             if (payload.requestCode != PICK_FILES_REQUEST) return@OnActivityResult
             val (request, promise) = picking ?: return@OnActivityResult
             picking = null
@@ -212,6 +221,7 @@ class PageViewModule : Module() {
             }
             when (val parsed = PagePayloads.answer(answer.type, answer.text, answer.user, answer.password, answer.uris)) {
                 PagePayloads.Answer.PickFiles -> pickFiles(request, promise)
+                is PagePayloads.Answer.Capture -> capture(request, promise, parsed.photo)
                 is PagePayloads.Answer.Page -> {
                     val kind = request.kind
                     if (parsed.answer == PageRequest.Answer.Accepted && kind is PageRequest.Kind.Permission) {
@@ -327,6 +337,34 @@ class PageViewModule : Module() {
         }, *permissions)
     }
 
+    private fun capture(request: PageRequest, promise: Promise, photo: Boolean) {
+        if (request.kind !is PageRequest.Kind.FileChooser || capturing != null || picking != null) {
+            request.dismiss()
+            promise.resolve(false)
+            return
+        }
+        askAndroid(arrayOf(android.Manifest.permission.CAMERA)) { granted ->
+            val activity = appContext.currentActivity
+            val uri = if (granted && activity != null) runCatching { com.ardia.browsing.CaptureFiles.create(context, if (photo) "jpg" else "mp4") }.getOrNull() else null
+            if (activity == null || uri == null) {
+                request.dismiss()
+                promise.resolve(false)
+                return@askAndroid
+            }
+            val intent = Intent(if (photo) android.provider.MediaStore.ACTION_IMAGE_CAPTURE else android.provider.MediaStore.ACTION_VIDEO_CAPTURE)
+                .putExtra(android.provider.MediaStore.EXTRA_OUTPUT, uri)
+                .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            capturing = Triple(request, promise, uri)
+            try {
+                activity.startActivityForResult(intent, CAPTURE_REQUEST)
+            } catch (missing: android.content.ActivityNotFoundException) {
+                capturing = null
+                request.dismiss()
+                promise.resolve(false)
+            }
+        }
+    }
+
     private fun pickFiles(request: PageRequest, promise: Promise) {
         val kind = request.kind as? PageRequest.Kind.FileChooser
         val activity = appContext.currentActivity
@@ -364,6 +402,7 @@ class PageViewModule : Module() {
     companion object {
         const val PAGE_LAB_EXTRA = "com.ardia.phone.PAGE_LAB"
         private const val PICK_FILES_REQUEST = 47_201
+        private const val CAPTURE_REQUEST = 47_204
         private const val SNAPSHOT_QUALITY = 82
     }
 }

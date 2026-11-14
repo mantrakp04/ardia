@@ -59,4 +59,23 @@ class PagePayloadsTest {
         assertEquals("example.com", PhoneSitePreferences.siteKey("www.example.com"))
         assertEquals("news.example.com", PhoneSitePreferences.siteKey("news.example.com."))
     }
+
+    @Test
+    fun aFileRequestSaysWhetherToOfferTakePhotoAndRecordVideo() {
+        val images = PagePayloads.fileChooser(PageRequest.Kind.FileChooser(listOf("image/*"), allowsMultiple = false, prefersCapture = false))
+        assertEquals(true, images["offersPhoto"])
+        assertEquals(false, images["offersVideo"])
+        assertEquals(false, images["capturesDirectly"])
+        val anything = PagePayloads.fileChooser(PageRequest.Kind.FileChooser(emptyList(), allowsMultiple = true, prefersCapture = false))
+        assertEquals(true, anything["offersPhoto"])
+        assertEquals(true, anything["offersVideo"])
+        val pdf = PagePayloads.fileChooser(PageRequest.Kind.FileChooser(listOf(".pdf"), allowsMultiple = false, prefersCapture = true))
+        assertEquals(false, pdf["offersPhoto"])
+        assertEquals(false, pdf["capturesDirectly"])
+        val capture = PagePayloads.fileChooser(PageRequest.Kind.FileChooser(listOf("video/*"), allowsMultiple = false, prefersCapture = true))
+        assertEquals(true, capture["capturesDirectly"])
+        assertEquals(listOf("video/*"), capture["acceptTypes"])
+        assertEquals(PagePayloads.Answer.Capture(photo = true), PagePayloads.answer("takePhoto", null, null, null, null))
+        assertEquals(PagePayloads.Answer.Capture(photo = false), PagePayloads.answer("recordVideo", null, null, null, null))
+    }
 }

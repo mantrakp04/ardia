@@ -83,7 +83,7 @@ export type PageRequestKind =
   | { kind: "openExternal"; url: string; app: ExternalApp }
   | { kind: "httpAuthentication"; realm: string | null; isProxy: boolean; failedBefore: boolean; isSecure: boolean }
   | { kind: "permission"; permission: SitePermission }
-  | { kind: "fileChooser"; acceptTypes: string[]; allowsMultiple: boolean; prefersCapture: boolean };
+  | { kind: "fileChooser"; acceptTypes: string[]; allowsMultiple: boolean; prefersCapture: boolean; offersPhoto?: boolean; offersVideo?: boolean; capturesDirectly?: boolean };
 
 export type PageRequest = PageRequestKind & {
   id: string;
@@ -98,7 +98,9 @@ export type PageRequestAnswer =
   | { type: "text"; text: string }
   | { type: "credential"; user: string; password: string }
   | { type: "files"; uris: string[] }
-  | { type: "pickFiles" };
+  | { type: "pickFiles" }
+  | { type: "takePhoto" }
+  | { type: "recordVideo" };
 
 export type PressTarget = { kind: "link"; url: string; text: string | null } | { kind: "image"; url: string; linkUrl: string | null };
 
