@@ -14,8 +14,13 @@ export function scopeFor(text: string, windowId: string): SearchScope | null {
   return findScope(text, scopeSources(windowId));
 }
 
-export function offeredScope(typed: string, completion: string, windowId: string): SearchScope | null {
-  return offeredSiteSearch(typed, completion, scopeSources(windowId));
+export type OfferedScope = SearchScope & { fromTopRow?: true };
+
+export function offeredScope(typed: string, completion: string, windowId: string, topUrl?: string): OfferedScope | null {
+  const sources = scopeSources(windowId);
+  const scope = offeredSiteSearch(typed, completion, sources, topUrl);
+  if (!scope || !topUrl || offeredSiteSearch(typed, completion, sources)) return scope;
+  return { ...scope, fromTopRow: true };
 }
 
 export function keywordScope(text: string, windowId: string): SearchScope | null {

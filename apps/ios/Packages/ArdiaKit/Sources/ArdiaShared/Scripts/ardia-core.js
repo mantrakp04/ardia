@@ -2635,10 +2635,18 @@ function scopedSearchUrl(scope             , query        , defaultEngine       
   return searchUrlFor(scope.url, query);
 }
 
-function offeredSiteSearch(typed        , completion        , sources              )                     {
+function offeredSiteSearch(typed        , completion        , sources              , topUrl         )                     {
   const t = typed.trim();
   if (!t || /\s/.test(t)) return null;
-  return providerScope(typed, sources.providers) ?? findScope(typed + completion, sources);
+  return providerScope(typed, sources.providers) ?? findScope(typed + completion, sources) ?? topRowScope(t, topUrl, sources);
+}
+
+function topRowScope(typed        , topUrl                    , sources              )                     {
+  const host = topUrl ? normalize(hostOf(topUrl)) : "";
+  if (!host) return null;
+  const t = typed.toLowerCase();
+  if (!host.startsWith(t) && !siteLabel(host).startsWith(t)) return null;
+  return findScope(host, sources);
 }
 
                                   

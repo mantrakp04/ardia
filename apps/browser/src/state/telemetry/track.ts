@@ -54,13 +54,16 @@ export function sampleOmniboxLatency(ms: number) {
 
 export const takeOmniboxLatency = () => latency.splice(0);
 
-let suggests = { search_suggest_ok: 0, search_suggest_blocked: 0, search_suggest_failed: 0 };
+const noOmniboxCounts = () => ({ search_suggest_ok: 0, search_suggest_blocked: 0, search_suggest_failed: 0, tab_search_top_row: 0 });
+let suggests = noOmniboxCounts();
 
 export const noteSearchSuggest = (outcome: "ok" | "blocked" | "failed") => void suggests[`search_suggest_${outcome}`]++;
 
+export const noteTabSearchFromTopRow = () => void suggests.tab_search_top_row++;
+
 export const takeSearchSuggests = () => {
   const taken = suggests;
-  suggests = { search_suggest_ok: 0, search_suggest_blocked: 0, search_suggest_failed: 0 };
+  suggests = noOmniboxCounts();
   return taken;
 };
 

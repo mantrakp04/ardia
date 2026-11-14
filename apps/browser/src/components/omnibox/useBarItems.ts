@@ -55,9 +55,10 @@ export function useBarItems({
   const inline = useInlineCompletion(input, typed, suppressCompletion || scope ? "" : completion, preview);
   const shownCompletion = previewing ? "" : inline.shown;
   const value = preview ?? typed + shownCompletion;
+  const topUrl = suggested.find((item) => item.kind === "page")?.url;
   const tabScope = useMemo(
-    () => (!scope && edited && !previewing ? offeredScope(typed, shownCompletion, windowId) : null),
-    [scope, edited, previewing, typed, shownCompletion, windowId],
+    () => (!scope && edited && !previewing ? offeredScope(typed, shownCompletion, windowId, topUrl) : null),
+    [scope, edited, previewing, typed, shownCompletion, windowId, topUrl],
   );
   return { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing };
 }

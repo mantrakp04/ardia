@@ -142,7 +142,7 @@ const SuggestionRow = memo(
               ) : null}
             </Text>
             <View style={{ flex: 1 }} />
-            {hint && !removable ? <Text size="small" tone="textTertiary">{hint}</Text> : null}
+            {hint && (!removable || trailing) ? <Text size="small" tone="textTertiary">{hint}</Text> : null}
             {removable ? (
               <Button variant="icon" icon="xmark" size="s" color={theme.textSecondary} tooltip="Remove from History" onPress={onRemove} />
             ) : null}
