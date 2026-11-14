@@ -857,8 +857,8 @@ App side, an agent can do these now:
 8. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
 
 Engine work (#1425): the walk found nothing new missing beyond what is already listed there:
-- an `externalProtocol` request event, so the app can ask before launching mailto and other app links (`ac_external_protocol`
-  on the Mac; the app side is done, #1590);
+- an `externalApp` tab event and the `externalAppAlive` page call, so the app can ask before launching mailto and other
+  app links (the Mac's hook is `g_ardia_external_protocol_dialog`; the app side is done, #1590);
 - `ac_passwords_logins` answering on Windows, where Chromium's `kSkipUndecryptablePasswords` is on by default (password
   sync);
 - the password, permission and picture-in-picture events the app needs to draw its own prompts and windows;
