@@ -95,21 +95,26 @@ test("a collapsed group keeps its active nested group a row gap below its header
 
 test("sidebar and strip entries stay the same through background title changes and still change on a pin or a closed tab", async () => {
   const { stripEntries } = await import("../tabs/topStrip.ts");
+  const { entriesInputs, entriesInputsSame } = await import("./entries.ts");
   S().hydrate({});
   const w = S().createWindow({ url: "https://a.example/" });
   const b = S().newTab(w, { url: "https://b.example/", background: true });
   const c = S().newTab(w, { url: "https://c.example/", background: true });
   const side = sidebarEntries(S(), w);
   const strip = stripEntries(S(), w, "default");
+  const before = entriesInputs(S());
   S().updateTab(b, { title: "(3) Inbox", favicon: "https://b.example/unread.ico" });
+  assert.equal(entriesInputsSame(entriesInputs(S()), before), true, "a title change keeps the cached entries without recomputing them");
   assert.equal(sidebarEntries(S(), w), side);
   assert.equal(stripEntries(S(), w, "default"), strip);
   S().updateTab(c, { title: "Another" });
   assert.equal(sidebarEntries(S(), w), side);
+  const unpinned = entriesInputs(S());
   S().updateTab(b, { pin: { as: "row" } });
+  assert.equal(entriesInputsSame(entriesInputs(S()), unpinned), false);
   assert.notEqual(sidebarEntries(S(), w), side);
   assert.ok(sidebarEntries(S(), w).pinned.some((e) => e.includes(b)));
-  const before = stripEntries(S(), w, "default");
+  const open = stripEntries(S(), w, "default");
   S().closeTab(c);
-  assert.notEqual(stripEntries(S(), w, "default"), before);
+  assert.notEqual(stripEntries(S(), w, "default"), open);
 });

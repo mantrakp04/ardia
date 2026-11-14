@@ -8,7 +8,7 @@ import { hiddenEmptyCard } from "../omnibox/newTabBarPolicy";
 import { groupLabel } from "../pins/tabGrouping";
 import { folderCell, folderIn, folderLabel, folderMembers, tileFolderOf } from "../pins/tileFolders";
 import { clickTab } from "../sidebar/actions";
-import { entriesInputsSame, groupEntries } from "../sidebar/entries";
+import { entriesInputs, entriesInputsSame, groupEntries, type EntriesInputs } from "../sidebar/entries";
 import { renameFolder } from "../sidebar/tileFolderUi";
 import { chooseFromMenu, type ChoiceItem } from "../app/menuChoice";
 import { entryKey, parseEntry } from "../sidebar/entryKey";
@@ -31,7 +31,7 @@ export type StripGroupEntry = { kind: "group"; id: string; collapsed: boolean; m
 export type StripDock = { kind: "dock"; ids: string[]; members: Map<string, string[]> };
 export type StripEntry = StripDock | StripGroupEntry | StripMember;
 
-const stripMemo = new Map<string, { inputs: unknown[]; keys: string[]; entries: StripEntry[] }>();
+const stripMemo = new Map<string, { inputs: EntriesInputs; keys: string[]; entries: StripEntry[] }>();
 
 function parseStrip(keys: string[], previousDock: StripDock | undefined): StripEntry[] {
   const out: StripEntry[] = [];
@@ -79,7 +79,7 @@ function foldersUnderRoots(groups: BrowserState["groups"]): Map<string, string> 
 
 export function stripEntries(s: BrowserState, windowId: string, profileId: string): StripEntry[] {
   const key = `${windowId}|${profileId}`;
-  const inputs = [s.tabs, s.windows, s.groups, s.splits, s.settings.newTabOpens];
+  const inputs = entriesInputs(s);
   const cached = stripMemo.get(key);
   if (cached && entriesInputsSame(inputs, cached.inputs)) {
     cached.inputs = inputs;
