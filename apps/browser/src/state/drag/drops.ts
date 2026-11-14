@@ -160,9 +160,15 @@ export function movingTabIds(s: BrowserState, tabId: string): string[] {
   return selected.length > 1 && selected.includes(tabId) ? selected : [tabId];
 }
 
-export function clickedSelection(s: BrowserState, windowId: string, tabId: string, mods: ClickMods): { selection: string[]; anchor: string | undefined } | null {
-  const active = activeTabId(s, windowId);
+export type SelectionAnchor = { tabId: string; shownTabId: string | undefined; reset?: true };
+
+export function anchorOutdated(s: BrowserState, windowId: string): boolean {
   const anchor = s.selectionAnchors[windowId];
+  return !!anchor && (!!anchor.reset || anchor.shownTabId !== activeTabId(s, windowId));
+}
+
+export function clickedSelection(s: BrowserState, windowId: string, tabId: string, mods: ClickMods): { selection: string[]; anchor: string } | null {
+  const active = activeTabId(s, windowId);
   if (mods.metaKey) {
     const current = s.selection[windowId] ?? [];
     const base = current.length ? current : active ? [active] : [];
@@ -171,7 +177,8 @@ export function clickedSelection(s: BrowserState, windowId: string, tabId: strin
   }
   if (!mods.shiftKey) return null;
   const view = viewTabIds(s, windowId);
-  const from = view.indexOf(anchor ?? active ?? tabId);
+  const anchor = (anchorOutdated(s, windowId) ? undefined : s.selectionAnchors[windowId]?.tabId) ?? active ?? tabId;
+  const from = view.indexOf(anchor);
   const to = view.indexOf(tabId);
   if (from < 0 || to < 0) return null;
   return { selection: view.slice(Math.min(from, to), Math.max(from, to) + 1), anchor };

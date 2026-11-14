@@ -7,7 +7,7 @@ export type TabPressEnd = "click" | "dragClick" | "drag";
 const MAX_SAMPLES = 500;
 const PAGE_CLICK_WINDOW_MS = 60_000;
 
-const empty = () => ({ presses: 0, down_switches: 0, clicks: 0, drag_clicks: 0, drags: 0, unanswered: 0 });
+const empty = () => ({ presses: 0, down_switches: 0, clicks: 0, drag_clicks: 0, drags: 0, unanswered: 0, range_selects: 0, range_from_shown: 0 });
 let tally = empty();
 let pending = false;
 let shown: { tabId: string; at: number } | null = null;
@@ -80,6 +80,11 @@ export function notePressEnded(end: TabPressEnd, tabId: string | null = null) {
   shown = tabId ? { tabId, at: Date.now() } : null;
 }
 
+export function noteRangeSelect(fromShownTab: boolean) {
+  tally.range_selects++;
+  if (fromShownTab) tally.range_from_shown++;
+}
+
 export function notePagePress(tabId: string) {
   const last = shown;
   shown = null;
@@ -100,7 +105,7 @@ export function emitTabPresses() {
   const gaps = repeatGaps.sort((a, b) => a - b);
   const landedOn = [...repeatsLandedOn].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
   forgetRepeats();
-  if (!counts.presses && !lostReleases && !repeated.presses) return;
+  if (!counts.presses && !counts.range_selects && !lostReleases && !repeated.presses) return;
   const at = (list: number[], p: number) => (list.length ? percentile(list, p) : null);
   capture("tab_presses", {
     ...counts,

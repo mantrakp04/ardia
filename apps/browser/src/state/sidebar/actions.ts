@@ -7,12 +7,13 @@ import { webviews } from "../../platform/webviews";
 import { focusHeroBar } from "../omnibox/barState";
 import { ancestorIds } from "../groups/groups";
 import { activeTabId, bookmarkProfileId, inPinnedContainer, pinSection, tabLayoutOf, tabsShownIn, tabTitle, viewTabIds } from "../browser/model";
-import type { ClickMods } from "../drag/drops";
+import { anchorOutdated, type ClickMods } from "../drag/drops";
 import { selectedTabIds } from "../pins/organize";
 import { groupLabel, groupOf } from "../pins/tabGrouping";
 import type { Tab } from "../browser/types";
 import { awaitsFirstPage } from "../tabs/pendingAddress";
 import { noteUrlCopied } from "../telemetry/urlCopies";
+import { noteRangeSelect } from "../telemetry/tabPresses";
 import type { BookmarkFolderChoice } from "./menuParts";
 import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { measureRow, setSidebarUi, sidebarUi, type Target } from "./sidebarUi";
@@ -20,7 +21,10 @@ import { measureRow, setSidebarUi, sidebarUi, type Target } from "./sidebarUi";
 const store = () => useBrowser.getState();
 
 export function clickTab(windowId: string, tabId: string, mods: ClickMods = {}) {
+  const ranging = !!mods.shiftKey && !mods.metaKey;
+  const fromShownTab = ranging && anchorOutdated(store(), windowId);
   store().clickTab(windowId, tabId, mods);
+  if (ranging && store().selection[windowId]?.length) noteRangeSelect(fromShownTab);
 }
 
 export function tabPlace(tabId: string): string {
