@@ -65,6 +65,7 @@ enum MainMenu {
     _ = top(appName, [
       aboutItem("About \(appName)"),
       updatesItem(),
+      AppUpdater.shared.restartToUpdateItem(),
       .separator(),
       cmd(.openSettings),
       cmd(.importBrowserData),

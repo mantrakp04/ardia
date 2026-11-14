@@ -7,6 +7,8 @@ import { lightsCenter, TOP_STRIP_LIGHTS_CENTER } from "../../state/windows/dockM
 import { useWindowUiOf } from "../../state/windows/hooks";
 import { usePagerPages } from "../../state/windows/profilePager";
 import { DownloadsButton } from "../downloads/DownloadsButton";
+import { UpdateButton, useReadyUpdate } from "../updates/UpdateButton";
+import { UPDATE_BUTTON } from "../updates/tokens";
 import { ProfileIndicator, useProfileIndicatorWidth } from "../profiles/ProfileIndicator";
 import { Panel, shadow, WindowDragRegion } from "../ui";
 import { layout, useTheme } from "../ui/theme";
@@ -47,7 +49,8 @@ export function TopTabStrip({ width, floating = false, hidden = false, swipe = t
   const current = useWindowProfileId();
   const { pages } = usePagerPages(windowId);
   const profileChip = useProfileIndicatorWidth(PROFILE_ROOM);
-  const controls = (profileChip ? profileChip + CONTROLS_GAP : 0) + DOWNLOADS_BOX;
+  const updateReady = !!useReadyUpdate();
+  const controls = (profileChip ? profileChip + CONTROLS_GAP : 0) + DOWNLOADS_BOX + (updateReady ? CONTROLS_GAP + UPDATE_BUTTON.box : 0);
   const fullScreen = useWindowFullScreen(windowId);
   const left = floating || fullScreen ? 8 : layout.trafficLightsWidth + LIGHTS_GAP;
   const right = Math.max(84, controls + 8 + 6);
@@ -73,6 +76,7 @@ export function TopTabStrip({ width, floating = false, hidden = false, swipe = t
           <TintInk>
             <ProfileIndicator room={PROFILE_ROOM} />
             <DownloadsButton windowId={windowId} />
+            <UpdateButton />
           </TintInk>
         </View>
         {swipe && <ProfileSwipeArea surface="strip" style={StyleSheet.absoluteFill} pageWidth={pageWidth + flare * 2} />}
