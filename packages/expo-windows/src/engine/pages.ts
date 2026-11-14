@@ -44,6 +44,7 @@ const closings = new Map<string, Promise<void>>();
 const pressListeners = new Set<(windowId: string) => void>();
 let listening = false;
 let lastAskedToFocus: Page | null = null;
+let followBeforeMount = "";
 type ExternalAppAnswers = {
   ask: (profile: string, page: string, data: unknown) => Promise<ExternalAppRequest | null>;
   forget: (id: string) => void;
@@ -102,7 +103,12 @@ function listen() {
     if (typeof event.key !== "string" || typeof event.name !== "string") return;
     const page = pages.get(event.key);
     if (!page) return;
-    if (event.name === "pagePress") for (const pressed of [...pressListeners]) pressed(page.windowId);
+    if (event.name === "pagePress") {
+      followBeforeMount = "";
+      lastAskedToFocus = page;
+      page.focusAsked = 0;
+      for (const pressed of [...pressListeners]) pressed(page.windowId);
+    }
     if (event.name === "externalApp") return askExternalApp(page, event.data);
     const data = placedPoint(page, event.name, shapedPageEvent(page.opening, event.name, event.data));
     for (const listener of [...page.listeners]) listener(event.name, data);
@@ -217,6 +223,12 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
     };
     page.ready = begin(page, from);
     pages.set(key, page);
+    if (followBeforeMount === key) {
+      followBeforeMount = "";
+      lastAskedToFocus = page;
+      page.focusArgs = { follow: true };
+      page.focusAsked = Date.now();
+    }
   } else if (page.windowId !== from.windowId) {
     page.windowId = from.windowId;
     page.from = from;
@@ -291,6 +303,7 @@ export function callPage<Result = unknown>(key: string, method: string, args: Re
   if (method === "loadUrl" && args.url === page.started.url && Date.now() - page.started.at < SAME_LOAD_MS) return Promise.resolve(null);
   if (method === "loadUrl") noteLoadAsked(page.opening, args.url);
   if (method === "focus") {
+    followBeforeMount = "";
     lastAskedToFocus = page;
     page.focusArgs = args;
     page.focusAsked = page.show?.visible ? 0 : Date.now();
@@ -301,7 +314,12 @@ export function callPage<Result = unknown>(key: string, method: string, args: Re
   return ready.then((opened) => (opened && !page.closed ? hostCall<Result>("tab.call", { key, method, ...args }) : null));
 }
 
-export const followPage = (key: string) => void callPage(key, "focus", { follow: true });
+export function followPage(key: string) {
+  const page = pages.get(key);
+  if (page && !page.closed) return void callPage(key, "focus", { follow: true });
+  followBeforeMount = key;
+  lastAskedToFocus = null;
+}
 
 export function parkPage(key: string) {
   const page = pages.get(key);

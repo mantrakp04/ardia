@@ -128,3 +128,32 @@ test("a field of the tab the user switched away from doesn't hold the keyboard a
   focused = null;
   unmount();
 });
+
+test("a follow asked before a tab's page exists goes once that page shows, unless another page was asked meanwhile", async () => {
+  focused = null;
+  followPage("kb-woken");
+  await settle();
+  assert.deepEqual(focusCalls("kb-woken"), [], "no page yet");
+  const unmount = mountPage("kb-woken", { url: "https://woken.example/", windowId: "ww" }, () => {});
+  await settle();
+  assert.deepEqual(focusCalls("kb-woken"), [], "not before it shows");
+  showPage("kb-woken", true, shape);
+  await settle();
+  assert.deepEqual(focusCalls("kb-woken"), [{ key: "kb-woken", method: "focus", follow: true, deferred: true }]);
+
+  const unmountShown = mountPage("kb-shown", { url: "https://shown.example/", windowId: "ww" }, () => {});
+  await settle();
+  showPage("kb-shown", true, shape);
+  await settle();
+  followPage("kb-left");
+  followPage("kb-shown");
+  const unmountLeft = mountPage("kb-left", { url: "https://left.example/", windowId: "ww" }, () => {});
+  await settle();
+  showPage("kb-left", true, shape);
+  await settle();
+  assert.deepEqual(focusCalls("kb-left"), [], "the user went on to another tab before this one's page existed");
+  unmount();
+  unmountShown();
+  unmountLeft();
+  await settle();
+});
