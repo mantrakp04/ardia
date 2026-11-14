@@ -194,12 +194,25 @@ jobs:
       - name: Toolchain
         shell: pwsh
         run: |
-          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property catalog_productDisplayVersion
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -property installationPath
+          & $vswhere -latest -property catalog_productDisplayVersion
           node --version
           node -p "process.arch"
+          "PROCESSOR_ARCHITECTURE=$env:PROCESSOR_ARCHITECTURE PROCESSOR_ARCHITEW6432=$env:PROCESSOR_ARCHITEW6432"
+          Get-ChildItem "$vs\VC\Tools\MSVC\*\bin\Host*\*" -Directory | ForEach-Object { "compiler: $($_.Parent.Name)\$($_.Name)" }
+          Get-ChildItem "$vs\MSBuild\Current\Bin\*\MSBuild.exe" | ForEach-Object { "msbuild: Bin\$($_.Directory.Name)" }
       - name: Build the app
         working-directory: apps/browser
-        run: npx react-native run-windows --release --arch ARM64 --no-launch --no-deploy --no-packager --no-telemetry --logging
+        shell: pwsh
+        run: |
+          npx react-native run-windows --release --arch ARM64 --no-build --no-launch --no-deploy --no-packager --no-telemetry --logging
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $msbuild = "$vs\MSBuild\Current\Bin\arm64\MSBuild.exe"
+          "Building with $msbuild"
+          & $msbuild windows\Ardia.sln /nologo /restore /p:RestorePackagesConfig=true /p:Configuration=Release /p:Platform=ARM64 /p:AppxBundle=Never /p:RunAutolinkCheck=false /p:PreferredToolArchitecture=arm64 "/clp:NoSummary;NoItemAndPropertyList;Verbosity=normal" "/bl:windows\msbuild_arm64_build.binlog" "/flp1:errorsonly;logfile=windows\msbuild_arm64_build.err" "/flp2:warningsonly;logfile=windows\msbuild_arm64_build.wrn"
+          exit $LASTEXITCODE
       - name: Launch it
         shell: pwsh
         run: scripts/windows/launch-smoke.ps1 -App apps/browser/windows/ARM64/Release/Ardia.exe -Out "${{ runner.temp }}/launch" -NoInput
