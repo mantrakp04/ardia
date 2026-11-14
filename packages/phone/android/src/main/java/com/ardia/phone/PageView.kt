@@ -1,6 +1,7 @@
 package com.ardia.phone
 
 import android.content.Context
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -40,9 +41,28 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
     var page: Page? = null
         private set
 
+    private val gestures = PageGestures(this, host)
+
+    var swipeMode: SwipeMode
+        get() = gestures.mode
+        set(value) {
+            gestures.mode = value
+        }
+
+    var pullToRefresh: Boolean
+        get() = gestures.pullToRefresh
+        set(value) {
+            gestures.pullToRefresh = value
+        }
+
     init {
         addView(host, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        gestures.install()
     }
+
+    override fun onInterceptTouchEvent(event: MotionEvent): Boolean = gestures.intercepts(event) || super.onInterceptTouchEvent(event)
+
+    override fun onTouchEvent(event: MotionEvent): Boolean = gestures.touch(event) || super.onTouchEvent(event)
 
     fun bind() {
         val id = pageId ?: return
@@ -56,6 +76,7 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
             return
         }
         page = opened
+        gestures.page = opened
         PhonePages.viewShows(id, this)
         val running = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         scope = running
@@ -69,6 +90,8 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
         scope?.cancel()
         scope = null
         page = null
+        gestures.page = null
+        gestures.detach()
         failedId = null
         sampled = null
         sentTone = null
@@ -95,6 +118,7 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
         if (width == 0 || height == 0) return
         host.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
         host.layout(0, 0, width, height)
+        gestures.layout(width, height)
     }
 
     override fun requestLayout() {
@@ -136,6 +160,7 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         host.layout(0, 0, r - l, b - t)
+        gestures.layout(r - l, b - t)
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {

@@ -88,6 +88,8 @@ function Lab() {
   const [showSync, setShowSync] = useState(false);
   const [showSystem, setShowSystem] = useState(false);
   const [showScan, setShowScan] = useState(false);
+  const [swipeNavigation, setSwipeNavigation] = useState<"anywhere" | "edges" | "off">("anywhere");
+  const [pullToRefresh, setPullToRefresh] = useState(true);
   const [showVoice, setShowVoice] = useState(false);
   const [url, setUrl] = useState(LAB_URL);
   const [query, setQuery] = useState("browser");
@@ -322,6 +324,8 @@ function Lab() {
           <Button label="Clear results" onPress={() => setResults([])} />
           <Button label={showSync ? "Hide sync" : "Sync"} active={showSync} onPress={() => setShowSync((shown) => !shown)} />
           <Button label={showSystem ? "Hide system" : "System"} active={showSystem} onPress={() => setShowSystem((shown) => !shown)} />
+          <Button label={`Swipe ${swipeNavigation}`} onPress={() => setSwipeNavigation((mode) => (mode === "anywhere" ? "edges" : mode === "edges" ? "off" : "anywhere"))} />
+          <Button label={pullToRefresh ? "Pull on" : "Pull off"} active={pullToRefresh} onPress={() => setPullToRefresh((on) => !on)} />
           <Button label={showScan ? "Hide scanner" : "Scanner"} active={showScan} onPress={() => setShowScan((shown) => !shown)} />
           <Button label={showVoice ? "Hide voice" : "Voice"} active={showVoice} onPress={() => setShowVoice((shown) => !shown)} />
           <Button label="Discard others" onPress={() => run("discard background", async () => {
@@ -448,6 +452,8 @@ function Lab() {
             pageId={pageId}
             initialUrl={LAB_URL}
             isPrivate={isPrivate}
+            swipeNavigation={swipeNavigation}
+            pullToRefresh={pullToRefresh}
             onPageError={(error) => note(`view error ${error.code} ${error.message}`)}
           />
         )}

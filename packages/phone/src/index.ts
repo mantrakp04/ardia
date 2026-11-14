@@ -69,6 +69,7 @@ export type {
   PressTarget,
   ReadableContent,
   SitePermission,
+  SwipeNavigation,
   Subscription,
   VisitKind,
   WebsiteDataKind,

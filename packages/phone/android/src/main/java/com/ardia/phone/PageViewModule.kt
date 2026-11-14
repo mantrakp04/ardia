@@ -314,6 +314,10 @@ class PageViewModule : Module() {
 
             Prop("initialUrl") { view: PageView, url: String? -> view.initialUrl = url }
 
+            Prop("swipeNavigation") { view: PageView, mode: String? -> view.swipeMode = SwipeMode.of(mode) }
+
+            Prop("pullToRefresh") { view: PageView, enabled: Boolean? -> view.pullToRefresh = enabled == true }
+
             Prop("title") { view: PageView, title: String? -> view.title = title }
 
             Prop("isPrivate") { view: PageView, isPrivate: Boolean? -> view.isPrivate = isPrivate == true }

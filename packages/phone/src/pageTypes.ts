@@ -41,6 +41,8 @@ export type PageToneInsets = { top: number; bottom: number };
 
 export type PageError = { code: string; message: string };
 
+export type SwipeNavigation = "anywhere" | "edges" | "off";
+
 export type PageViewProps = ViewProps & {
   pageId: string;
   initialUrl?: string;
@@ -48,6 +50,8 @@ export type PageViewProps = ViewProps & {
   isPrivate?: boolean;
   savedState?: string;
   toneInsets?: PageToneInsets;
+  swipeNavigation?: SwipeNavigation;
+  pullToRefresh?: boolean;
   onPageState?: (state: PageState) => void;
   onPageTone?: (tone: PageTone) => void;
   onPageError?: (error: PageError) => void;
