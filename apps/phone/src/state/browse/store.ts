@@ -46,6 +46,7 @@ export const useBrowse = create<BrowseState>()(() => ({ surface: "start", sheet:
 const lastVisits = new Map<string, Visit>();
 
 const SNAPSHOT_SETTLE_MS = 700;
+const STATE_SAVE_DELAY_MS = 1500;
 const DECK_SNAPSHOT_WAIT_MS = 400;
 
 let started = false;
@@ -201,9 +202,24 @@ const transitions: Record<VisitKind, VisitTransition | null> = {
   restored: null,
 };
 
+let stateSave: ReturnType<typeof setTimeout> | null = null;
+
+function saveFrontTabSoon(id: string) {
+  if (currentTabs().selectedId !== id) return;
+  if (stateSave) clearTimeout(stateSave);
+  stateSave = setTimeout(() => {
+    stateSave = null;
+    if (!findTab(currentTabs(), id) || currentTabs().selectedId !== id) return;
+    void savePageState(id).then((saved) => {
+      if (saved) saveTabState(id, saved);
+    });
+  }, STATE_SAVE_DELAY_MS);
+}
+
 function pageVisited(id: string, url: string, title: string, kind: VisitKind) {
   const tab = findTab(currentTabs(), id);
   if (!tab) return;
+  saveFrontTabSoon(id);
   if (isSyncableUrl(url)) updateTabById(id, { url, title: title.trim() ? title : undefined });
   const transition = transitions[kind];
   if (!transition || tab.isPrivate) return;
