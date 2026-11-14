@@ -339,7 +339,9 @@ is plain Chromium.
   `engineCall`; `windowsEngineCalls.test.mjs` fails when a forwarded verb differs from the Mac's.
 - The page is a window above the UI, so the UI cannot draw over it. Every shadowed surface (the command bar, popovers,
   the find bar, dialogs, toasts, the downloads bubble) reports its rectangle (`usePageCover`), and the page window gets
-  a hole there, with the surface's corners. A translucent surface shows the card behind it in the hole, not the page.
+  a hole there, with the surface's corners. A surface inside a `ClipView` (the sidebar's and the tab strip's profile
+  pages, which sit side by side and clip to one) reports only the part its clips show, so the next profile's rows,
+  parked beside the sidebar, cut nothing in the page (#1673). A translucent surface shows the card behind it in the hole, not the page.
   The page window has no system backdrop: Chromium asks for Mica on its top-level windows, and Windows paints that
   into the holes. While a modal the app shows is open (a confirm, a prompt, a file or folder picker), the page windows its
   window owns are disabled and enabled again when it closes, so a click on the page cannot raise it over the dialog. A press in the page counts

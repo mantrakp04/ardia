@@ -16,3 +16,47 @@ test("a Peek's page keeps the card behind it, and the page under the Peek gets t
   assert.deepEqual(holesFor(peekPage, [card], false), [[100, 50, 600, 400, 12]], "an ordinary page under a cover that encloses it is still hidden");
   assert.deepEqual(holesFor(peekPage, [{ x: 0, y: 0, width: 50, height: 50, radius: 0 }], true), [], "a cover elsewhere cuts nothing");
 });
+
+const { coversIn } = await import("../../../../packages/expo-windows/src/engine/covers.ts");
+const { coverMeasurer } = await import("../../../../packages/expo-windows/src/engine/coverClip.ts");
+
+const node = (x, y, width, height) => ({ box: { x, y, width, height }, measureInWindow(callback) {
+  setTimeout(() => callback(this.box.x, this.box.y, this.box.width, this.box.height), 0);
+} });
+
+test("a surface on the next profile's sidebar page, clipped out beside the sidebar, cuts no hole in the page", async () => {
+  const windowId = "clip-window";
+  const sidebarPages = node(8, 44, 240, 600);
+  const page = { x: 256, y: 8, width: 900, height: 640 };
+  const currentRow = node(14, 52, 228, 34);
+  const nextProfileRow = node(254, 52, 228, 34);
+  const clips = [() => sidebarPages];
+  const current = coverMeasurer(windowId, "current-row", 10, () => currentRow, clips);
+  const next = coverMeasurer(windowId, "next-row", 10, () => nextProfileRow, clips);
+  await Promise.all([current.measure(), next.measure()]);
+  assert.deepEqual(coversIn(windowId), [{ x: 14, y: 52, width: 228, height: 34, radius: 10 }], "only the row inside the sidebar is a cover");
+  assert.deepEqual(holesFor(page, coversIn(windowId), false), [], "the page beside the sidebar keeps no hole");
+
+  nextProfileRow.box.x = 134;
+  await next.measure();
+  assert.deepEqual(coversIn(windowId).at(-1), { x: 134, y: 52, width: 114, height: 34, radius: 10 }, "mid-swipe, the part still inside the sidebar stays a cover");
+
+  nextProfileRow.box.x = 254;
+  await next.measure();
+  assert.equal(coversIn(windowId).length, 1, "swiped back out, its cover goes");
+
+  const menu = node(300, 60, 200, 100);
+  const unclipped = coverMeasurer(windowId, "menu", 8, () => menu, []);
+  await unclipped.measure();
+  assert.deepEqual(holesFor(page, coversIn(windowId), false), [[300, 60, 200, 100, 8]], "a surface under no clip still cuts its hole");
+});
+
+test("a measurement that lands after the surface stopped never brings its cover back", async () => {
+  const windowId = "late-window";
+  const surface = node(0, 0, 50, 50);
+  const measurer = coverMeasurer(windowId, "late", 0, () => surface, []);
+  const pending = measurer.measure();
+  measurer.stop();
+  await pending;
+  assert.deepEqual(coversIn(windowId), []);
+});

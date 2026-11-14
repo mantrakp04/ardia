@@ -1,4 +1,5 @@
 import { ActivitySpinner } from "./ActivitySpinner";
+import { ClipView } from "./ClipView";
 import { ThemeSwatch, WindowBackdrop } from "./backdrop";
 import { DockSelection } from "./DockSelection";
 import { FadeLabel } from "./FadeLabel";
@@ -12,6 +13,7 @@ export { OutsidePressRoot } from "./inputAreas";
 
 export const viewsDrawnInJs = new Map<string, ViewByName>([
   ["ArdiaSurface", Surface],
+  ["ArdiaClipView", ClipView],
   ["ArdiaFadeLabel", FadeLabel],
   ["ArdiaActivitySpinner", ActivitySpinner],
   ["ArdiaVisualEffect", VisualEffect],
