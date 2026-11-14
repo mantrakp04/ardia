@@ -1,6 +1,9 @@
 import { usePreferences } from "../settings/store";
+import { useTab } from "../tabs/hooks";
+import { isSyncableUrl } from "../tabs/tabModels";
+import { isPinnedOnMac } from "./spaces";
 import { useSync } from "./store";
-import { isSyncConnected, matchedColor, profileOf } from "./syncRules";
+import { isSyncConnected, matchedColor, profileOf, sendReceivers } from "./syncRules";
 
 export const useSyncStatus = () => useSync((s) => s.status);
 
@@ -21,4 +24,19 @@ export function useLookColor<K extends string>(swatches: readonly { key: K; hex:
   const profile = useSelectedProfile();
   if (choice) return choice;
   return matchedColor(profile, swatches) ?? fallback;
+}
+
+export function useSendTargets(tabId: string) {
+  const tab = useTab(tabId);
+  const status = useSyncStatus();
+  const view = useSyncView();
+  const profile = useSelectedProfile();
+  if (!tab || tab.isPrivate || !status.isEnabled || !isSyncableUrl(tab.url)) return [];
+  return sendReceivers(view, tab.profileSyncId ?? profile?.syncId ?? status.selectedProfileId);
+}
+
+export function useIsPinned(tabId: string) {
+  const tab = useTab(tabId);
+  const profile = useSelectedProfile();
+  return Boolean(tab && profile && isPinnedOnMac(profile, tab.url));
 }

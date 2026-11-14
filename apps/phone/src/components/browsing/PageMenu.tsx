@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   closePageMenu,
@@ -10,6 +10,8 @@ import {
   menuStop,
   resetZoom,
   openInDefaultBrowser,
+  pinCurrentToMac,
+  sendCurrentTab,
   openSiteSettings,
   setBlockersOn,
   setDesktopSite,
@@ -22,7 +24,9 @@ import {
   zoomOut,
 } from "../../state/page/actions";
 import { useMenuModel, useMenuTitle, useTitleFeedback } from "../../state/page/hooks";
-import { capsule, font, menuLayout, PressScale, Sheet, space, Symbol, Toggle, useTheme, type SymbolName } from "../ui";
+import { useIsPinned, useSendTargets } from "../../state/sync/hooks";
+import { useTab } from "../../state/tabs/hooks";
+import { capsule, FloatingMenu, font, menuLayout, PressScale, Sheet, space, Symbol, Toggle, useTheme, type SymbolName } from "../ui";
 
 export function PageMenu({ tabId, open, onHidden }: { tabId: string; open: boolean; onHidden: () => void }) {
   const model = useMenuModel(tabId);
@@ -37,6 +41,7 @@ export function PageMenu({ tabId, open, onHidden }: { tabId: string; open: boole
         </View>
         <Group>
           <Row icon="textMagnifyingglass" title="Find on Page" enabled={model.find} divider={model.pageRows} onPress={showFind} />
+          {model.pageRows ? <SendRow tabId={tabId} enabled={model.isWebPage} /> : null}
           {model.pageRows ? <Row icon="translate" title="Translate" enabled={model.translate} divider={false} onPress={translatePage} /> : null}
         </Group>
         {model.pageRows ? (
@@ -85,11 +90,63 @@ function NavigationCapsule({ tabId }: { tabId: string }) {
           {feedback ?? title}
         </Text>
       </Pressable>
+      <PinButton tabId={tabId} enabled={model.isWebPage} />
       {model.reload === "stop" ? (
         <CapsuleButton icon="xmark" label="Stop" enabled onPress={menuStop} />
       ) : (
         <CapsuleButton icon="arrowClockwise" label="Reload" enabled={model.reloadEnabled} onPress={menuReload} />
       )}
+    </View>
+  );
+}
+
+function PinButton({ tabId, enabled }: { tabId: string; enabled: boolean }) {
+  const theme = useTheme();
+  const tab = useTab(tabId);
+  const pinned = useIsPinned(tabId);
+  const can = enabled && !tab?.isPrivate;
+  return (
+    <PressScale label={pinned ? "Pinned to Mac" : "Pin to Mac"} disabled={!can} onPress={pinCurrentToMac} style={styles.capsuleButton}>
+      <Symbol name={pinned ? "starFill" : "star"} size={19} color={can ? theme.label : theme.tertiaryLabel} />
+    </PressScale>
+  );
+}
+
+function SendRow({ tabId, enabled }: { tabId: string; enabled: boolean }) {
+  const devices = useSendTargets(tabId);
+  const [menuAt, setMenuAt] = useState<number | null>(null);
+  if (!enabled || !devices.length) return null;
+  if (devices.length === 1) return <Row icon="paperplane" title={`Send to ${devices[0]!.name}`} enabled onPress={() => sendCurrentTab(devices[0]!)} />;
+  return (
+    <>
+      <RowWithEvent icon="paperplane" title="Send to Device" onPress={(y) => setMenuAt(y)} />
+      {menuAt !== null ? (
+        <FloatingMenu
+          items={devices.map((device) => ({ label: device.name, icon: device.kind === "mac" ? "laptop" : "iphone", onPress: () => sendCurrentTab(device) }))}
+          place={{ top: menuAt, left: space.xxl, width: 250 }}
+          onDismiss={() => setMenuAt(null)}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function RowWithEvent({ icon, title, onPress }: { icon: SymbolName; title: string; onPress: (y: number) => void }) {
+  const theme = useTheme();
+  return (
+    <View>
+      <Pressable
+        accessibilityRole="button"
+        onPress={(event) => onPress(event.nativeEvent.pageY)}
+        style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.rowHighlight } : null]}
+      >
+        <View style={styles.icon}>
+          <Symbol name={icon} size={20} color={theme.secondaryLabel} />
+        </View>
+        <Text style={[font.body, styles.rowTitle, { color: theme.label }]}>{title}</Text>
+        <Symbol name="chevronDown" size={14} color={theme.tertiaryLabel} />
+      </Pressable>
+      <Divider />
     </View>
   );
 }

@@ -17,6 +17,8 @@ import { blockersToast, searchQuery, translationUrl, type NightShadeMode } from 
 import { backLayer, downloadedToast, downloadFailedToast, downloadingToast, pressPlan, type PressAction, type Request } from "./pagePrompts";
 import { onboardingBack } from "../onboarding/store";
 import { openSettings, popSettings } from "../settings/nav";
+import { pinToMac, sendTab } from "../sync/actions";
+import type { SyncedDevice } from "../../platform/sync";
 import { pageUi, usePageUi, type Press } from "./store";
 import { showToast, TOAST_LONG_DURATION_MS } from "../toasts/store";
 
@@ -57,6 +59,19 @@ export function openInDefaultBrowser() {
   closePageMenu();
   const url = tab ? (usePages.getState().navigation[tab.id]?.url ?? tab.url) : null;
   if (url && isSyncableUrl(url)) quietly(() => openExternal(url));
+}
+
+export function pinCurrentToMac() {
+  const tab = selectedTab();
+  if (!tab) return;
+  closePageMenu();
+  void pinToMac(tab, () => openSettings({ page: "sync" }));
+}
+
+export function sendCurrentTab(device: SyncedDevice) {
+  const tab = selectedTab();
+  closePageMenu();
+  if (tab) void sendTab(tab, device);
 }
 
 export function openSiteSettings() {
