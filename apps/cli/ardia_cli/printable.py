@@ -45,6 +45,17 @@ def say(text: str) -> None:
     sys.stdout.flush()
 
 
+def quiet_stdout() -> None:
+    import os
+
+    try:
+        sink = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(sink, sys.stdout.fileno())
+        os.close(sink)
+    except (OSError, ValueError):
+        pass
+
+
 def complain(text: str) -> None:
     sys.stdout.flush()
     sys.stderr.write(text + "\n")

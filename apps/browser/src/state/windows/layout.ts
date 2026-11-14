@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { autoHidesTabsIn, sidebarSideOf, tabLayoutOf, tabsShownIn } from "../browser/model";
 import { switchOn } from "../../platform/killSwitches";
 import { ARC_LIGHTS_CENTER, lightsCenter, sidebarLightsCenter, toolbarLightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
-import type { LightsPlace } from "../../platform/windows";
+import { onWindowEvent, type LightsPlace } from "../../platform/windows";
 import { DEFAULT_SIDEBAR_WIDTH, pageFrameInsetOf } from "../../lib/windowLayout";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { useWindowId } from "../browser/hooks";
@@ -12,7 +12,14 @@ import { toolbarRowOf } from "../../lib/toolbarRow";
 import { SMALL_BAR_HEIGHT } from "./small";
 import type { CaptionRegion } from "../../platform/windowControls";
 
-export { windowCornerRadius } from "../../platform/windows";
+export { frameCornerRadius, windowCornerRadius, windowFrame } from "../../platform/windows";
+
+export function onFullScreenLeft(windowId: string, run: () => void): () => void {
+  const subscription = onWindowEvent((e) => {
+    if (e.type === "fullScreen" && e.id === windowId && !e.on) run();
+  });
+  return () => subscription.remove();
+}
 
 export function useTabLayout(): "sidebar" | "top" {
   const windowId = useWindowId();

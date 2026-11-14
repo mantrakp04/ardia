@@ -64,6 +64,12 @@ XUCRED_SIZE = 76
 class Unreachable(Exception):
     sent = False
 
+    def noted(self) -> "Unreachable":
+        from ardia_cli import telemetry
+
+        telemetry.note_error_code("connection_dropped" if self.sent else "unreachable")
+        return self
+
 
 class MethodError(Exception):
     def __init__(self, code: str, message: str):

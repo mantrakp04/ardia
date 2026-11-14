@@ -227,6 +227,38 @@ LIBRARY = r"""
       if (label) return null;
       return api.describe(hit);
     },
+    dismissConsent(x, y) {
+      const about = /cookie|consent|gdpr|privacy|tracking|personal data|datenschutz|partners/i;
+      const vendor = "[id*=cookie i],[class*=cookie i],[id*=consent i],[class*=consent i],[id*=onetrust i],[class*=onetrust i],[id*=osano i],[class*=osano i],[id*=didomi i],[id*=usercentrics i],[id*=truste i],[class*=truste i],[class*=qc-cmp i],[id*=sp_message i],[id*=cmp i],[class*=cmp-],[role=dialog],[role=alertdialog],[aria-modal=true]";
+      const reject = /^(reject|decline|refuse|deny|disagree)\b|\b(only|strictly) (essential|necessary|required)\b|\b(necessary|essential|required) (cookies )?only\b|^use (only )?necessary|continue without (accepting|agreeing)|^confirm my choices$|^save (my )?(choices|preferences|settings)$/i;
+      const accept = /^(accept|agree|allow|i agree|i accept|got it|ok|okay|understood|continue|yes,? i agree)\b/i;
+      const close = /^(close|dismiss|no,? thanks|not now|×|✕|x)$/i;
+      const roots = [];
+      const hit = document.elementFromPoint(x, y);
+      for (let node = hit; node && node !== document.body && node !== document.documentElement; node = node.parentElement) roots.push(node);
+      const box = hit ? hit.getBoundingClientRect() : null;
+      const backdrop = box && getComputedStyle(hit).position === "fixed" && box.width * box.height >= innerWidth * innerHeight * 0.5 && !hit.querySelector("button, a, [role=button]");
+      if (backdrop) for (const el of document.querySelectorAll(vendor)) roots.push(el);
+      const seen = new Set();
+      let best = null;
+      for (const root of roots) {
+        if (seen.has(root) || !api.visible(root)) continue;
+        seen.add(root);
+        const text = (root.innerText || "").slice(0, 6000);
+        if (!about.test(text) || text.length > 5000) continue;
+        for (const button of root.querySelectorAll("button, [role=button], a, input[type=button], input[type=submit]")) {
+          if (!api.visible(button)) continue;
+          const name = ((button.innerText || button.value || "").trim() || button.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim();
+          if (!name || name.length > 60) continue;
+          const rank = reject.test(name) ? 0 : accept.test(name) ? 1 : close.test(name) ? 2 : -1;
+          if (rank >= 0 && (!best || rank < best.rank)) best = { rank, button, name };
+        }
+        if (best && best.rank === 0) break;
+      }
+      if (!best) return null;
+      best.button.click();
+      return { name: best.name, choice: ["reject", "accept", "close"][best.rank], layer: api.describe(best.button.closest(vendor) || best.button.parentElement) };
+    },
     clickables(root) {
       const out = [];
       const hints = [];

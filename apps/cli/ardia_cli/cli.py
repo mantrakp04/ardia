@@ -245,7 +245,20 @@ def main(argv: list[str] | None = None) -> int:
         index = len(argv)
     browse_renders_its_own = index < len(argv) and argv[index] in ("browse", "notes")
     with printable.inert_output(json_stdout=browse_renders_its_own or printable.json_requested(argv)):
-        return telemetry.track(argv, lambda: run(argv))
+        return telemetry.track(argv, lambda: run_to_closed_pipe(argv))
+
+
+def run_to_closed_pipe(argv: list[str]) -> int:
+    from ardia_cli import printable, telemetry
+
+    try:
+        status = run(argv)
+        sys.stdout.flush()
+        return status
+    except BrokenPipeError:
+        printable.quiet_stdout()
+        telemetry.note_error_code("stdout_closed")
+        return 141
 
 
 def run(argv: list[str]) -> int:
@@ -279,6 +292,7 @@ def run(argv: list[str]) -> int:
         sys.stderr.write(f"ardia: {error}\n")
         return 2
     if not path and rest and not rest[0].startswith("-"):
+        telemetry.note_error_code("removed_command" if rest[0] in REMOVED_COMMANDS else "unknown_command")
         sys.stderr.write(REMOVED_COMMANDS.get(rest[0], f"ardia: unknown command '{rest[0]}' (see ardia --help)") + "\n")
         return 2
     argv = path + hoisted + rest if path else rest
