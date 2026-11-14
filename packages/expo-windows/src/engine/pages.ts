@@ -58,7 +58,9 @@ export function answerExternalAppsWith(answers: ExternalAppAnswers) {
 }
 
 export function externalAppDropped(key: string, id: string) {
-  quietly(callPage(key, "externalAppForget", { id }));
+  const page = pages.get(key);
+  if (!page) return;
+  quietly(page.ready.then((opened) => (opened ? hostCall("tab.call", { key, method: "externalAppForget", id }) : null)));
 }
 
 export function externalAppStillAsked(key: string, id: string): Promise<boolean> {
