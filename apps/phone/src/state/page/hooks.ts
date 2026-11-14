@@ -13,6 +13,7 @@ export const useFindOpen = () => usePageUi((s) => s.findOpen);
 export const useFindQuery = () => usePageUi((s) => s.findQuery);
 export const useReaderTabId = () => usePageUi((s) => s.readerTabId);
 export const usePress = () => usePageUi((s) => s.press);
+export const usePressOpen = () => usePageUi((s) => s.press !== null);
 
 export const useFindResult = (id: string | null) => usePages((s) => (id ? s.finds[id] ?? null : null));
 

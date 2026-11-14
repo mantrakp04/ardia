@@ -7,7 +7,7 @@ import { neighbours } from "../../lib/pagerPhysics";
 import { useSystemBars } from "../../state/app/systemBars";
 import { useFrozenOrder, useNavigation, usePageTone } from "../../state/browse/hooks";
 import { closePageMenu, openPageMenu } from "../../state/page/actions";
-import { useFindOpen, useMenuOpen, useReaderTabId } from "../../state/page/hooks";
+import { useFindOpen, useMenuOpen, usePressOpen, useReaderTabId } from "../../state/page/hooks";
 import { captureCurrentCover, newTab, showDeck, swipeOrder, switchToNeighbour } from "../../state/browse/store";
 import { useSearchOpen } from "../../state/search/hooks";
 import { closeFrontTab, menuOpenedHaptic, recentTabs, switchToTab, tabTitle } from "../../state/browse/tabMenus";
@@ -21,6 +21,7 @@ import {
   LoadingLine,
   Menu,
   pageBottomInset,
+  Shade,
   rolesFor,
   space,
   tabsInk,
@@ -45,6 +46,7 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   const menuOpen = useMenuOpen();
   const finding = useFindOpen();
   const readerId = useReaderTabId();
+  const pressing = usePressOpen();
   const tone = usePageTone(tab.id);
   const progress = useNavigation(tab.id, (n) => n?.progress ?? 0);
   const isLoading = useNavigation(tab.id, (n) => n?.isLoading ?? true);
@@ -74,42 +76,44 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   const barStyle = useAnimatedStyle(() => ({ backgroundColor: withTiming(bottom, { duration: tabsMotion.barTone }) }), [bottom]);
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }]}>
-      <PagerBlack />
-      <Animated.View style={[StyleSheet.absoluteFill, styles.outgoing, { backgroundColor: theme.surface }, pager.outgoing]}>
-        <Animated.View style={[{ height: insets.top }, statusStyle]} />
-        <View style={[styles.page, { marginBottom: pageBottomInset(insets.bottom) }]}>
-          <PageSurface key={tab.id} tab={tab} />
+      <Shade shaded={menuOpen || readerId === tab.id || pressing || tabsMenu}>
+        <PagerBlack />
+        <Animated.View style={[StyleSheet.absoluteFill, styles.outgoing, { backgroundColor: theme.surface }, pager.outgoing]}>
+          <Animated.View style={[{ height: insets.top }, statusStyle]} />
+          <View style={[styles.page, { marginBottom: pageBottomInset(insets.bottom) }]}>
+            <PageSurface key={tab.id} tab={tab} />
+          </View>
+          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: tabsInk.pagerBlack }, pager.dim]} pointerEvents="none" />
+        </Animated.View>
+        {left ? <PagerNeighbour pager={pager} tab={left} side={-1} width={width} statusHeight={insets.top} hasLeft hasRight={right !== null} /> : null}
+        {right ? <PagerNeighbour pager={pager} tab={right} side={1} width={width} statusHeight={insets.top} hasLeft={left !== null} hasRight /> : null}
+        <View style={[styles.loading, { top: insets.top }]} pointerEvents="none">
+          <LoadingLine progress={progress} isLoading={isLoading} color={theme.accent} />
         </View>
-        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: tabsInk.pagerBlack }, pager.dim]} pointerEvents="none" />
-      </Animated.View>
-      {left ? <PagerNeighbour pager={pager} tab={left} side={-1} width={width} statusHeight={insets.top} hasLeft hasRight={right !== null} /> : null}
-      {right ? <PagerNeighbour pager={pager} tab={right} side={1} width={width} statusHeight={insets.top} hasLeft={left !== null} hasRight /> : null}
-      <View style={[styles.loading, { top: insets.top }]} pointerEvents="none">
-        <LoadingLine progress={progress} isLoading={isLoading} color={theme.accent} />
-      </View>
-      {finding ? (
-        <FindBar tabId={tab.id} />
-      ) : (
-        <GestureDetector gesture={pager.gesture}>
-          <Animated.View style={[styles.bar, { height: barHeight(insets.bottom) }, barStyle]}>
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: barDark ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} />
-            <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom) - browseLayout.hitTarget / 2 }]}>
-              <BottomBar
-                order={order}
-                roles={rolesFor(barDark)}
-                showsPlus={!searching}
-                onTabs={showDeck}
-                onTabsMenu={() => {
-                  menuOpenedHaptic();
-                  setTabsMenu(true);
-                }}
-                onPlus={newTab}
-                onMore={openPageMenu}
-              />
-            </View>
-          </Animated.View>
-        </GestureDetector>
-      )}
+        {finding ? (
+          <FindBar tabId={tab.id} />
+        ) : (
+          <GestureDetector gesture={pager.gesture}>
+            <Animated.View style={[styles.bar, { height: barHeight(insets.bottom) }, barStyle]}>
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: barDark ? tabsInk.barShadeOnDark : tabsInk.barShadeOnLight }]} />
+              <View style={[styles.controls, { bottom: barCenterFromBottom(insets.bottom) - browseLayout.hitTarget / 2 }]}>
+                <BottomBar
+                  order={order}
+                  roles={rolesFor(barDark)}
+                  showsPlus={!searching}
+                  onTabs={showDeck}
+                  onTabsMenu={() => {
+                    menuOpenedHaptic();
+                    setTabsMenu(true);
+                  }}
+                  onPlus={newTab}
+                  onMore={openPageMenu}
+                />
+              </View>
+            </Animated.View>
+          </GestureDetector>
+        )}
+      </Shade>
       {tabsMenu ? (
         <Menu
           items={tabsMenuItems(order)}

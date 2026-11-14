@@ -11,13 +11,14 @@ import { OnboardingView } from "./components/onboarding/OnboardingView";
 import { SettingsView } from "./components/settings/SettingsView";
 import { SpacesView } from "./components/sync/SpacesView";
 import { ToastHost } from "./components/toasts/ToastHost";
-import { PROFILE_COLORS, ThemeColorContext, type ProfileColor } from "./components/ui";
+import { PROFILE_COLORS, Shade, ThemeColorContext, type ProfileColor } from "./components/ui";
 import { useLookColor } from "./state/sync/hooks";
 import { startSettingsSources } from "./state/settings/actions";
 import { startSync } from "./state/sync/actions";
 import { useSettingsNav } from "./state/settings/hooks";
 import { useOnboarding } from "./state/onboarding/hooks";
 import { useBaseSystemBars } from "./state/app/systemBars";
+import { useSearchOpen } from "./state/search/hooks";
 import { useSheet, useSurface } from "./state/browse/hooks";
 import { appBecameActive, appWillResignActive, goBackToStartIfEmpty, startBrowser } from "./state/browse/store";
 import { handleSystemBack, startPageUi } from "./state/page/actions";
@@ -39,6 +40,7 @@ export default function App() {
   const color = useLookColor(SWATCHES, "plum");
   const settingsOpen = useSettingsNav((s) => s.open);
   const onboarding = useOnboarding((s) => s.showing);
+  const searching = useSearchOpen();
   useBaseSystemBars(dark);
   useEffect(() => {
     const back = BackHandler.addEventListener("hardwareBackPress", handleSystemBack);
@@ -54,9 +56,11 @@ export default function App() {
       <SafeAreaProvider>
         <ThemeColorContext.Provider value={color}>
           <Layer covered={sheet !== null || settingsOpen || onboarding}>
-            {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
-            {surface === "deck" ? <TabDeck /> : null}
-            {surface === "start" ? <StartScreen /> : null}
+            <Shade shaded={searching}>
+              {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
+              {surface === "deck" ? <TabDeck /> : null}
+              {surface === "start" ? <StartScreen /> : null}
+            </Shade>
             <SearchTray />
           </Layer>
           <Layer covered={settingsOpen || onboarding}>
@@ -74,11 +78,22 @@ export default function App() {
   );
 }
 
+const COVER_SETTLE_MS = 450;
+
 function Layer({ covered, children }: { covered: boolean; children: ReactNode }) {
+  const [gone, setGone] = useState(covered);
+  useEffect(() => {
+    if (!covered) {
+      setGone(false);
+      return;
+    }
+    const settle = setTimeout(() => setGone(true), COVER_SETTLE_MS);
+    return () => clearTimeout(settle);
+  }, [covered]);
   return (
     <View
-      style={StyleSheet.absoluteFill}
-      pointerEvents="box-none"
+      style={[StyleSheet.absoluteFill, gone ? styles.gone : null]}
+      pointerEvents={covered ? "none" : "box-none"}
       collapsable={false}
       importantForAccessibility={covered ? "no-hide-descendants" : "auto"}
       accessibilityElementsHidden={covered}
@@ -88,4 +103,4 @@ function Layer({ covered, children }: { covered: boolean; children: ReactNode })
   );
 }
 
-const styles = StyleSheet.create({ root: { flex: 1 } });
+const styles = StyleSheet.create({ root: { flex: 1 }, gone: { display: "none" } });
