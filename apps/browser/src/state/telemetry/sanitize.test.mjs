@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { cleanProperties, errorCode, errorMessage, errorType, nativeCrashExceptions, nativeFrames, parseStack, scrubText } from "./sanitize.ts";
-import { customColorProfiles, settingsSnapshot } from "./settingsSnapshot.ts";
+import { customColorProfiles, settingsSnapshot, themeFileSnapshot } from "./settingsSnapshot.ts";
 const { DEFAULT_SETTINGS, SETTING_SPECS } = await import("../settings/settings.ts");
 
 const leaks = (text, ...secrets) => secrets.filter((s) => text.includes(s));
@@ -70,6 +70,30 @@ test("event properties are flat, plain and scrubbed", () => {
     "bad key": 1,
   });
   assert.deepEqual(out, { kind: "history", count: 3, ok: true, none: null, url: "<url>" });
+});
+
+test("the built-in page keeps its slash in the crash context, and still can't carry a path, address or id", () => {
+  assert.deepEqual(cleanProperties({ ctx_webui_page: "settings/cookies", prev_webui_page: "history", webui_page: null }), {
+    ctx_webui_page: "settings/cookies",
+    prev_webui_page: "history",
+    webui_page: null,
+  });
+  for (const bad of ["settings/https://private.example/a", "me@example.com/0123456789abcdef0123", "a/b/c/d/Users/someone/x.json", "/Users/someone/x.json"]) {
+    const page = cleanProperties({ ctx_webui_page: bad }).ctx_webui_page;
+    assert.match(page, /^<[a-z]+>(?:\/?<[a-z]+>)*$/, bad);
+    assert.deepEqual(leaks(page, "private", "someone", "example.com"), [], bad);
+  }
+  assert.equal(cleanProperties({ other_page: "settings/cookies" }).other_page, "<path>", "only the built-in page field is exempt from the path scrub");
+});
+
+test("a saved context keeps the built-in page only as a host and first path segment", async () => {
+  const { readContext } = await import("./savedContext.ts");
+  assert.equal(readContext({ at: 1, tabs: 3, webui_page: "settings/cookies" }).webui_page, "settings/cookies");
+  assert.equal(readContext({ at: 1, webui_page: null }).webui_page, null);
+  assert.equal("webui_page" in readContext({ at: 1, tabs: 3 }), false, "a sample saved before the field existed stays without it");
+  for (const bad of ["https://private.example/inbox?token=secret", "settings/cookies/detail", "Users/someone/x", "a b", 7, {}]) {
+    assert.equal(readContext({ at: 1, webui_page: bad }).webui_page, null, String(bad));
+  }
 });
 
 test("an uncaught NSException sends its name and its throw site first, never its reason", () => {
@@ -278,4 +302,18 @@ test("a native exception's free-text reason never leaves, whatever it holds", ()
     assert.equal(JSON.stringify(out).includes("Alice"), false, JSON.stringify(out));
     assert.equal("reason" in out, false);
   }
+});
+
+test("the theme file snapshot is flags and counts only, and survives sanitizing", () => {
+  assert.deepEqual(themeFileSnapshot(null, null), {
+    theme_file: "false", theme_type: "false", theme_metrics: "false", theme_layout: "false", theme_icons: "false",
+    theme_hidden_parts: "0", theme_moved_parts: "0", theme_icon_overrides: "0",
+  });
+  const snap = themeFileSnapshot("nord", { type: { family: "Avenir Next" }, layout: { hide: ["pinned", "profile"], addressField: "bottom" }, icons: { plus: "plus.circle" } });
+  assert.deepEqual(snap, {
+    theme_file: "true", theme_type: "true", theme_metrics: "false", theme_layout: "true", theme_icons: "true",
+    theme_hidden_parts: "2", theme_moved_parts: "1", theme_icon_overrides: "1",
+  });
+  assert.equal(JSON.stringify(snap).includes("nord") || JSON.stringify(snap).includes("Avenir"), false);
+  assert.deepEqual(cleanProperties(snap), snap);
 });

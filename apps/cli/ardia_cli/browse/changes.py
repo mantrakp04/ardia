@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import re
 import shlex
 from dataclasses import dataclass, field
@@ -10,6 +11,10 @@ from ardia_cli.redact import redact
 from ardia_cli.browse.errors import BrowseError, CdpError, ConnectionLost, Gated
 
 SETTLE_LIMIT = 1.5
+REACTION_WINDOW = 0.6
+REACTION_QUIET = 0.15
+REACTION_LIMIT = 1.5
+REACTION_CALL_TIMEOUT = 1.0
 FIRST_QUIET = 0.05
 QUIET = 0.12
 POLL = 0.025
@@ -715,8 +720,79 @@ async def navigation_busy(page, navigations: int):
     return not (current and current[0] == page.loader(page.main_frame) and "DOMContentLoaded" in current[1])
 
 
-async def observe(ctx, page, run):
+async def watch_reaction(state, page, react):
+    import secrets
+
+    element, frame = react
+    watch_id = secrets.token_hex(6)
+    try:
+        if element is not None:
+            frame = element.frame
+            started = await reaction_call(page, "(el, id) => ardiaBrowse.watchReaction(el, id)", element, watch_id, frame=frame,
+                                          timeout=REACTION_CALL_TIMEOUT)
+        else:
+            started = await reaction_call(page, "(id) => ardiaBrowse.watchReaction(null, id)", watch_id, frame=frame,
+                                          timeout=REACTION_CALL_TIMEOUT)
+    except (BrowseError, asyncio.TimeoutError):
+        return
+    if started:
+        state.pending_reaction = {"page": page, "frame": frame or page.main_frame, "id": watch_id}
+
+
+def reaction_waits(name: str | None, argv) -> bool:
+    from ardia_cli.browse.commands import parse
+    from ardia_cli.browse.errors import Usage
+
+    if name in ("keyboard", "keydown", "keyup", "tab", "notes", "frame") or name == "get" and list(argv[:1]) in (["url"], ["title"]):
+        return False
+    if name != "press":
+        return True
+    try:
+        _, args = parse(list(argv), {"--no-humanize": "bool"})
+    except Usage:
+        return True
+    return len(args) >= 2
+
+
+async def reaction_call(page, expression: str, *args, frame: str, timeout: float):
+    return await asyncio.wait_for(page.call(expression, *args, frame=frame, read=True, timeout=timeout), timeout)
+
+
+async def settle_reaction(state, name: str | None = None, argv=()):
+    pending = getattr(state, "pending_reaction", None)
+    if not pending or not reaction_waits(name, argv):
+        return
+    state.pending_reaction = None
+    page, frame, watch_id = pending["page"], pending["frame"], pending["id"]
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + REACTION_LIMIT + REACTION_CALL_TIMEOUT
+    try:
+        while loop.time() < deadline:
+            budget = max(min(REACTION_CALL_TIMEOUT, deadline - loop.time()), 0.05)
+            watch = await reaction_call(page, "(id) => ardiaBrowse.reactionState(id)", watch_id, frame=frame, timeout=budget)
+            if not watch:
+                return
+            reacted = watch["sinceLast"] is not None
+            if watch["sinceInput"] >= REACTION_LIMIT * 1000:
+                break
+            if (watch["sinceInput"] >= REACTION_WINDOW * 1000 and not watch.get("busy")
+                    and (not reacted or watch["sinceLast"] >= REACTION_QUIET * 1000)):
+                if reacted:
+                    command_metrics.flag("waited_for_reaction", True)
+                return
+            await asyncio.sleep(POLL * 2)
+        command_metrics.flag("waited_for_reaction", True)
+    except (BrowseError, asyncio.TimeoutError):
+        return
+    finally:
+        with contextlib.suppress(BrowseError, asyncio.TimeoutError):
+            await reaction_call(page, "(id) => ardiaBrowse.unwatchReaction(id)", watch_id, frame=frame, timeout=REACTION_CALL_TIMEOUT)
+
+
+async def observe(ctx, page, run, react=None):
     if ctx.options.get("no_changes"):
+        if react is not None:
+            await watch_reaction(ctx.state, page, react)
         return await run(), None
     state = ctx.state
     try:
@@ -729,6 +805,8 @@ async def observe(ctx, page, run):
     navigations = page.navigations
     try:
         await watch.start()
+        if react is not None:
+            await watch_reaction(state, page, react)
         value = await run()
         settling = command_metrics.clock()
         settled = await watch.settle(lambda: navigation_busy(page, navigations))

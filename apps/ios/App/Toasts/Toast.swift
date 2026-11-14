@@ -1,3 +1,4 @@
+import ArdiaSync
 import Foundation
 
 struct Toast: Identifiable, Equatable {
@@ -52,7 +53,7 @@ extension Toast {
       : String(localized: "\(count.formatted()) Tabs from \(deviceName)")
     return Toast(
       message,
-      symbol: deviceName.localizedCaseInsensitiveContains("iPhone") ? "iphone" : "macbook",
+      symbol: DeviceSymbol.name(forDeviceNamed: deviceName, kind: deviceName.localizedCaseInsensitiveContains("iPhone") ? .phone : .mac),
       duration: .seconds(3.2),
       onTap: onOpen
     )

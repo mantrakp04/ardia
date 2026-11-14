@@ -8,6 +8,8 @@ import { activeHook, decideHooks, onHooksChanged, startHookRules, useHookRules }
 import { startOmniboxApprovals } from "./omniboxApprovals";
 import { startOmniboxHooks } from "./omniboxHooks";
 import { startDownloadHooks } from "./downloadHooks";
+import { airTrafficHolds } from "../airTraffic/rules";
+import { currentAirTraffic, loadAirTraffic, noteLinkSource, useAirTraffic } from "../airTraffic/store";
 
 function linkResult(url: string, verdict: LinkVerdict | null): LinkGateResult {
   if (!verdict) return { url, route: null, decided: true };
@@ -16,6 +18,7 @@ function linkResult(url: string, verdict: LinkVerdict | null): LinkGateResult {
 }
 
 function gateLink(url: string, source: LinkSourceInfo): LinkGateResult | Promise<LinkGateResult> {
+  noteLinkSource(source);
   const opening = decideOpening(url, { tabId: null, windowId: null, profileId: null, via: "external" });
   const route = (verdict: Awaited<typeof opening>): LinkGateResult | Promise<LinkGateResult> => {
     if (verdict && "cancel" in verdict) return null;
@@ -27,7 +30,7 @@ function gateLink(url: string, source: LinkSourceInfo): LinkGateResult | Promise
 }
 
 function updateLinkHold() {
-  const wanted = [...decideHooks("link.opening"), ...decideHooks("tab.opening")].some(activeHook);
+  const wanted = airTrafficHolds(currentAirTraffic()) || [...decideHooks("link.opening"), ...decideHooks("tab.opening")].some(activeHook);
   try {
     setHoldIncomingLinks(wanted, useHookRules.getState().stamp);
   } catch (error) {
@@ -53,6 +56,10 @@ export function startDecideHooks() {
   });
   useHookRules.subscribe((s, prev) => {
     if (s.stamp !== prev.stamp) updateLinkHold();
+  });
+  loadAirTraffic();
+  useAirTraffic.subscribe((s, prev) => {
+    if (airTrafficHolds(s.config) !== airTrafficHolds(prev.config)) updateLinkHold();
   });
   updateLinkHold();
 }

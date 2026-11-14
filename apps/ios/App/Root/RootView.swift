@@ -5,6 +5,8 @@ struct RootView: View {
   @Environment(AppModel.self) private var app
   @Environment(\.scenePhase) private var scenePhase
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+  @State private var screenLayout = ScreenLayout.phone
 
   var body: some View {
     @Bindable var app = app
@@ -16,11 +18,15 @@ struct RootView: View {
           SearchHomeView()
             .transition(.opacity)
             .zIndex(2)
+        } else if screenLayout.isWide || screenLayout.fold != nil {
+          DuoBrowsingView()
+            .transition(CoveredTransition())
         } else {
           BrowsingView(isFront: app.surface == .browsing)
+            .accessibilityHidden(app.surface == .tabSwitcher)
             .transition(CoveredTransition())
         }
-        if app.surface == .tabSwitcher {
+        if app.surface == .tabSwitcher, !screenLayout.isWide, screenLayout.fold == nil {
           TabSwitcherView()
             .transition(CoveredTransition())
             .zIndex(1)
@@ -38,6 +44,9 @@ struct RootView: View {
       case .onboarding: OnboardingView()
       case .archive: ArchiveView()
       case .syncedSpaces: SyncedSpacesView()
+      case .history: HistoryView()
+      case .bookmarks: BookmarksView()
+      case .downloads: DownloadsView()
       }
     }
     .fullScreenCover(isPresented: $browse.isVoicePresented) {
@@ -57,8 +66,14 @@ struct RootView: View {
     .onChange(of: app.sync.snapshot.search) { _, _ in app.applySyncedSearch() }
     .onChange(of: app.sync.selectedProfileId) { _, _ in app.applySyncedSearch() }
     .onChange(of: app.sync.isEnabled) { _, _ in app.applySyncedSearch() }
+    .onChange(of: app.sync.snapshot.profiles.map(\.syncId)) { _, _ in app.applySpaces() }
     .onChange(of: app.sync.lastSynced) { _, _ in app.drainSystemInbox(sendsOnly: true) }
+    .environment(\.screenLayout, screenLayout)
+    .readsScreenLayout($screenLayout)
+    .modifier(DuoCanvasFrame())
     .environment(\.profileLook, app.look)
+    .environment(\.usesGlass, app.usesGlass(reduceTransparency: reduceTransparency))
+    .preferredColorScheme(app.preferredScheme)
   }
 }
 

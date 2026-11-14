@@ -1,12 +1,19 @@
 import ArdiaBrowser
+import ArdiaDesign
 import SwiftUI
 
 struct ReceivedTabsAnnouncer: ViewModifier {
   let center: ToastCenter
   @Environment(AppModel.self) private var app
+  @Environment(\.usesGlass) private var usesGlass
+  @Environment(\.profileLook) private var look
 
   func body(content: Content) -> some View {
     content
+      .onAppear { center.usesGlass = usesGlass; center.look = look; center.scheme = app.preferredScheme }
+      .onChange(of: app.preferredScheme) { _, value in center.scheme = value }
+      .onChange(of: usesGlass) { _, value in center.usesGlass = value }
+      .onChange(of: look) { _, value in center.look = value }
       .onChange(of: app.tabs.lastReceived.map(\.id)) { _, _ in announce() }
       .onChange(of: app.settings.isShowingOnboarding) { _, _ in announce() }
   }

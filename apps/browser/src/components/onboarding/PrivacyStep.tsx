@@ -3,7 +3,7 @@ import { StyleSheet, View } from "react-native";
 import { searchEngines, type Settings } from "../../state/settings/settings";
 import { useSettings } from "../../state/browser/hooks";
 import { Text } from "../ui";
-import { radius, space, tracking } from "../ui/tokens";
+import { monoFace, radius, space, tracking } from "../ui/tokens";
 import { SiteLogo } from "./SiteLogo";
 import { ChoiceList, useMockFocus, type ChoiceOption } from "./ChoiceList";
 import { Page } from "./LayoutSteps";
@@ -12,7 +12,7 @@ import { setOnboardingDraft, useOnboarding } from "../../state/onboarding/onboar
 import { keysOf, useQuestions } from "../../state/onboarding/questions";
 import { SelectTile, useOnboardingColors } from "./Parts";
 import { useSiteRing } from "./GlassBacking";
-import { MONO, onboardingType, receiptStamp } from "./tokens";
+import { onboardingType, receiptStamp } from "./tokens";
 
 const KEYS = keysOf("searchPrivacy");
 const ENGINES = ["google", "duckduckgo", "bing", "kagi", "ecosia", "brave", "startpage"];
@@ -85,7 +85,7 @@ const RECEIPT_WIDTH = 250;
 
 export function Receipt({ on }: { on: boolean }) {
   const colors = useOnboardingColors();
-  const mono = { fontFamily: MONO } as const;
+  const mono = monoFace();
   const line = (label: string, mark: string, dim: boolean) => (
     <View key={label} style={{ flexDirection: "row", alignItems: "center", gap: space.s, opacity: dim ? 0.35 : 1 }}>
       <Text size="caption" color={colors.title} style={mono}>
@@ -116,7 +116,7 @@ export function Receipt({ on }: { on: boolean }) {
       <Text size="caption" weight="bold" color={colors.title} style={[mono, { letterSpacing: tracking.wide, textAlign: "center" }]}>
         ARDIA
       </Text>
-      <Text color={colors.subtitle} style={[mono, onboardingType.receiptSmall, { textAlign: "center", marginTop: space.xs }]}>
+      <Text color={colors.subtitle} style={[onboardingType.receiptSmall, mono, { textAlign: "center", marginTop: space.xs }]}>
         ITEMIZED. UNLIKE SOME EXPENSES.
       </Text>
       {rule}
@@ -147,7 +147,7 @@ export function Receipt({ on }: { on: boolean }) {
           transform: [{ rotate: "-6deg" }],
         }}
       >
-        <Text color={on ? receiptStamp : colors.steps} style={[mono, onboardingType.receiptStamp]}>
+        <Text color={on ? receiptStamp : colors.steps} style={[onboardingType.receiptStamp, mono]}>
           {on ? "THANK YOU" : "NOT SHARED"}
         </Text>
       </View>

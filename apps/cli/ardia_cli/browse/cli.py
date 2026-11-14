@@ -87,6 +87,15 @@ def split_globals(argv: list[str]) -> tuple[dict, list[str]]:
     return found, rest
 
 
+def stdout_is_file() -> bool:
+    import stat
+
+    try:
+        return stat.S_ISREG(os.fstat(sys.stdout.fileno()).st_mode)
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
 def options_from(found: dict, env: dict) -> dict:
     from ardia_cli.browse.inputs import humanize_default
 
@@ -101,6 +110,8 @@ def options_from(found: dict, env: dict) -> dict:
             max_output = int(max_output)
         except ValueError:
             raise Usage(f"--max-output takes a number of characters, not {max_output}") from None
+    elif stdout_is_file():
+        max_output = 0
     options = {
         "json": found.get("json") or truthy(env.get("AGENT_BROWSER_JSON")),
         "humanize": humanize,
@@ -326,6 +337,35 @@ def read_runs_locally(args: list[str]) -> bool:
     return parsed is not None and readpages.runs_locally(*parsed)
 
 
+def reads_named_urls(args: list[str]) -> bool:
+    from ardia_cli.browse import readpages
+
+    parsed = read_args(args)
+    if parsed is None:
+        return False
+    options, positional = parsed
+    named = [url for url in positional if url != "-"]
+    return (options.get("links") is None and not options.get("scroll") and not options.get("list")
+            and (bool(named) or readpages.reads_stdin(options, positional)) and not any(readpages.relative(url) for url in named))
+
+
+def read_beside(request: dict, config: dict, namespace: str, endpoint_key: str, session: str, dir_fd_factory) -> dict:
+    from ardia_cli.browse import client
+
+    beside = f"{session[:59]}-side"
+    key = paths.session_key(namespace, endpoint_key, beside)
+    dir_fd = dir_fd_factory()
+    try:
+        sock = client.ensure_daemon(dir_fd, key, {**config, "session": beside, "key": key})
+    finally:
+        os.close(dir_fd)
+    request = {**request, "options": {**request["options"], "_session": beside}}
+    request.pop("beside_if_busy", None)
+    answer = client.request(sock, request)
+    answer.setdefault("metrics", {})["read_beside_busy"] = True
+    return answer
+
+
 def read_stdin_urls(args: list[str]) -> str | None:
     from ardia_cli.browse import readpages
 
@@ -333,6 +373,10 @@ def read_stdin_urls(args: list[str]) -> str | None:
     if parsed is None or not readpages.reads_stdin(*parsed):
         return None
     return sys.stdin.read(readpages.MAX_STDIN)
+
+
+def inline_code(text: str) -> bool:
+    return not text.endswith((".js", ".mjs", ".ts")) and any(mark in text for mark in (" ", ";", "(", "=", "\n"))
 
 
 def script_source(args: list[str], cwd: str) -> str:
@@ -348,7 +392,9 @@ def script_source(args: list[str], cwd: str) -> str:
             with open(path, encoding="utf-8") as handle:
                 source = handle.read(script.MAX_SOURCE + 1)
         except OSError as error:
-            raise Usage(f"Can't read {positional[0]}: {error.strerror or error}") from None
+            if not inline_code(positional[0]):
+                raise Usage(f"Can't read {positional[0]}: {error.strerror or error}") from None
+            source = positional[0]
     elif positional or parsed.get("stdin") or not sys.stdin.isatty():
         source = sys.stdin.read(script.MAX_SOURCE + 1)
     else:
@@ -359,8 +405,16 @@ def script_source(args: list[str], cwd: str) -> str:
 
 
 def main(argv: list[str]) -> int:
+    from ardia_cli.browse import outfile
+
     try:
-        code = run(argv)
+        try:
+            _, rest = split_globals(argv)
+            argv, out_path = outfile.take_out(argv, rest[0] if rest else None)
+        except Usage as error:
+            sys.stderr.write(f"✗ {error.message}\n")
+            return 1
+        code = outfile.run_saving(run, argv, rest[0], out_path) if out_path else run(argv)
         sys.stdout.flush()
         return code
     except BrokenPipeError:
@@ -453,7 +507,11 @@ def run(argv: list[str]) -> int:
             "argv": rest, "options": options, "cwd": os.getcwd(), "env": env_subset, "stdin": stdin, "telemetry": telemetry.shareable(env),
             "caller": caller.current().wire(),
         }
+        if command == "read" and reads_named_urls(args):
+            request["beside_if_busy"] = True
         answer = client.request(sock, request)
+        if answer.get("busy_elsewhere"):
+            answer = read_beside(request, config, namespace, endpoint_key, session, dir_fd_factory)
     except BrowseError as error:
         return print_error(error, as_json)
     except endpoints.EndpointError as error:

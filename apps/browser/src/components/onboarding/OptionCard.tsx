@@ -1,9 +1,10 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { Pressable, View } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 import { Checkbox, IconTile, Radio, Text, useHover } from "../ui";
 import { radius, space } from "../ui/tokens";
 import { ChoiceCard } from "./ChoiceCard";
 import { useOnboardingColors } from "./Parts";
+import { usePressScaleMotion } from "../ui/motion";
 
 const DISABLED_OPACITY = 0.5;
 const RADIO_MIN_HEIGHT = 56;
@@ -33,6 +34,8 @@ export function OptionCard({
 }) {
   const colors = useOnboardingColors();
   const { hovered, hoverProps } = useHover();
+  const pressMotion = usePressScaleMotion(!disabled, preview ? 0.98 : 0.99);
+  const scaleStyle = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : undefined;
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
@@ -45,29 +48,39 @@ export function OptionCard({
   if (control === "check")
     return (
       <View {...hoverProps} style={{ opacity: disabled ? DISABLED_OPACITY : 1 }}>
-        <Pressable disabled={disabled} onPress={onPress} accessibilityRole="checkbox" accessibilityState={{ checked: selected, disabled }} accessibilityLabel={title}>
-          <ChoiceCard
-            mouseDownCanMoveWindow={false}
-            radius={radius.panel}
-            hovered={hovered && !disabled}
-            raised={false}
-            style={{ flexDirection: "row", alignItems: "center", gap: space.l, paddingVertical: space.m, paddingHorizontal: space.l }}
-          >
-            {icon ? <IconTile symbol={icon} size="m" fill={colors.iconContainer} glyph={colors.title} /> : null}
-            <View style={{ flex: 1, gap: space.xxs }}>
-              <Text weight="medium" color={colors.title}>
-                {title}
-              </Text>
-              {subtitle ? (
-                <Text size="small" lines={2} color={colors.rowSubtitle}>
-                  {subtitle}
+        <Pressable
+          disabled={disabled}
+          onPress={onPress}
+          onPressIn={pressMotion.onPressIn}
+          onPressOut={pressMotion.onPressOut}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: selected, disabled }}
+          accessibilityLabel={title}
+        >
+          <Animated.View style={scaleStyle}>
+            <ChoiceCard
+              mouseDownCanMoveWindow={false}
+              radius={radius.panel}
+              hovered={hovered && !disabled}
+              raised={false}
+              style={{ flexDirection: "row", alignItems: "center", gap: space.l, paddingVertical: space.m, paddingHorizontal: space.l }}
+            >
+              {icon ? <IconTile symbol={icon} size="m" fill={colors.iconContainer} glyph={colors.title} /> : null}
+              <View style={{ flex: 1, gap: space.xxs }}>
+                <Text weight="medium" color={colors.title}>
+                  {title}
                 </Text>
-              ) : null}
-            </View>
-            <View pointerEvents="none">
-              <Checkbox look="ring" size="m" value={selected} onChange={onPress} />
-            </View>
-          </ChoiceCard>
+                {subtitle ? (
+                  <Text size="small" lines={2} color={colors.rowSubtitle}>
+                    {subtitle}
+                  </Text>
+                ) : null}
+              </View>
+              <View pointerEvents="none">
+                <Checkbox look="ring" size="m" value={selected} onChange={onPress} />
+              </View>
+            </ChoiceCard>
+          </Animated.View>
         </Pressable>
       </View>
     );
@@ -75,9 +88,9 @@ export function OptionCard({
   if (preview)
     return (
       <View {...hoverProps} style={{ flex: 1 }}>
-        <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={title}>
-          {({ pressed }) => (
-            <ChoiceCard mouseDownCanMoveWindow={false} radius={radius.panel} selected={selected} hovered={hovered} style={{ padding: space.ml, gap: space.ml, transform: [{ scale: pressed ? 0.98 : 1 }] }}>
+        <Pressable onPress={onPress} onPressIn={pressMotion.onPressIn} onPressOut={pressMotion.onPressOut} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={title}>
+          <Animated.View style={scaleStyle}>
+            <ChoiceCard mouseDownCanMoveWindow={false} radius={radius.panel} selected={selected} hovered={hovered} style={{ padding: space.ml, gap: space.ml }}>
               {preview}
               <View style={{ flexDirection: "row", alignItems: "center", gap: space.m }}>
                 <Radio on={selected} look="ring" />
@@ -93,15 +106,15 @@ export function OptionCard({
                 </View>
               </View>
             </ChoiceCard>
-          )}
+          </Animated.View>
         </Pressable>
       </View>
     );
 
   return (
     <View {...hoverProps}>
-      <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={title}>
-        {({ pressed }) => (
+      <Pressable onPress={onPress} onPressIn={pressMotion.onPressIn} onPressOut={pressMotion.onPressOut} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={title}>
+        <Animated.View style={scaleStyle}>
           <ChoiceCard
             mouseDownCanMoveWindow={false}
             radius={radius.panel}
@@ -115,7 +128,6 @@ export function OptionCard({
               minHeight: dense ? undefined : RADIO_MIN_HEIGHT,
               paddingVertical: space.ml,
               paddingHorizontal: dense ? space.l : space.xl,
-              transform: [{ scale: pressed ? 0.99 : 1 }],
             }}
           >
             <Radio on={selected} look="ring" />
@@ -130,7 +142,7 @@ export function OptionCard({
               ) : null}
             </View>
           </ChoiceCard>
-        )}
+        </Animated.View>
       </Pressable>
     </View>
   );

@@ -14,6 +14,10 @@ NOT_DELIVERED = (
     "{action} was sent, but the page received none of its {missing} events. The tab may not be on screen in Ardia "
     "(just switched, or covered by another tab); check it's shown (`ardia browse tab <id> --show`) before trying again"
 )
+TARGET_REPLACED = (
+    "{action} didn't land: {target} was removed from the page before it arrived (the page redrew it, as a list does after "
+    "a search or filter changes), so nothing was entered. Find the element again (snapshot -i) and retry"
+)
 INTERCEPT_TIMEOUT = 1.5
 CLEANUP_TIMEOUT = 2.0
 DRAG_GATED = "the source is an HTML5 draggable, and without drag interception a synthetic drag would start a real macOS drag session"
@@ -162,7 +166,7 @@ def delivered(now: dict, before: dict, name: str) -> int:
     return sum(now.get(part, 0) - before.get(part, 0) for part in name.split("|"))
 
 
-async def expect_input(page, frame, run, needs: dict, action: str):
+async def expect_input(page, frame, run, needs: dict, action: str, element=None):
     from ardia_cli.browse.errors import ConnectionLost, OutcomeUnknown
 
     frame = frame or page.main_frame
@@ -196,9 +200,18 @@ async def expect_input(page, frame, run, needs: dict, action: str):
         if loop.time() >= deadline:
             names = " or ".join(part for name in missing for part in name.split("|"))
             if all(delivered(now, before, name) == 0 for name in needs):
+                if element is not None and not await still_attached(page, element):
+                    raise BrowseError(TARGET_REPLACED.format(action=action, target=element.label), code="target_replaced")
                 raise BrowseError(NOT_DELIVERED.format(action=action, missing="/".join(needs).replace("|", "/")), data={"missing": missing}, code="input_not_delivered")
             raise OutcomeUnknown(action.lower(), PARTLY_DELIVERED.format(missing=names))
         await asyncio.sleep(0.05)
+
+
+async def still_attached(page, element) -> bool:
+    try:
+        return bool(await page.call("(el) => el.isConnected", element, frame=element.frame, read=True))
+    except BrowseError:
+        return False
 
 
 def left_document(error: BrowseError) -> bool:
@@ -376,20 +389,35 @@ async def target_point(page, element, humanize: bool, check_cover: bool = True):
         raise BrowseError(f"Element {element.label} was removed from the page")
     await laid_out(page)
     await scroll_into_view(page, element, humanize)
-    box = await element_box(page, element)
-    if box is None:
-        raise BrowseError(f"Element {element.label} has no visible box (hidden or zero-size)", code="not_visible")
-    left, top, right, bottom = box
-    cx, cy = (left + right) / 2, (top + bottom) / 2
-    if humanize:
-        cx += random.uniform(-0.2, 0.2) * (right - left)
-        cy += random.uniform(-0.2, 0.2) * (bottom - top)
-    if check_cover:
+    tried = set()
+    for _ in range(3):
+        box = await element_box(page, element)
+        if box is None:
+            raise BrowseError(f"Element {element.label} has no visible box (hidden or zero-size)", code="not_visible")
+        left, top, right, bottom = box
+        cx, cy = (left + right) / 2, (top + bottom) / 2
+        if humanize:
+            cx += random.uniform(-0.2, 0.2) * (right - left)
+            cy += random.uniform(-0.2, 0.2) * (bottom - top)
+        if not check_cover:
+            return cx, cy, info
         ox, oy = await frame_offset(page, element.frame)
         cover = await page.call("(el, x, y) => ardiaBrowse.hitTest(el, x, y)", element, cx - ox, cy - oy, frame=element.frame)
         if cover and humanize:
             cx, cy = (left + right) / 2, (top + bottom) / 2
             cover = await page.call("(el, x, y) => ardiaBrowse.hitTest(el, x, y)", element, cx - ox, cy - oy, frame=element.frame)
+        if not cover:
+            break
+        if "consent" not in tried and not cover.startswith("nothing"):
+            tried.add("consent")
+            if await dismissed_consent(page, element, cx - ox, cy - oy):
+                continue
+        if "center" not in tried:
+            tried.add("center")
+            if await centered(page, element):
+                continue
+        break
+    if check_cover:
         if cover and cover.startswith("nothing"):
             vp = await viewport(page)
             raise BrowseError(
@@ -404,6 +432,34 @@ async def target_point(page, element, humanize: bool, check_cover: bool = True):
                 code="covered",
             )
     return cx, cy, info
+
+
+async def dismissed_consent(page, element, x, y) -> bool:
+    from ardia_cli import command_metrics
+
+    try:
+        done = await page.call("(x, y) => ardiaBrowse.dismissConsent(x, y)", x, y, frame=element.frame)
+    except BrowseError:
+        return False
+    if not done:
+        return False
+    command_metrics.flag("consent_dismissed", True)
+    page.state.consent_dismissed = f'{done["layer"]} covered {element.label}, so its "{done["name"]}" button was clicked ({done["choice"]})'
+    await asyncio.sleep(CONSENT_SETTLE)
+    return True
+
+
+async def centered(page, element) -> bool:
+    from ardia_cli import command_metrics
+
+    try:
+        moved = await page.call(CENTER, element, frame=element.frame)
+    except BrowseError:
+        return False
+    if moved:
+        command_metrics.flag("click_recentered", True)
+        await asyncio.sleep(0.1)
+    return bool(moved)
 
 
 async def disabled_state(page, element) -> dict:
@@ -442,7 +498,7 @@ async def click(page, element, humanize: bool, count: int = 1, button: str = "le
         for number in range(1, count + 1):
             await mouse.click(x, y, button=which, click_count=number, humanize=False)
 
-    await expect_input(page, element.frame, lambda: page.input.gesture("click", press), {"mousedown": count, "mouseup": count}, "The click")
+    await expect_input(page, element.frame, lambda: page.input.gesture("click", press), {"mousedown": count, "mouseup": count}, "The click", element)
 
 
 async def hover(page, element, humanize: bool):
@@ -464,6 +520,8 @@ async def focus_field(page, element, info, humanize: bool, tolerate_detach: bool
             raise
 
 
+CENTER = "(el) => { const before = el.getBoundingClientRect(); el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' }); const after = el.getBoundingClientRect(); return Math.abs(after.top - before.top) + Math.abs(after.left - before.left) > 1; }"
+CONSENT_SETTLE = 0.5
 REPLACEMENT = """(old) => {
   const active = document.activeElement;
   if (!active || active === old || active === document.body) return null;
@@ -497,7 +555,7 @@ async def settle_focus(page, element, loader: str | None):
 async def type_into(page, element, text: str, humanize: bool, guard=None):
     keyboard = page.input.keyboard(element=element, guard=guard)
     await expect_input(page, element.frame, lambda: page.input.gesture("type", lambda: keyboard.type_text(text, humanize=humanize)),
-                       {"keydown": len(text), "keyup": len(text)}, "The typing")
+                       {"keydown": len(text), "keyup": len(text)}, "The typing", element)
 
 
 async def clear_field(page, element, humanize: bool):
@@ -505,12 +563,28 @@ async def clear_field(page, element, humanize: bool):
     if not info.get("value"):
         return
     await expect_input(page, element.frame, lambda: page.input.gesture("clear", lambda: page.input.press_combo("Meta+a", humanize)),
-                       {"keydown": 2}, "Select all")
+                       {"keydown": 2}, "Select all", element)
     await expect_input(page, element.frame, lambda: page.input.gesture("clear", lambda: page.input.press_combo("Backspace", humanize)),
-                       {"keydown": 1}, "Backspace")
+                       {"keydown": 1}, "Backspace", element)
     info = await page.call("(el) => ardiaBrowse.info(el)", element, frame=element.frame)
     if info.get("value"):
         raise BrowseError(f"Couldn't clear {element.label}; it still holds text")
+
+
+async def not_editable_message(page, element) -> str:
+    try:
+        facts = await page.call("""(el) => ({ role: (el.getAttribute("role") || el.tagName).toLowerCase(), name: ardiaBrowse.accessibleText(el).trim().slice(0, 60),
+            popup: (el.getAttribute("aria-haspopup") || "").toLowerCase(), expands: el.hasAttribute("aria-expanded"),
+            combo: ardiaBrowse.comboKind(el) })""", element, frame=element.frame, read=True)
+    except BrowseError:
+        return f"Element {element.label} isn't an editable field"
+    named = f'{facts["role"]} "{facts["name"]}"' if facts.get("name") else facts["role"]
+    if facts.get("combo"):
+        return f"{element.label} is a {named}, not a text field: pick from it with `select {element.label} <option>`"
+    if facts.get("popup") and facts["popup"] != "false" or facts.get("expands"):
+        return (f"{element.label} is a {named} that opens a picker, not a text field: click it, then click the value in what opens "
+                "(a date picker's day button usually carries the full date as its name)")
+    return f"{element.label} is a {named}, which takes no typing; use click, select or check"
 
 
 async def fill(page, element, text: str, humanize: bool, guard=None):
@@ -524,7 +598,7 @@ async def fill(page, element, text: str, humanize: bool, guard=None):
         cell = await cell_of(page, element) if guard is None else None
         if cell is not None:
             return False, await fill_cell(page, element, cell, text, humanize)
-        raise BrowseError(f"Element {element.label} isn't an editable field", code="not_editable")
+        raise BrowseError(await not_editable_message(page, element), code="not_editable")
     if info.get("tag") == "input" and info.get("type") in fields.SET_DIRECTLY:
         return False, await set_value(page, element, info["type"], text)
     loader = page.loader(element.frame)
@@ -676,7 +750,7 @@ async def fill_cell(page, element, cell, text: str, humanize: bool) -> dict | No
 async def insert_text(page, element, text: str):
     command_metrics.flag("fill_inserted_text", True)
     await expect_input(page, element.frame, lambda: page.input.gesture("fill", lambda: page.send("Input.insertText", {"text": text}, input_event=True)),
-                       {"beforeinput|input": 1}, "The text insert")
+                       {"beforeinput|input": 1}, "The text insert", element)
 
 
 async def set_value(page, element, kind: str, text: str) -> str:
@@ -879,6 +953,8 @@ async def choose(page, element, values: list[str], humanize: bool, where: str, t
                     fresh = True
             if not fresh and exact_pick(value, items) is None:
                 raise await stale_refusal(page, element, value, items, where, timeout)
+            if items and await page.call("(el) => ardiaBrowse.usedOpenedList(el)", element, frame=element.frame, read=True):
+                command_metrics.flag("select_opened_list", True)
         finally:
             await unwatch_suggestions(page, element)
         index = exact_pick(value, items) if not fresh else pick_suggestion(value, items, where)

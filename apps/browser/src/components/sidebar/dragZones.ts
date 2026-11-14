@@ -1,7 +1,7 @@
 import { layout } from "../ui/theme";
 import type { DropSpot } from "../../state/drag/drops";
 import { pinSlot } from "./pinZone";
-import { type Frame, inside, isGroupItem, type Item, PIN_SLOT, type Pointed, tailKey } from "./dragModel";
+import { pinSlotPitch, type Frame, inside, isGroupItem, type Item, type Pointed, tailKey } from "./dragModel";
 
 export type Aim = {
   spot: DropSpot | null;
@@ -69,7 +69,7 @@ const tiles: Zone = (p) => {
   const { spot, cells } = p;
   const index = !spot ? Math.min(cells.length, pinSlot(p.tiles, cells.length + p.count, layout.pinnedHeight, p.x, p.y, p.balanced)) : spot.part === "after" ? spot.index + 1 : spot.part === "before" ? spot.index : spot.gap;
   const before = p.grid ? cells[index] : undefined;
-  return { spot: { zone: "tiles", beforeId: p.firstTab(before) }, sequence: rest(p), gapKey: before?.key ?? tailKey("tiles"), pitch: PIN_SLOT };
+  return { spot: { zone: "tiles", beforeId: p.firstTab(before) }, sequence: rest(p), gapKey: before?.key ?? tailKey("tiles"), pitch: pinSlotPitch() };
 };
 
 function groupHit(p: Pointing): { g: Extract<Item, { kind: "group" }>; into: boolean } | undefined {

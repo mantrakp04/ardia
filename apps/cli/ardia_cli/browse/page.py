@@ -275,7 +275,7 @@ class Page:
         if frame_id not in self.frames:
             await self.refresh_frames()
             if frame_id not in self.frames:
-                raise BrowseError("That frame is gone. Run `ardia browse frame main` or snapshot again")
+                raise BrowseError("That frame is gone. Run `ardia browse frame main` or snapshot again", code="frame_gone")
         loader = self.loader(frame_id)
         cached = self.worlds.get(frame_id)
         if cached and cached[0] == loader:
@@ -319,10 +319,10 @@ class Page:
             if "exceptionDetails" in result:
                 details = result["exceptionDetails"]
                 description = (details.get("exception") or {}).get("description") or details.get("text") or "error"
-                raise BrowseError(description.split("\n    at ")[0])
+                raise BrowseError(description.split("\n    at ")[0], code="page_script_error")
             remote = result.get("result") or {}
             return remote.get("value") if by_value else remote
-        raise BrowseError("the page navigated while reading it; try again")
+        raise BrowseError("the page navigated while reading it; try again", code="page_navigated")
 
     async def element_from(self, remote: dict, frame: str, label: str) -> Element | None:
         if not remote or remote.get("subtype") == "null" or remote.get("type") == "undefined" or "objectId" not in remote:

@@ -81,6 +81,7 @@ export const SETTING_SPECS = {
   hideToolbarWhileScrolling: flag(true, SYNCED),
   newTabPosition: oneOf(["top", "bottom", "nextToCurrent"], "bottom", SYNCED),
   newTabButtonPosition: oneOf(["top", "bottom"], "bottom", SYNCED),
+  appLinksFirst: flag(false, SYNCED),
   newTabOpens: oneOf(["page", "commandBar"], "page", SYNCED),
   reuseEmptyNewTab: flag(false, SYNCED),
   warnBeforeClosingLastTab: flag(true, SYNCED),
@@ -297,6 +298,11 @@ export const sessionWithNewTabLinksInLittleArdia = (doc: SavedObject) => without
 
 export const sessionWithUnreadCountsOffByDefault = (doc: SavedObject) => withoutUntouchedSetting(doc, "showUnreadCounts", true);
 
+function windowsFollowingAutoHideTabs(s: Pick<BrowserState, "settings" | "windows">, patch: Partial<Settings>): Pick<BrowserState, "windows"> | {} {
+  if (patch.autoHideTabs === undefined || patch.autoHideTabs === s.settings.autoHideTabs) return {};
+  return { windows: Object.fromEntries(Object.entries(s.windows).map(([id, { autoHideTabs: _, ...w }]) => [id, w])) };
+}
+
 export type SettingsSlice = {
   settings: Settings;
   settingsMeta: SettingsMeta;
@@ -315,8 +321,9 @@ export const createSettingsSlice: StateCreator<BrowserState, [], [], SettingsSli
   settingsMeta: NO_SETTINGS_META,
   updateSettings(patch, { fromSync = false } = {}) {
     set((s) => {
-      if (fromSync) return { settings: { ...s.settings, ...withPageFrameDependencies(s.settings, patch) } };
-      return choose(s, withLinkKeysApart(s.settings, patch));
+      const windows = windowsFollowingAutoHideTabs(s, patch);
+      if (fromSync) return { settings: { ...s.settings, ...withPageFrameDependencies(s.settings, patch) }, ...windows };
+      return { ...choose(s, withLinkKeysApart(s.settings, patch)), ...windows };
     });
   },
 

@@ -14,22 +14,28 @@ struct BrowsingView: View {
   @State private var tabSwitchTicks = 0
   @State private var pageSpan = PageSpan(width: 402, safeSide: 0)
   @State private var storedCover: StoredCover?
+  @Environment(\.screenLayout) private var screenLayout
 
   var body: some View {
     @Bindable var browse = app.browse
     let tab = app.tabs.selectedTab
     ZStack(alignment: .bottom) {
-      look.surface.ignoresSafeArea()
+      Rectangle().fill(screenLayout.column == nil ? AnyShapeStyle(look.surface) : AnyShapeStyle(.background)).ignoresSafeArea()
       if let tab {
         pageLayer(tab)
           .overlay(alignment: .top) { statusStrip(tab) }
           .opacity(pager.isActive ? 0 : 1)
+          .padding(columnEdge, screenLayout.column?.contentReserve ?? 0)
           .ignoresSafeArea()
         if pager.isActive {
           PagerStage(pager: pager, reduceMotion: reduceMotion)
         }
       }
-      bar
+      if let column = screenLayout.column {
+        columnBar(column)
+      } else if screenLayout == .phone {
+        bar
+      }
     }
     .overlay(alignment: .top) {
       if let page = currentWebPage {
@@ -68,9 +74,14 @@ struct BrowsingView: View {
       stepTab(request.delta)
     }
     .onChange(of: currentWebPage?.scrollDirection) { _, direction in
-      guard app.settings.collapsesBottomBar else { return }
-      barVisibility.scrollCollapsed = direction == .down
+      withAnimation(barMotion) {
+        barVisibility.scrolled(down: direction == .down, collapses: app.settings.collapsesBottomBar)
+      }
     }
+    .onChange(of: app.settings.collapsesBottomBar) { _, collapses in
+      if !collapses { withAnimation(barMotion) { barVisibility.expand() } }
+    }
+    .task { await collapseBarForDemo() }
     .onChange(of: isFindingInPage) { _, active in
       barVisibility.findSessionChanged(isActive: active)
     }
@@ -81,7 +92,7 @@ struct BrowsingView: View {
       barVisibility.keyboardDidHide()
     }
     .onChange(of: app.tabs.selectedTabID, initial: true) { _, id in
-      barVisibility.scrollCollapsed = false
+      barVisibility.expand()
       app.goBackToSearchIfEmpty()
       if let id { _ = app.web.webTab(for: id) }
       warmPagerNeighbors()
@@ -89,7 +100,7 @@ struct BrowsingView: View {
     .task { await freezePagerForDemo() }
     .task { await runPagerScriptForDemo() }
     .onChange(of: isFront) { _, front in
-      if front { barVisibility.scrollCollapsed = false }
+      if front { barVisibility.expand() }
     }
     .onChange(of: findScope) { old, _ in
       endFindInPage(on: old.tabID)
@@ -159,7 +170,8 @@ struct BrowsingView: View {
         tab: tab,
         cover: cover(for: tab),
         swipeMode: app.preferences.swipeNavigation,
-        bottomInset: BrowseLayout.barHeight,
+        topInset: screenLayout.isWide || screenLayout.fold != nil ? DuoLayout.toolbarClearance : 0,
+        bottomInset: screenLayout == .phone ? BrowseLayout.barHeight : 0,
         onTone: { id, tone in browse.setTone(tone, for: id) }
       )
       if MotionDemo.loadFreeze != nil {
@@ -212,34 +224,81 @@ struct BrowsingView: View {
     app.browse.covers.store(image, for: id)
   }
 
-  private var bar: some View {
-    BottomBar(
-      isSearchPresented: app.browse.search != nil,
-      sideInset: pageSpan.safeSide,
+  private var barActions: BarActions {
+    BarActions(
       onTabs: openDeck,
+      onAddress: editAddress,
       onPlus: openSearch,
       onMore: { app.browse.isToolbarPresented = true },
+      onExpand: { withAnimation(barMotion) { barVisibility.expand() } },
       onStep: stepTab,
       onSelectTab: { id in switchTab(to: id, order: swipeOrder) },
       onCloseTab: closeCurrentTab
     )
-    .frame(height: BrowseLayout.barPillHeight)
-    .padding(.top, BrowseLayout.barHeight - BrowseLayout.barCenterFromBottom - BrowseLayout.barPillHeight / 2)
-    .frame(maxWidth: .infinity)
-    .frame(height: BrowseLayout.barHeight, alignment: .top)
+  }
+
+  private var columnEdge: Edge.Set {
+    screenLayout.column?.edge == .leading ? .leading : .trailing
+  }
+
+  private func columnBar(_ column: ScreenLayout.SideColumn) -> some View {
+    GeometryReader { proxy in
+      let insets = proxy.safeAreaInsets
+      BottomBar(
+        address: BarAddress(tab: app.tabs.selectedTab, page: currentWebPage),
+        isCollapsed: false,
+        arrangement: .column(column, CGSize(width: proxy.size.width + insets.leading + insets.trailing, height: proxy.size.height + insets.top + insets.bottom)),
+        actions: barActions
+      )
+      .ignoresSafeArea()
+    }
+    .opacity(isBarShown ? 1 : 0)
+    .allowsHitTesting(isBarShown)
+    .animation(barMotion, value: isBarShown)
+    .ignoresSafeArea(.keyboard)
+  }
+
+  private var bar: some View {
+    BottomBar(
+      address: BarAddress(tab: app.tabs.selectedTab, page: currentWebPage),
+      isCollapsed: barPresentation == .collapsed,
+      sideInset: pageSpan.safeSide,
+      actions: barActions
+    )
+    .padding(.bottom, BrowseLayout.barBottomGap)
     .environment(\.colorScheme, barScheme)
     .highPriorityGesture(pagerGesture)
     .offset(y: isBarShown ? 0 : BrowseLayout.barCollapseTravel)
     .opacity(isBarShown ? 1 : 0)
     .allowsHitTesting(isBarShown)
-    .animation(reduceMotion ? .easeOut(duration: 0.2) : Motion.barCollapse, value: isBarShown)
+    .animation(barMotion, value: isBarShown)
+    .animation(barMotion, value: barPresentation)
     .frame(maxHeight: .infinity, alignment: .bottom)
     .ignoresSafeArea(.container, edges: [.bottom, .horizontal])
     .ignoresSafeArea(.keyboard)
   }
 
+  private var barMotion: Animation {
+    reduceMotion ? .easeOut(duration: 0.2) : Motion.barCollapse
+  }
+
+  private var barPresentation: BottomBarVisibility.Presentation {
+    barVisibility.presentation(searchTrayPresented: app.browse.isSearchTrayOnScreen)
+  }
+
   private var isBarShown: Bool {
-    barVisibility.isShown(searchTrayPresented: app.browse.isSearchTrayOnScreen)
+    barPresentation != .hidden
+  }
+
+  private func editAddress() {
+    guard let tab = app.tabs.selectedTab else { return }
+    app.browse.presentSearch(from: .page, text: app.currentQuery(for: tab), selectsAll: true)
+  }
+
+  private func collapseBarForDemo() async {
+    guard ProcessInfo.processInfo.arguments.contains("-BrowseCollapsed") else { return }
+    try? await Task.sleep(for: .seconds(MotionDemo.delay))
+    withAnimation(barMotion) { barVisibility.scrolled(down: true, collapses: true) }
   }
 
   @Environment(\.colorScheme) private var systemScheme

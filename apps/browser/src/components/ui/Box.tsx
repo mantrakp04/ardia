@@ -21,6 +21,7 @@ export const Box = memo(function Box({ pad, padX, padY, gap, fill, border, radiu
   const theme = useTheme();
   const fillColor = fill ? theme[fill] : undefined;
   const borderColor = border ? theme[border] : undefined;
+  const corner = radius ? radii[radius] : undefined;
   const tokens = useMemo<ViewStyle>(
     () => ({
       padding: pad ? space[pad] : undefined,
@@ -30,12 +31,12 @@ export const Box = memo(function Box({ pad, padX, padY, gap, fill, border, radiu
       backgroundColor: fillColor,
       borderColor,
       borderWidth: borderColor ? StyleSheet.hairlineWidth * 2 : undefined,
-      borderRadius: radius ? radii[radius] : undefined,
+      borderRadius: corner,
       flexDirection: row ? "row" : undefined,
       alignItems: center ? "center" : undefined,
       justifyContent: center ? "center" : undefined,
     }),
-    [pad, padX, padY, gap, fillColor, borderColor, radius, row, center],
+    [pad, padX, padY, gap, fillColor, borderColor, corner, row, center],
   );
   return (
     <View {...rest} style={style ? [tokens, style] : tokens}>

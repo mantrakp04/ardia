@@ -101,6 +101,7 @@ public final class BrowsingPreferences {
     didSet { defaults.set(searchEngineID, forKey: Self.keys.engine) }
   }
 
+  public let sitePermissions: SitePermissions
   public private(set) var sites: [String: SiteSettings]
   private var privateSites: [String: SiteSettings] = [:]
 
@@ -111,6 +112,7 @@ public final class BrowsingPreferences {
     appLinks = defaults.string(forKey: Self.keys.appLinks).flatMap(AppLinkPreference.init(rawValue:)) ?? .ardia
     searchSuggestions = defaults.object(forKey: Self.keys.suggestions) as? Bool ?? true
     searchEngineID = defaults.string(forKey: Self.keys.engine) ?? "google"
+    sitePermissions = SitePermissions(defaults: defaults)
     sites = (defaults.data(forKey: Self.keys.sites)).flatMap { try? JSONDecoder().decode([String: SiteSettings].self, from: $0) } ?? [:]
   }
 

@@ -113,6 +113,7 @@ const windowsModule: Modules["ArdiaAppWindows"] = {
   dragPreviewEnd: () => Promise.resolve(),
   raiseView: () => Promise.resolve(),
   windowFrame: () => Promise.resolve(null),
+  frameCornerRadius: () => Promise.resolve(0),
   replyToTerminate: () => Promise.resolve(),
 };
 

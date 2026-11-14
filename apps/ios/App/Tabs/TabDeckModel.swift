@@ -16,6 +16,7 @@ final class TabDeckModel {
   }
 
   static let archiveCardKey = "tabs.archiveCardShown"
+  static let gridKey = "tabs.deckGrid"
   static let archiveCardThreshold = 8
 
   struct Command: Equatable {
@@ -38,6 +39,11 @@ final class TabDeckModel {
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
+    isGrid = defaults.bool(forKey: Self.gridKey)
+  }
+
+  var isGrid: Bool {
+    didSet { defaults.set(isGrid, forKey: Self.gridKey) }
   }
 
   var hasShownArchiveCard: Bool {

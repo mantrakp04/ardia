@@ -19,7 +19,6 @@ export const SLIDE_MS = SIDEBAR_MOTION.listSlide;
 export const FADE_MS = SIDEBAR_MOTION.listFade;
 export const SLIDE_EASING = curve.cssEase;
 export const FADE_EASING = curve.cssEaseOut;
-const GAP = layout.rowGap;
 const TAIL = "~tail";
 const FRAME_SLACK_MS = 50;
 const devScale = () => (__DEV__ ? ((globalThis as { sidebarMotionScale?: number }).sidebarMotionScale ?? 1) : 1);
@@ -60,7 +59,7 @@ function offsets(s: BrowserState, entries: string[], height: Height, start = 0, 
   let y = base;
   for (let i = start; i < entries.length; i++) {
     at.set(entries[i]!, y);
-    y += height(s, entries[i]!) + GAP;
+    y += height(s, entries[i]!) + layout.rowGap;
   }
   return { at, end: y };
 }
@@ -73,7 +72,7 @@ function sharedPrefix(a: string[], b: string[]): number {
 
 function prefixHeight(s: BrowserState, entries: string[], count: number, height: Height): number {
   let y = 0;
-  for (let i = 0; i < count; i++) y += height(s, entries[i]!) + GAP;
+  for (let i = 0; i < count; i++) y += height(s, entries[i]!) + layout.rowGap;
   return y;
 }
 
@@ -321,7 +320,7 @@ function useMotion({ devKey, entries, from, planner, height, enabled, nativeTail
         shown++;
       }
       if (here) byAnchor.delete(entry);
-      y += height(entry) + GAP;
+      y += height(entry) + layout.rowGap;
     }
     for (const left of byAnchor.values()) for (const ghost of left) if (!ghost.anchor || !entries.includes(ghost.anchor)) out.push(place(ghost, ghost.y - y));
     return out;
@@ -392,7 +391,7 @@ export const GhostSlot = memo(function GhostSlot({ snapshot, top, opacity }: { s
   const [fade, ref] = useAnimatedStyle(style);
   const theme = useTheme();
   return (
-    <View pointerEvents="none" {...fade} ref={ref} style={[{ height: 0, marginBottom: -GAP }, fade.style as object]}>
+    <View pointerEvents="none" {...fade} ref={ref} style={[{ height: 0, marginBottom: -layout.rowGap }, fade.style as object]}>
       {ghostEntry(snapshot, theme, top)}
     </View>
   );

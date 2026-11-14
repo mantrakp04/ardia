@@ -17,6 +17,7 @@ import { FormField, Group, Row, SectionHeader } from "../Form";
 import { setting, type SettingId } from "../settingsIndex";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { settingsType } from "../tokens";
+import { perLook } from "../../ui/tokens";
 
 export function LiveFoldersPane() {
   const folders = useLive(useShallow((s) => s.folderOrder.map((id) => s.folders[id]!).filter(Boolean)));
@@ -158,13 +159,13 @@ type ConnectProps = { busy: boolean; run(task: () => Promise<void>): Promise<voi
 
 const NOTE_TOP = { marginTop: space.ml } as const;
 const BODY_TOP = { marginTop: space.l } as const;
-const HELP = { lineHeight: proseLineHeight.small } as const;
-const CODE = { ...settingsType.code, textAlign: "center", marginTop: space.xl } as const;
+const HELP = perLook(() => ({ lineHeight: proseLineHeight.small }) as const);
+const CODE = perLook(() => ({ ...settingsType.code, textAlign: "center", marginTop: space.xl }) as const);
 const SPLIT = { marginVertical: space.xl } as const;
 
 function Help({ children }: { children: ReactNode }) {
   return (
-    <Text size="small" tone="textSecondary" style={HELP}>
+    <Text size="small" tone="textSecondary" style={HELP()}>
       {children}
     </Text>
   );
@@ -190,7 +191,7 @@ function GithubConnect({ busy, run }: ConnectProps) {
     return (
       <View>
         <Help>Enter this code on GitHub (it's on your clipboard), then approve Ardia. This sheet closes when you're signed in.</Help>
-        <Text selectable weight="semibold" style={CODE}>
+        <Text selectable weight="semibold" style={CODE()}>
           {flow.userCode}
         </Text>
         <DialogActions>

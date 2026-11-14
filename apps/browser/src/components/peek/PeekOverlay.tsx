@@ -8,7 +8,7 @@ import { usePeekSplitFull, usePeeks } from "../../state/peek/hooks";
 import { useSettings, useTab } from "../../state/browser/hooks";
 import type { Peek } from "../../state/peek/peek";
 import { PEEK_MOTION, PEEK_SCRIM } from "./tokens";
-import { PageLabel, SMALL_INSET, SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS, SmallBar } from "../littleArdia/SmallChrome";
+import { PageLabel, SMALL_INSET, SMALL_WINDOW_FRAME, SmallBar, smallWindowRadius } from "../littleArdia/SmallChrome";
 import { dismissPeek, finishPeek, openPeekAsTab, openPeekInSplit, registerPeekMotion } from "../../state/peek/actions";
 import { notePinch } from "../../state/telemetry/usage";
 
@@ -170,14 +170,14 @@ function PeekCard({
       >
         {!fullscreen && (
           <Panel
-            radius={SMALL_WINDOW_RADIUS}
+            radius={smallWindowRadius()}
             border={null}
             shadow={{ color: ink.black, opacity: windowFrame.shadowOpacity, radius: windowFrame.shadowRadius, offset: windowFrame.shadowOffset }}
             style={StyleSheet.absoluteFill}
           />
         )}
         <PinchArea enabled={!fullscreen && !!motion && gestures} motion={pinch} style={{ flex: 1 }}>
-          <View style={{ flex: 1, borderRadius: fullscreen ? 0 : SMALL_WINDOW_RADIUS, overflow: "hidden" }}>
+          <View style={{ flex: 1, borderRadius: fullscreen ? 0 : smallWindowRadius(), overflow: "hidden" }}>
             {!fullscreen && <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />}
             {!fullscreen && <PeekBar windowId={windowId} tabId={peek.tabId} />}
             <View
@@ -191,7 +191,7 @@ function PeekCard({
             </View>
           </View>
         </PinchArea>
-        {!fullscreen && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: SMALL_WINDOW_RADIUS, borderWidth: StyleSheet.hairlineWidth, borderColor: windowFrame.innerRim }]} />}
+        {!fullscreen && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: smallWindowRadius(), borderWidth: StyleSheet.hairlineWidth, borderColor: windowFrame.innerRim }]} />}
         {!fullscreen && (
           <View
             pointerEvents="none"
@@ -201,7 +201,7 @@ function PeekCard({
               top: -StyleSheet.hairlineWidth,
               right: -StyleSheet.hairlineWidth,
               bottom: -StyleSheet.hairlineWidth,
-              borderRadius: SMALL_WINDOW_RADIUS + StyleSheet.hairlineWidth,
+              borderRadius: smallWindowRadius() + StyleSheet.hairlineWidth,
               borderWidth: StyleSheet.hairlineWidth,
               borderColor: windowFrame.outerRim,
             }}

@@ -10,7 +10,6 @@ const FADE_MS = duration.fast;
 const FADE_EASING = curve.fade;
 const SPAN = 280;
 const RING = hairline.ring;
-const RADIUS = TOOLTIP.radius;
 
 function useShownAfterDelay(active: boolean) {
   const [shown, setShown] = useState(false);
@@ -42,7 +41,7 @@ export function TooltipAbove({ text, active, centerX, bottom }: { text: string; 
   return (
     <Animated.View pointerEvents="none" style={{ position: "absolute", left: centerX - SPAN / 2, width: SPAN, bottom: bottom - RING, alignItems: "center", opacity }}>
       <Surface
-        cornerRadius={RADIUS + RING}
+        cornerRadius={TOOLTIP.radius + RING}
         borderColor={hex(theme.tooltipRing)}
         borderWidth={RING}
         shadowColor={shadow.tooltip.color}
@@ -53,7 +52,7 @@ export function TooltipAbove({ text, active, centerX, bottom }: { text: string; 
       >
         <Surface
           fill={hex(theme.tooltipFill)}
-          cornerRadius={RADIUS}
+          cornerRadius={TOOLTIP.radius}
           borderColor={hex(theme.panelBorder)}
           borderWidth={1}
           style={{ paddingHorizontal: TOOLTIP.padX, paddingVertical: TOOLTIP.padY }}

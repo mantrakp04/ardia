@@ -8,6 +8,8 @@ public struct ProfileBackdrop: View {
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.profileLook) private var ambientLook
 
+  public static let themeVeil = 0.34
+
   public init(look: ProfileLook? = nil, themed: Bool = false, softened: Bool = false) {
     self.look = look
     self.themed = themed
@@ -23,6 +25,11 @@ public struct ProfileBackdrop: View {
       startPoint: showsTheme ? .topLeading : .top,
       endPoint: showsTheme ? .bottomTrailing : .bottom
     )
+    .overlay {
+      if showsTheme && !dark {
+        Color.white.opacity(ProfileBackdrop.themeVeil)
+      }
+    }
     .overlay {
       if softened {
         Color.adaptive(light: .white.opacity(0.72), dark: .black.opacity(0.55))

@@ -12,16 +12,17 @@ import { closeHistoryMenu, goBack, goForward, historyItems, toggleHistoryMenu } 
 import { openModeFor, openUrl } from "../../state/bookmarks/actions";
 import type { ToolbarPalette } from "../ui/toolbarColors";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
-import { GLYPH, RELOAD_BUTTON_MOTION } from "./tokens";
+import { GLYPH, HISTORY_BUTTON_MOTION, RELOAD_BUTTON_MOTION } from "./tokens";
 import { showReloadMenu } from "../../state/site/reloadMenu";
 
 const ICON_CENTER = { width: GLYPH, height: GLYPH, alignItems: "center" as const, justifyContent: "center" as const };
 const ICON_LAYER = { ...ICON_CENTER, position: "absolute" as const };
+const RELOAD_SYMBOL_BOX = 16;
 
 const ReloadGlyphColor = createContext("");
 
 function ReloadSymbol({ name }: { name: "arrow.clockwise" | "xmark" }) {
-  return <Symbol name={name} size={GLYPH} weight="regular" color={useContext(ReloadGlyphColor)} style={ICON_CENTER} />;
+  return <Symbol name={name} size={GLYPH} weight="regular" color={useContext(ReloadGlyphColor)} style={{ width: RELOAD_SYMBOL_BOX, height: RELOAD_SYMBOL_BOX }} />;
 }
 
 const ReloadGlyph = memo(function ReloadGlyph({ loading, color, press }: { loading: boolean; color: string; press: Animated.Value }) {
@@ -180,6 +181,49 @@ export const HistoryButton = memo(function HistoryButton({
   place?: NavPlace;
   onFocus: () => void;
 }) {
+  const handoffMotion = useRef(new Animated.Value(0)).current;
+  const pressOffsetMotion = useRef(new Animated.Value(0)).current;
+  const icon = direction < 0 ? "chevron.left" : "chevron.right";
+  const iconColor = disabled ? palette.iconDisabled : palette.icon;
+  const handoffFadeOut = handoffMotion.interpolate({ inputRange: [0, HISTORY_BUTTON_MOTION.duration], outputRange: [1, 0] });
+  const handoffFadeIn = handoffMotion.interpolate({ inputRange: [0, HISTORY_BUTTON_MOTION.incomingDelay, HISTORY_BUTTON_MOTION.duration], outputRange: [0, 0, 1] });
+  const handoffOutX = handoffMotion.interpolate({ inputRange: [0, HISTORY_BUTTON_MOTION.duration], outputRange: [0, direction * HISTORY_BUTTON_MOTION.travel] });
+  const handoffInX = handoffMotion.interpolate({ inputRange: [0, HISTORY_BUTTON_MOTION.duration], outputRange: [-direction * HISTORY_BUTTON_MOTION.travel, 0] });
+  useEffect(() => {
+    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", (reduced) => {
+      if (!reduced) return;
+      handoffMotion.stopAnimation();
+      handoffMotion.setValue(0);
+      pressOffsetMotion.stopAnimation();
+      pressOffsetMotion.setValue(0);
+    });
+    return () => {
+      subscription.remove();
+      handoffMotion.stopAnimation();
+      pressOffsetMotion.stopAnimation();
+    };
+  }, [handoffMotion, pressOffsetMotion]);
+  const animatePressOffset = (pressed: boolean) => {
+    pressOffsetMotion.stopAnimation();
+    if (reduceMotion() !== false) {
+      pressOffsetMotion.setValue(0);
+      return;
+    }
+    Animated.spring(pressOffsetMotion, {
+      toValue: pressed ? direction * HISTORY_BUTTON_MOTION.pressTravel : 0,
+      ...springs.snappy,
+      useNativeDriver: true,
+    }).start();
+  };
+  const animateHandoff = () => {
+    if (reduceMotion() !== false) return;
+    handoffMotion.stopAnimation();
+    handoffMotion.setValue(0);
+    Animated.timing(handoffMotion, { toValue: HISTORY_BUTTON_MOTION.duration, duration: HISTORY_BUTTON_MOTION.duration, easing: curve.enter, useNativeDriver: true }).start(({ finished }) => {
+      if (!finished) return;
+      handoffMotion.setValue(0);
+    });
+  };
   const historyHint = useShortcutHint(direction < 0 ? "back" : "forward");
   const openMenu = () => {
     onFocus();
@@ -187,6 +231,7 @@ export const HistoryButton = memo(function HistoryButton({
   };
   const onPress = async (m: ClickModifiers & { middle?: boolean }) => {
     onFocus();
+    animateHandoff();
     closeHistoryMenu();
     const mode = openModeFor(m);
     if (mode === "current" || mode === "split") return direction < 0 ? goBack(tabId) : goForward(tabId);
@@ -197,15 +242,25 @@ export const HistoryButton = memo(function HistoryButton({
     <MouseArea style={place?.style} onMiddleClick={(e) => !disabled && void onPress({ ...e, middle: true })}>
       <Button variant="icon" toolbar
         palette={palette}
-        icon={direction < 0 ? "chevron.left" : "chevron.right"}
         glyph={GLYPH}
         hit={place?.hit}
         disabled={disabled}
         onPress={onPress}
+        onPressIn={() => animatePressOffset(true)}
+        onPressOut={() => animatePressOffset(false)}
         onLongPress={openMenu}
         onContextMenu={openMenu}
         tooltip={withShortcut(direction < 0 ? "Go Back" : "Go Forward", historyHint)}
-      />
+      >
+        <Animated.View style={[ICON_CENTER, { transform: [{ translateX: pressOffsetMotion }] }]}>
+          <Animated.View pointerEvents="none" style={[ICON_LAYER, { opacity: handoffFadeOut, transform: [{ translateX: handoffOutX }] }]}>
+            <Symbol name={icon} size={GLYPH} weight="regular" color={iconColor} style={ICON_CENTER} />
+          </Animated.View>
+          <Animated.View pointerEvents="none" style={[ICON_LAYER, { opacity: handoffFadeIn, transform: [{ translateX: handoffInX }] }]}>
+            <Symbol name={icon} size={GLYPH} weight="regular" color={iconColor} style={ICON_CENTER} />
+          </Animated.View>
+        </Animated.View>
+      </Button>
     </MouseArea>
   );
 });

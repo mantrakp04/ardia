@@ -7,7 +7,7 @@ const { sidebarMenuItems } = await import("../sidebar/sidebarMenu.ts");
 const { flushPersistence, loadSession, parseSession, startPersistence } = await import("../session/persist.ts");
 const { SESSION_DOCUMENT } = await import("../session/sessionDocument.ts");
 const { noteScroll, useToolbarAutoHide } = await import("./toolbarAutoHide.ts");
-const { takeAutoHideTabsChoices } = await import("../telemetry/autoHideTabsChoices.ts");
+const { takeAutoHideTabsChoices, takeTornOffWindowsKeptAutoHide } = await import("../telemetry/autoHideTabsChoices.ts");
 const stub = await import("../../test-native/index.ts");
 
 const S = () => useBrowser.getState();
@@ -23,24 +23,41 @@ function fresh() {
   return S().createWindow({ url: "https://example.com" });
 }
 
-test("the setting is the only place that says whether the tabs hide: no window keeps a copy", () => {
+test("a new window follows the setting and keeps no value of its own", () => {
   const first = fresh();
   assert.equal("sidebarOpen" in S().windows[first], false);
+  assert.equal("autoHideTabs" in S().windows[first], false);
   assert.deepEqual(everySurface([first]), allShown([first]));
 });
 
-test("⌘S, the View menu and the toolbar button flip the setting, and every window follows, in either layout", () => {
+test("⌘S, the View menu and the toolbar button hide or show the tabs in their own window only, in either layout", () => {
   const a = fresh();
   const b = S().createWindow();
   S().toggleTabLayout(b);
   S().toggleSidebar(a);
-  assert.ok(S().settingsMeta.chosen.includes("autoHideTabs"));
-  assert.deepEqual(everySurface([a, b]), allHidden([a, b]));
-  const c = S().createWindow();
-  assert.equal(shown(c), false);
+  assert.deepEqual([shown(a), shown(b)], [false, true]);
+  assert.deepEqual([sidebarMenuChecked(a), sidebarMenuChecked(b)], [true, false]);
+  assert.equal(S().settings.autoHideTabs, false);
+  assert.equal(S().settingsMeta.chosen.includes("autoHideTabs"), false);
   S().toggleSidebar(b);
-  assert.deepEqual(everySurface([a, b, c]), allShown([a, b, c]));
-  assert.equal(shown(S().createWindow()), true);
+  assert.deepEqual([shown(a), shown(b)], [false, false]);
+  assert.equal(shown(S().createWindow()), true, "a new window follows the setting");
+  S().toggleSidebar(a);
+  assert.equal(shown(a), true);
+  assert.equal("autoHideTabs" in S().windows[a], false, "back in line with the setting, it keeps no value of its own");
+});
+
+test("changing the setting puts every window back in line with it", () => {
+  const a = fresh();
+  const b = S().createWindow();
+  S().toggleSidebar(a);
+  S().updateSettings({ autoHideTabs: false });
+  assert.equal(shown(a), false, "a value that changes nothing leaves the windows alone");
+  S().updateSettings({ autoHideTabs: true });
+  assert.deepEqual(everySurface([a, b]), allHidden([a, b]));
+  S().toggleSidebar(b);
+  S().updateSettings({ autoHideTabs: false }, { fromSync: true });
+  assert.deepEqual(everySurface([a, b]), allShown([a, b]));
 });
 
 test("Settings, sync and the config file change the same setting, so the windows can't disagree with it", () => {
@@ -51,8 +68,7 @@ test("Settings, sync and the config file change the same setting, so the windows
   S().updateSettings({ autoHideTabs: false }, { fromSync: true });
   assert.deepEqual(everySurface([a, b]), allShown([a, b]));
   S().updateSettings({ autoHideTabs: true }, { fromSync: true });
-  S().toggleSidebar(b);
-  assert.deepEqual(everySurface([a, b]), allShown([a, b]));
+  assert.deepEqual(everySurface([a, b]), allHidden([a, b]));
 });
 
 test("with auto-hide off, scrolling a page, switching tabs and closing a tab never hide the tabs", () => {
@@ -88,6 +104,26 @@ test("scrolling tucks the toolbar away only while its own setting is on, and nev
   S().updateSettings({ hideToolbarWhileScrolling: true, autoHideTabs: true });
   noteScroll(tabId, "down");
   assert.equal(tucked(), true, "hidden tabs don't stop the toolbar tucking");
+});
+
+test("tabs moved or dragged out of a window into a new one keep that window's hidden or shown tabs (#780)", () => {
+  const a = fresh();
+  const tabs = [S().newTab(a, { url: "https://second.example" }), S().newTab(a, { url: "https://third.example" }), S().newTab(a, { url: "https://fourth.example" })];
+  S().toggleSidebar(a);
+  takeTornOffWindowsKeptAutoHide();
+  const moved = S().moveTabsToWindow([tabs[0]], null);
+  assert.equal(shown(moved), false, "Move to New Window");
+  const dropped = S().createWindow({ profileId: "default", tabIds: [tabs[1]], frame: [800, 0, 1200, 800] });
+  assert.equal(shown(dropped), false, "dragged out onto another screen");
+  assert.equal(S().settings.autoHideTabs, false, "the setting stays as it was");
+  assert.equal(shown(S().createWindow()), true, "a new window with no tabs of its own still follows the setting");
+  assert.equal(takeTornOffWindowsKeptAutoHide(), 2);
+  S().updateSettings({ autoHideTabs: true });
+  const b = S().createWindow();
+  S().toggleSidebar(b);
+  const back = S().moveTabsToWindow([S().newTab(b, { url: "https://fifth.example" })], null);
+  assert.equal(shown(back), true, "a window showing its tabs against the setting hands that on too");
+  assert.equal(shown(S().moveTabsToWindow([tabs[2]], null)), false, "a window in line with the setting hands on the setting");
 });
 
 test("Little Ardia has no tabs to hide and leaves the setting alone", () => {
@@ -131,7 +167,7 @@ test("a saved window that hid its tabs while the setting was off comes back with
   assert.equal(parseSession(session({ tabLayout: "top" }, [false, false])).windowsAgainstAutoHideTabs, 0);
 });
 
-test("hidden or shown survives a quit and relaunch, and the saved windows say the same as the setting", () => {
+test("each window's hidden or shown survives a quit and relaunch", () => {
   stub.docs.clear();
   S().hydrate({});
   const stop = startPersistence();
@@ -140,21 +176,23 @@ test("hidden or shown survives a quit and relaunch, and the saved windows say th
   const savedWindows = () => JSON.parse(stub.docs.get(SESSION_DOCUMENT)).windows.map((w) => w.sidebarOpen);
   S().toggleSidebar(a);
   flushPersistence();
+  assert.deepEqual(savedWindows(), [false, true]);
+  const relaunched = loadSession();
+  assert.equal(relaunched.windowsAgainstAutoHideTabs, 0, "a window's own choice isn't counted as out of line");
+  S().hydrate(relaunched);
+  assert.deepEqual([shown(a), shown(b)], [false, true], "each window comes back as it was");
+  S().updateSettings({ autoHideTabs: true });
+  flushPersistence();
   assert.deepEqual(savedWindows(), [false, false]);
-  S().hydrate(loadSession());
-  assert.deepEqual(everySurface([a, b]), allHidden([a, b]));
   S().updateSettings({ autoHideTabs: false });
   flushPersistence();
   assert.deepEqual(savedWindows(), [true, true]);
-  const relaunched = loadSession();
-  assert.equal(relaunched.windowsAgainstAutoHideTabs, 0);
-  S().hydrate(relaunched);
+  S().hydrate(loadSession());
   assert.deepEqual(everySurface([a, b]), allShown([a, b]));
   S().toggleSidebar(a);
   S().closeWindow(a);
-  S().toggleSidebar(b);
   S().reopenClosedWindow();
-  assert.deepEqual(S().windowOrder.map(shown), [true, true], "a reopened window follows the setting, not how it was closed");
+  assert.equal(shown(S().windowOrder.at(-1)), false, "a reopened window comes back as it was closed");
   stop();
 });
 
@@ -180,10 +218,10 @@ test("the toggle count is this Mac's choices: ⌘S and Settings count, a value a
   const w = fresh();
   takeAutoHideTabsChoices();
   S().toggleSidebar(w);
-  S().updateSettings({ autoHideTabs: false });
-  S().updateSettings({ autoHideTabs: false });
-  S().updateSettings({ autoHideTabs: true }, { fromSync: true });
+  S().updateSettings({ autoHideTabs: true });
+  S().updateSettings({ autoHideTabs: true });
   S().updateSettings({ autoHideTabs: false }, { fromSync: true });
+  S().updateSettings({ autoHideTabs: true }, { fromSync: true });
   S().updateSettings({ tabLayout: "top" });
   assert.equal(takeAutoHideTabsChoices(), 2);
   assert.equal(takeAutoHideTabsChoices(), 0);

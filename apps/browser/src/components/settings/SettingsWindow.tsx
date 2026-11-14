@@ -13,6 +13,7 @@ import { SettingsPaneContext } from "./Form";
 import { PageToolbar } from "../pages/PageLayout";
 import { SettingsSearchField, SettingsSearchResults } from "./SettingsSearch";
 import { AdvancedPane } from "./panes/Advanced";
+import { AirTrafficPane } from "./panes/AirTraffic";
 import { AppearancePane } from "./panes/Appearance";
 import { CalendarPane } from "./panes/Calendar";
 import { GeneralPane } from "./panes/General";
@@ -179,6 +180,7 @@ const FILL = { flex: 1 } as const;
 const PANE_VIEWS: Record<SettingsPane, (place: SettingsPlace) => ReactNode> = {
   general: () => <GeneralPane />,
   profiles: ({ profileId }) => (profileId ? <ProfileDetailsPane profileId={profileId} /> : <ProfilesPane />),
+  airTraffic: () => <AirTrafficPane />,
   sync: () => <SyncPane />,
   tabs: () => <TabsPane />,
   appearance: () => <AppearancePane />,
