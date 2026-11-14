@@ -26,9 +26,11 @@
 #include "mojo/public/cpp/bindings/associated_receiver_set.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "ardia/core/ac_page_limits.h"
+#include "ardia/core/ac_prerender_posts.h"
 #include "ardia/core/mojom/ardiacore.mojom.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_registry.h"
+#include "third_party/blink/public/common/tokens/tokens.h"
 #include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_url.h"
@@ -385,10 +387,33 @@ class ACPageObserver : public content::RenderFrameObserver,
       Answer(*evaluation, std::move(json));
       return;
     }
+    blink::WebDocument document = render_frame()->GetWebFrame()->GetDocument();
+    switch (prerender_posts_.Take(document.Token(), document.IsPrerendering(),
+                                  kind, json)) {
+      case PrerenderPosts<blink::DocumentToken>::Verdict::kSend:
+        SendToHost(kind, json);
+        return;
+      case PrerenderPosts<blink::DocumentToken>::Verdict::kHold:
+        return;
+      case PrerenderPosts<blink::DocumentToken>::Verdict::kHoldUntilActivated:
+        document.AddPostPrerenderingActivationStep(base::BindOnce(
+            &ACPageObserver::SendPrerenderPosts, weak_factory_.GetWeakPtr(),
+            document.Token()));
+        return;
+    }
+  }
+
+  void SendToHost(const std::string& kind, const std::string& json) {
     if (!host_.is_bound()) {
       render_frame()->GetRemoteAssociatedInterfaces()->GetInterface(&host_);
     }
     host_->Post(kind, json);
+  }
+
+  void SendPrerenderPosts(blink::DocumentToken document) {
+    for (const auto& [kind, json] : prerender_posts_.Release(document)) {
+      SendToHost(kind, json);
+    }
   }
 
   void Answer(int id, std::optional<std::string> json) {
@@ -411,6 +436,7 @@ class ACPageObserver : public content::RenderFrameObserver,
 
   mojo::AssociatedReceiverSet<mojom::ACPage> page_receivers_;
   mojo::AssociatedRemote<mojom::ACPageHost> host_;
+  PrerenderPosts<blink::DocumentToken> prerender_posts_;
   v8::Global<v8::Function> receive_;
   v8::Global<v8::Context> receive_context_;
   std::map<int, EvaluateCallback> evaluations_;

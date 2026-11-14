@@ -19,7 +19,7 @@ import {
 import { getAutofillSettings, listAddresses, listCards, setAutofillSettings, type SavedAddress, type SavedCard } from "../../platform/autofill";
 import { getContentBlocker } from "../../platform/contentBlocker";
 import { getDownloadSettings, setDownloadSettings, type DownloadSettings } from "../../platform/downloads";
-import { getExternalAppAllowances, getSiteSettingsOrigins, getZoomLevels } from "../../platform/siteSettings";
+import { getExternalAppAllowances, getPreloadPages, getSiteSettingsOrigins, getZoomLevels, setPreloadPages } from "../../platform/siteSettings";
 import { getPasswordAutofill, setPasswordAutofill } from "../../platform/passwords";
 import { orWarn } from "../../lib/fallback";
 import { menuShortcuts } from "../../platform/commands";
@@ -46,6 +46,7 @@ export const contentBlocker = resource("contentBlocker", () => getContentBlocker
 export const siteOrigins = resource("siteOrigins", (profile: string) => getSiteSettingsOrigins(profile).catch((): string[] => []));
 export const appLinks = resource("appLinks", (profile: string) => getExternalAppAllowances(profile).catch(() => []));
 export const zoomLevels = resource("zoomLevels", (profile: string) => getZoomLevels(profile).catch((): Record<string, number> => ({})));
+export const preloadPages = resource("preloadPages", (profile: string) => getPreloadPages(profile).catch(() => false));
 export const passwordAutofill = resource("passwordAutofill", (profile: string) => getPasswordAutofill(profile).catch(() => true));
 export const addresses = resource("addresses", (profile: string) => listAddresses(profile).catch(orWarn<SavedAddress[]>([])));
 export const cards = resource("cards", (profile: string) => listCards(profile).catch(orWarn<SavedCard[]>([])));
@@ -80,7 +81,7 @@ export function paneNeeds(pane: SettingsPane, profileId: string | null): Needed[
     case "appearance":
       return [need(appIconChoices)];
     case "privacy":
-      return [need(contentBlocker), need(siteOrigins, profile), need(appLinks, profile), need(zoomLevels, profile)];
+      return [need(contentBlocker), need(siteOrigins, profile), need(appLinks, profile), need(zoomLevels, profile), need(preloadPages, profile)];
     case "passwords":
       return [need(passwordAutofill, profile)];
     case "autofill":
@@ -103,6 +104,11 @@ export const preparePane = (pane: SettingsPane, profileId: string | null) => loa
 export async function setPasswordAutofillFor(profile: string, on: boolean) {
   await setPasswordAutofill(on, profile);
   store(passwordAutofill, [profile], on);
+}
+
+export async function setPreloadPagesFor(profile: string, on: boolean) {
+  await setPreloadPages(profile, on);
+  store(preloadPages, [profile], on);
 }
 
 export async function setAutofillFor(profile: string, kind: "addresses" | "cards", on: boolean) {

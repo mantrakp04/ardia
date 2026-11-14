@@ -222,6 +222,21 @@ NSString *StoreFolder(NSString *profile, NSString *extensionId, id version) {
   }
 }
 
++ (void)preloadPages:(NSString *)profile reply:(ArdiaServiceReply)reply {
+  ardia_host::WithProfile(ardia_host::OriginalProfileName(profile), ^(ArdiaCoreProfile *p) {
+    if (!p) return reply(nil, @"profile not loaded");
+    reply(p.preloadPages ? @YES : @NO, nil);
+  });
+}
+
++ (void)setPreloadPages:(BOOL)on profile:(NSString *)profile reply:(ArdiaServiceReply)reply {
+  ardia_host::WithProfile(ardia_host::OriginalProfileName(profile), ^(ArdiaCoreProfile *p) {
+    if (!p) return reply(nil, @"profile not loaded");
+    p.preloadPages = on;
+    reply(nil, nil);
+  });
+}
+
 + (void)addresses:(NSString *)profile reply:(ArdiaServiceReply)reply {
   [self callBase:@"ac_autofill_addresses" profile:profile args:nil completion:Dated(@"addresses", reply)];
 }

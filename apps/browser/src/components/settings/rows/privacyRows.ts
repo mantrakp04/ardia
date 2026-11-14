@@ -39,6 +39,16 @@ export const privacyRows = {
       },
     },
     {
+      section: "Speed",
+      rows: {
+        preloadPages: {
+          title: "Preload pages",
+          description: "Fetches pages before you open them, and lets a site get one ready ahead of time, so links open faster on a slow connection. It sends requests for pages you might never visit. Set separately for each profile.",
+          keywords: ["preload", "prerender", "preconnect", "prefetch", "speed", "faster", "slow connection", "latency", "network predictions"],
+        },
+      },
+    },
+    {
       section: "Crash reports and usage",
       rows: {
         shareDiagnostics: { title: "Share anonymous crash reports and usage stats", keywords: ["telemetry", "analytics", "diagnostics", "crash"] },

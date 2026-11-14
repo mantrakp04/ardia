@@ -22,6 +22,8 @@ export const clearSiteData = (profile: string, origin: string, engine: PageEngin
 
 export const setZoom = (profile: string, host: string, zoom: number) => call("sites.setZoom", { profile, host, zoom });
 export const getZoomLevels = (profile: string) => call("sites.zoomLevels", { profile });
+export const getPreloadPages = (profile: string) => call("sites.preloadPages", { profile });
+export const setPreloadPages = (profile: string, on: boolean) => call("sites.setPreloadPages", { profile, on });
 export const setCommandScrollZoom = (enabled: boolean) => call("webView.setCommandScrollZoom", { enabled });
 
 export const resolveExternalApp = (id: string, open: boolean, remember = false) => call("permissions.resolveExternalApp", { id, open, remember });

@@ -209,6 +209,10 @@ void PageChannel::Bind(content::RenderFrameHost* frame,
 
 void PageChannel::Post(const std::string& kind, const std::string& json) {
   content::RenderFrameHost& frame = receivers_.CurrentTargetFrame();
+  if (frame.IsInLifecycleState(
+          content::RenderFrameHost::LifecycleState::kPrerendering)) {
+    return;
+  }
   if (kind.size() > kMaxPageMessageKind ||
       json.size() > MaxPageMessageBytes(kind)) {
     return;
