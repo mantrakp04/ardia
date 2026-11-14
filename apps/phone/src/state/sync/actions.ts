@@ -46,12 +46,13 @@ function announce(opened: BrowserTab[]) {
   quietly(() => sync.clearIncoming());
 }
 
-export async function applyInbox() {
+export async function applyInbox(): Promise<number> {
   if (applying) {
     again = true;
-    return;
+    return 0;
   }
   applying = true;
+  let total = 0;
   try {
     do {
       again = false;
@@ -63,11 +64,13 @@ export async function applyInbox() {
       }
       await settled(() => sync.inboxApplied(entries.map((entry) => entry.id)), undefined);
       feedSources();
+      total += opened.length;
       if (opened.length) announce(opened);
     } while (again);
   } finally {
     applying = false;
   }
+  return total;
 }
 
 export function startSync() {

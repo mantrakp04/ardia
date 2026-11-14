@@ -18,6 +18,7 @@ import { startSync } from "./state/sync/actions";
 import { useSettingsNav } from "./state/settings/hooks";
 import { useOnboarding } from "./state/onboarding/hooks";
 import { bootApp, useBoot } from "./state/app/boot";
+import { startLinks } from "./state/links/links";
 import { useBaseSystemBars } from "./state/app/systemBars";
 import { useSearchOpen } from "./state/search/hooks";
 import { useSheet, useSurface } from "./state/browse/hooks";
@@ -34,6 +35,7 @@ export default function App() {
       startPageUi();
       startSettingsSources();
       startSync();
+      startLinks();
     }),
   );
   const ready = useBoot((s) => s.ready);
