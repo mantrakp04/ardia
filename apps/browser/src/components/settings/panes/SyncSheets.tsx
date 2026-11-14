@@ -254,10 +254,33 @@ export function showConnectDevice() {
   showSettingsSheet(<ConnectDeviceSheet />);
 }
 
+const COPY_NOTE_FOR_MS = 2400;
+
+type CopyNote = { title: string };
+
 function ConnectDeviceSheet() {
   const theme = useTheme();
   const [qr, setQr] = useState<string | null>(null);
   const [words, setWords] = useState<string[] | null>(null);
+  const [copyNote, setCopyNote] = useState<CopyNote | null>(null);
+
+  useEffect(() => {
+    if (!copyNote) return;
+    const timer = setTimeout(() => setCopyNote(null), COPY_NOTE_FOR_MS);
+    return () => clearTimeout(timer);
+  }, [copyNote]);
+
+  const copyWords = () =>
+    void copyRecoveryPhrase()?.then(
+      (done) => {
+        if (done === true) setCopyNote({ title: "Copied" });
+      },
+      (error: unknown) => {
+        console.warn("Copying the recovery phrase failed", error);
+        setCopyNote({ title: "Couldn’t Copy" });
+      },
+    );
+
   return (
     <Sheet size="l" onClose={closeSettingsSheet}>
       <DialogTitle
@@ -285,7 +308,7 @@ function ConnectDeviceSheet() {
         leading={
           <>
             <Button title={words ? "Hide Words" : "Show Words"} onPress={() => (words ? setWords(null) : void recoveryWords()?.then(setWords))} />
-            <Button title="Copy Words" onPress={() => void copyRecoveryPhrase()} />
+            <Button title={copyNote?.title ?? "Copy Words"} onPress={copyWords} />
           </>
         }
       >
