@@ -2,26 +2,31 @@ import { sync, type PhoneInbox, type ReceivedTab, type SyncedView, type SyncStat
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+const localTime = (at: number) => {
+  const time = new Date(at);
+  return [time.getHours(), time.getMinutes(), time.getSeconds()].map((part) => String(part).padStart(2, "0")).join(":");
+};
+
 const countBookmarks = (items: { url: string | null; children: unknown[] | null }[]): number =>
   items.reduce((sum, item) => sum + (item.url ? 1 : 0) + countBookmarks((item.children ?? []) as never), 0);
 
 const viewLine = (view: SyncedView | null) => {
   if (!view) return "view: -";
   const macs = view.devices.filter((device) => device.kind === "mac" && !device.isCurrent);
-  const profile = view.profiles.find((p) => p.syncId === view.selectedProfileId) ?? view.profiles.find((p) => p.isDefault) ?? view.profiles[0];
+  const profile = view.profiles.find((p) => p.syncId === view.shownProfileId);
   const macTabs = profile ? profile.deviceTabs.reduce((sum, device) => sum + device.tabs.length, 0) : 0;
   const pinned = profile ? profile.pinned.tiles.length + profile.pinned.sections.length : 0;
   return [
     `devices ${view.devices.length} (Macs ${macs.map((mac) => mac.name).join(", ") || "none"})`,
-    `profiles ${view.profiles.length}: ${view.profiles.map((p) => `${p.name}${p.isDefault ? "*" : ""}`).join(", ")}`,
+    `profiles ${view.profiles.length}: ${view.profiles.map((p) => `${p.syncId === view.shownProfileId ? "›" : ""}${p.name}${p.isDefault ? " (default)" : ""}`).join(", ")}, picked ${view.selectedProfileId ?? "none"}`,
     `shown ${profile?.name ?? "-"}: open tabs ${macTabs}, pinned ${pinned}, bookmarks ${profile ? countBookmarks(profile.bookmarks) : 0}, history ${profile?.history.length ?? 0}`,
-    `receivers ${view.receivers.map((device) => device.name).join(", ") || "none"}, search ${view.search?.engineId ?? "-"}, synced ${view.syncedAt ? new Date(view.syncedAt).toISOString().slice(11, 19) : "-"}`,
+    `receivers ${view.receivers.map((device) => device.name).join(", ") || "none"}, search ${view.search?.engineId ?? "-"}, synced ${view.syncedAt ? localTime(view.syncedAt) : "-"}`,
   ].join("\n");
 };
 
 const statusLine = (status: SyncStatus | null) =>
   status
-    ? `${status.phase}${status.isSyncing ? " (cycling)" : ""} · ${status.statusText} · attention ${status.attention}${status.stalledMessage ? ` · ${status.stalledMessage}` : ""}\nfolder ${status.folderName ?? "-"} · device "${status.deviceName}" · pending ${status.pendingDownloads} · last ${status.lastSynced ? new Date(status.lastSynced).toISOString().slice(11, 19) : "-"}${status.showsResetNotice ? " · RESET NOTICE" : ""}`
+    ? `${status.phase}${status.isSyncing ? " (cycling)" : ""} · ${status.statusText} · attention ${status.attention}${status.stalledMessage ? ` · ${status.stalledMessage}` : ""}\nfolder ${status.folderName ?? "-"} · device "${status.deviceName}" · pending ${status.pendingDownloads} · last ${status.lastSynced ? `${localTime(status.lastSynced)} (${Math.round((Date.now() - status.lastSynced) / 1000)} s ago)` : "-"}${status.showsResetNotice ? " · RESET NOTICE" : ""}`
     : "status: -";
 
 function Button({ label, onPress }: { label: string; onPress: () => void }) {
@@ -96,11 +101,11 @@ export function SyncLab({ note }: { note: (line: string) => void }) {
       </View>
       <View style={styles.row}>
         <Button label="Ack reset" onPress={() => run("acknowledge reset", () => sync.acknowledgeReset())} />
-        <Button label="Rename device" onPress={() => run("rename", () => sync.setDeviceName(`Lab ${new Date().toISOString().slice(11, 16)}`))} />
+        <Button label="Rename device" onPress={() => run("rename", () => sync.setDeviceName(`Lab ${localTime(Date.now()).slice(0, 5)}`))} />
         <Button label="Next profile" onPress={() => {
           const profiles = view?.profiles ?? [];
           if (!profiles.length) return;
-          const index = profiles.findIndex((p) => p.syncId === view?.selectedProfileId);
+          const index = profiles.findIndex((p) => p.syncId === view?.shownProfileId);
           const next = profiles[(index + 1) % profiles.length]!;
           run(`select ${next.name}`, () => sync.selectProfile(next.syncId));
         }} />

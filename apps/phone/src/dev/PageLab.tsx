@@ -109,7 +109,7 @@ function Lab() {
     setResults((all) => [...all, line]);
   }, []);
 
-  const note = useCallback((line: string) => setLog((lines) => [`${new Date().toISOString().slice(11, 19)} ${line}`, ...lines].slice(0, 14)), []);
+  const note = useCallback((line: string) => setLog((lines) => [`${new Date().toTimeString().slice(0, 8)} ${line}`, ...lines].slice(0, 14)), []);
   const run = useCallback(
     (label: string, work: () => Promise<unknown>) => {
       work().then(

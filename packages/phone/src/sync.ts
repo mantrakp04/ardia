@@ -74,6 +74,7 @@ export type SyncedView = {
   search: SyncedSearch | null;
   syncedAt: number | null;
   selectedProfileId: string | null;
+  shownProfileId?: string | null;
   receivers: SyncedDevice[];
 };
 

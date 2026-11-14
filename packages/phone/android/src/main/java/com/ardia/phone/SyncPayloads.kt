@@ -91,6 +91,7 @@ object SyncPayloads {
         },
         "syncedAt" to snapshot.syncedAt?.toDouble(),
         "selectedProfileId" to selectedProfileId,
+        "shownProfileId" to snapshot.profiles.takeIf { it.isNotEmpty() }?.let { snapshot.profile(selectedProfileId)?.syncId },
         "receivers" to receivers.map(::device),
     )
 
