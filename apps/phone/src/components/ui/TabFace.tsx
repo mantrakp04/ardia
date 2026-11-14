@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { isDarkColor } from "../../lib/color";
 import { Symbol } from "./Symbol";
@@ -20,13 +21,7 @@ type Props = { tab: TabFaceTab; title: string; host: string; tone: string | null
 
 export function TabFace({ tab, title, host, tone, roles, compact }: Props) {
   const fill = tabFill(tab, tone, roles);
-  if (tab.snapshotFileName) {
-    return (
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: fill }]}>
-        <Image source={{ uri: tab.snapshotFileName }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-      </View>
-    );
-  }
+  if (tab.snapshotFileName) return <Snapshot uri={tab.snapshotFileName} fill={fill} />;
   if (tab.isPrivate) {
     return (
       <View style={[StyleSheet.absoluteFill, styles.private, { backgroundColor: fill }]}>
@@ -62,7 +57,25 @@ export function TabFace({ tab, title, host, tone, roles, compact }: Props) {
   );
 }
 
+function Snapshot({ uri, fill }: { uri: string; fill: string }) {
+  const [aspect, setAspect] = useState<number | null>(null);
+  return (
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: fill }]}>
+      <Image
+        source={{ uri }}
+        onLoad={(event) => {
+          const { width, height } = event.nativeEvent.source;
+          if (width > 0 && height > 0) setAspect(width / height);
+        }}
+        style={aspect ? [styles.snapshot, { aspectRatio: aspect }] : StyleSheet.absoluteFill}
+        resizeMode="cover"
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  snapshot: { width: "100%" },
   page: { padding: space.l, paddingTop: space.huge + space.l, gap: space.m },
   compact: { alignItems: "center", justifyContent: "center" },
   title: { fontWeight: "600" },
