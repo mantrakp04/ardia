@@ -46,8 +46,9 @@ public enum BrowseLayout {
   public static let trayFieldTop: CGFloat = 15
   public static let trayDim: Double = 0.28
   public static let logoSize: CGFloat = 132
-  public static let plusCapsule = CGSize(width: 78, height: 40)
-  public static let chevronCircle: CGFloat = 35
+  public static let plusCapsule = CGSize(width: 84, height: 40)
+  public static let barPillHeight: CGFloat = 54
+  public static let barPillPadding: CGFloat = 5
   public static let tabStackRadius: CGFloat = 5
   public static let tabStackTile = CGSize(width: 20, height: 26)
   public static let barCenterFromBottom: CGFloat = 44
@@ -55,7 +56,6 @@ public enum BrowseLayout {
   public static let hitTarget: CGFloat = 44
   public static let barHeight: CGFloat = 75
   public static let barCollapseTravel: CGFloat = 30
-  public static let barControlScale: CGFloat = 0.93
   public static let progressHeight: CGFloat = 2.5
   public static let toolbarTile: CGFloat = 78
 }
@@ -70,8 +70,6 @@ public extension Motion {
   static let resultsIn = Animation.easeOut(duration: 0.14)
   static let pager = Animation.spring(response: 0.3, dampingFraction: 0.9)
   static let press = Animation.spring(response: 0.2, dampingFraction: 0.7)
-  static let barPressIn = Animation.spring(duration: 0.08, bounce: 0)
-  static let barPressOut = Animation.spring(duration: 0.16, bounce: 0.1)
   static let barCollapse = Animation.spring(duration: 0.4, bounce: 0)
   static let progressReveal = Animation.easeOut(duration: 0.2)
   static let progressAdvance = Animation.easeOut(duration: 0.45)

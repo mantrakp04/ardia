@@ -94,7 +94,7 @@ const SESSION_FIELDS = {
   }),
   closedTabs: field(["closedTabs"], (s) => s.closedTabs.filter((c) => publicTab(c.tab))),
   closedWindows: field(["closedWindows", "settings"], (s) =>
-    s.closedWindows.filter((c) => c.tabs.every(publicTab)).map((c) => ({ ...c, window: { ...c.window, sidebarOpen: !s.settings.autoHideTabs } })),
+    s.closedWindows.filter((c) => c.tabs.every(publicTab)).map((c) => ({ ...c, window: { ...c.window, sidebarOpen: !(c.window.autoHideTabs ?? s.settings.autoHideTabs) } })),
   ),
   parkedPins: field(["parkedPins"], (s) => publicProfiles(s.parkedPins)),
   pinChoices: field(["pinChoices"], (s) => publicProfiles(s.pinChoices)),
@@ -151,7 +151,7 @@ function withoutSavedTabsShown(closed: ClosedWindow): ClosedWindow {
 
 function windowsAgainstAutoHideTabs(settings: HydrateData["settings"], windows: SavedObject[]): number {
   const hidden = !!settings?.autoHideTabs;
-  return windows.filter((w) => typeof w.sidebarOpen === "boolean" && w.sidebarOpen === hidden).length;
+  return windows.filter((w) => typeof w.autoHideTabs !== "boolean" && typeof w.sidebarOpen === "boolean" && w.sidebarOpen === hidden).length;
 }
 
 export function parseSession(json: string | null | undefined): SavedSession | null {
@@ -166,7 +166,7 @@ export function parseSession(json: string | null | undefined): SavedSession | nu
     orphanedProfileData: strings(raw.orphanedProfileData),
     settings,
     settingsMeta: parseSettingsMeta(raw.settingsMeta),
-    windows: byId(rows<BrowserWindow & { incognito?: unknown; sidebarOpen?: unknown }>(raw.windows, windowOk).map(({ incognito: _i, sidebarOpen: _s, ...w }): BrowserWindow => ({ ...w, kind: "main" }))),
+    windows: byId(rows<Omit<BrowserWindow, "autoHideTabs"> & { incognito?: unknown; sidebarOpen?: unknown; autoHideTabs?: unknown }>(raw.windows, windowOk).map(({ incognito: _i, sidebarOpen: _s, autoHideTabs, ...w }): BrowserWindow => ({ ...w, kind: "main", ...(typeof autoHideTabs === "boolean" ? { autoHideTabs } : {}) }))),
     windowOrder: strings(raw.windowOrder),
     focusedWindowId: nullableString(raw.focusedWindowId),
     lastProfileId: nullableString(raw.lastProfileId),

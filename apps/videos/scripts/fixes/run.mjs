@@ -15,7 +15,8 @@ const portBase = process.env.FIXES_PORT_BASE ? Number(process.env.FIXES_PORT_BAS
 const hoverLib = process.env.FIXES_HOVER ? join(scratch, "hover.dylib") : null;
 const inputLib = process.env.FIXES_INPUT ? join(scratch, "input.dylib") : null;
 const selfLib = process.env.FIXES_SELFREC ? join(scratch, "selfrec.dylib") : null;
-const injected = [hoverLib, inputLib, selfLib].filter(Boolean).join(":");
+const pasteLib = process.env.FIXES_PASTEBOARD ? join(scratch, "pasteboard.dylib") : null;
+const injected = [hoverLib, inputLib, selfLib, pasteLib].filter(Boolean).join(":");
 const fps = process.env.FIXES_FPS ?? "60";
 const apps = {
   before: { app: process.env.BEFORE_APP ?? join(scratch, "before/Ardia.app"), js: "none", probe: true },
@@ -40,6 +41,11 @@ if (inputLib && !existsSync(inputLib)) {
 if (selfLib && !existsSync(selfLib)) {
   const built = spawnSync("clang", ["-dynamiclib", "-fobjc-arc", "-framework", "AppKit", "-framework", "AVFoundation", "-framework", "CoreMedia", "-framework", "CoreVideo", "-o", selfLib, join(here, "selfrec.m")], { stdio: "inherit" });
   if (built.status !== 0) throw new Error("selfrec.dylib didn't build");
+}
+
+if (pasteLib && !existsSync(pasteLib)) {
+  const built = spawnSync("clang", ["-dynamiclib", "-fobjc-arc", "-framework", "AppKit", "-o", pasteLib, join(here, "pasteboard.m")], { stdio: "inherit" });
+  if (built.status !== 0) throw new Error("pasteboard.dylib didn't build");
 }
 
 if (!selfLib && !existsSync(recorder)) {
@@ -131,7 +137,7 @@ async function shoot(scene, name, side) {
     data, js, probe, port, onboarded: true, files: { "telemetry.json": { sharing: false, decidedAt: 1, askDoneAt: 1 }, ...(scene.files ?? {}) }, session: JSON.parse(readFileSync(sessionFile, "utf8")),
     switches: [`--host-resolver-rules=MAP *.example 127.0.0.1:${sitesPort}`, ...(selfLib ? ["--disable-features=RemoteCoreAnimationAPI"] : []), ...(scene.switches ?? [])],
     instance: { importSourceDir: empty, importSafariHome: empty, downloadsDir: downloads, ...(scene.instance ?? {}) },
-    env: { ...(injected ? { DYLD_INSERT_LIBRARIES: injected } : {}), ...(selfLib ? { FIXES_SELFREC_DIR: join(data, "selfrec") } : {}), ...(scene.env ?? {}) },
+    env: { ...(injected ? { DYLD_INSERT_LIBRARIES: injected } : {}), ...(selfLib ? { FIXES_SELFREC_DIR: join(data, "selfrec") } : {}), ...(pasteLib ? { FIXES_PASTEBOARD_NAME: `com.ardia.film.${name}-${side}` } : {}), ...(scene.env ?? {}) },
   };
   const start = scene.withoutDevTools ? launchWithoutDevTools : launch;
   if (scene.seed) {

@@ -26,6 +26,7 @@ type WindowBase = {
   tabIds: string[];
   activeTabIds: Record<string, string>;
   tabLayout?: "sidebar" | "top";
+  autoHideTabs?: boolean;
   frame: Frame | null;
   fullScreen?: number;
   createdAt: number;
@@ -54,7 +55,8 @@ export type Tab = {
   pinnedUrl: string | null;
   page: TabPage;
   openerId: string | null;
-  liveItem?: { folderId: string; itemId: string };
+  linkOpenerId?: string;
+  liveItem?: { folderId: string; itemId: string; completed?: true };
   pinKey?: string;
   engine?: PageEngine;
   createdAt: number;
@@ -161,7 +163,7 @@ export type ClosedTab = {
 export type ClosedWindow = {
   kind: "window";
   id: string;
-  window: Pick<BrowserWindow, "profileId" | "frame" | "tabLayout">;
+  window: Pick<BrowserWindow, "profileId" | "frame" | "tabLayout" | "autoHideTabs">;
   tabs: (TabSnapshot & { active: boolean; tabId?: string })[];
   groups: (Omit<TabGroup, "tabIds" | "windowId" | "shownTabIds"> & { tabIndexes: number[] })[];
   splits?: Pick<SplitView, "orientation" | "slots">[];

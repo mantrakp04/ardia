@@ -1,0 +1,18 @@
+{
+  "id": "fixes-0246-about-blank",
+  "segments": [
+    {
+      "scene": "r46blanklink",
+      "title": "A loading tab keeps its address, not about:blank",
+      "body": "A link with target=_blank to a page that answers after 8 s. About 1.5 s in, 0.2.45 turned the tab into about:blank: the row, the address field, and Copy URL (⇧⌘C, pasted into Notes). Now the row shows slow.example/timetable, the address field keeps slow.example and Copy URL copies the real address until the page arrives.",
+      "cam": [
+        0,
+        0,
+        1100,
+        720
+      ],
+      "lead": 1.4,
+      "tail": 9.8
+    }
+  ]
+}

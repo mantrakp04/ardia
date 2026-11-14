@@ -59,6 +59,19 @@ async def app_windows(state) -> list | None:
     return windows if isinstance(windows, list) else None
 
 
+async def app_call(state, method: str, params: dict, timeout: float = WINDOWS_TIMEOUT):
+    from ardia_cli import control
+
+    path = control_socket(state)
+    if path is None:
+        raise control.unreachable("this connection has no control socket")
+    connection = await control.connect(path, timeout, state.caller)
+    try:
+        return await connection.call(method, params, timeout)
+    finally:
+        await connection.close()
+
+
 def app_tab_rows(windows) -> list[dict]:
     return [tab for window in windows or [] if isinstance(window, dict) for tab in window.get("tabs") or [] if isinstance(tab, dict) and tab.get("id")]
 

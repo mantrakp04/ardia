@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: status lists what App Store Connect holds; dry-run builds and signs; upload sends the build to TestFlight and to public testers; public-link submits a build for Beta App Review and prints the link to share; add-tester invites an email to the Public Testers group; certificate makes the development certificate CI signs with
+        description: status lists what App Store Connect holds; dry-run builds and signs; upload sends the build to TestFlight and to public testers; public-link submits a build for Beta App Review and prints the link to share; add-tester invites an email to the Public Testers group; expire ends testing of an older build for good; certificate makes the development certificate CI signs with
         type: choice
-        options: [status, dry-run, upload, public-link, add-tester, certificate]
+        options: [status, dry-run, upload, public-link, add-tester, expire, certificate]
         default: status
       build:
         description: Build number (empty takes the one after the highest uploaded)
@@ -107,6 +107,31 @@ jobs:
           (umask 077 && printf '%s' "$ASC_KEY_P8" | base64 -d > "$key")
           trap 'rm -f "$key"' EXIT
           ASC_KEY="$key" node apps/ios/scripts/asc.mjs add-tester --email "$EMAIL" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  expire:
+    if: inputs.mode == 'expire'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - name: Expire build
+        env:
+          ASC_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          ASC_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+          BUILD: ${{ inputs.build }}
+        run: |
+          set -euo pipefail
+          [ -n "$BUILD" ] || { echo "::error::expire mode needs build"; exit 1; }
+          key="$RUNNER_TEMP/AuthKey.p8"
+          (umask 077 && printf '%s' "$ASC_KEY_P8" | base64 -d > "$key")
+          trap 'rm -f "$key"' EXIT
+          ASC_KEY="$key" node apps/ios/scripts/asc.mjs expire --build "$BUILD" | tee -a "$GITHUB_STEP_SUMMARY"
 
   certificate:
     if: inputs.mode == 'certificate'

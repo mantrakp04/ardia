@@ -2,20 +2,34 @@ import { create } from "zustand";
 import { goBackAcrossEngines } from "../engines/actions";
 import { livePageId, withLivePage } from "./livePage";
 import { webviews } from "../../platform/webviews";
-import { useBrowser } from "../browser/store";
+import { useBrowser, type BrowserState } from "../browser/store";
 import { changedIds } from "../browser/changes";
+import { activeTabId, inPinnedContainer } from "../browser/model";
+import { noteBackCloseToOpener } from "../telemetry/usage";
 import { useTabLive } from "../browser/hooks";
 import type { TabLive } from "../browser/types";
 import { internalPageOf, tabDestination } from "../pages/urls";
 import { pageOf, patchPage, usePage } from "./pageState";
 import { historyOf } from "../history/history";
 import { adoptedPage, IDLE } from "./pageSession";
+import { isPeekTab } from "../peek/peek";
+import { dismissPeek } from "../peek/actions";
 
 const store = () => useBrowser.getState();
 
+export function backClosesTab(s: BrowserState, tabId: string): boolean {
+  const tab = s.tabs[tabId];
+  if (!tab?.openerId) return false;
+  if (!isPeekTab(s, tabId) && tab.linkOpenerId !== tab.openerId) return false;
+  const opener = s.tabs[tab.openerId];
+  if (!opener || opener.windowId !== tab.windowId || opener.profileId !== tab.profileId) return false;
+  if (inPinnedContainer(s, tabId)) return false;
+  return true;
+}
+
 export function canGoBack(tabId: string, live: Pick<TabLive, "canGoBack">): boolean {
   const page = pageOf(tabId);
-  return !page.newTabShown && (live.canGoBack || page.backToNewTab || !!page.engineBack);
+  return !page.newTabShown && (live.canGoBack || page.backToNewTab || !!page.engineBack || backClosesTab(store(), tabId));
 }
 
 export function canGoForward(tabId: string, live: Pick<TabLive, "canGoForward">): boolean {
@@ -27,7 +41,8 @@ export function useHistoryAvailability(tabId: string) {
   const forward = useTabLive(tabId, (l) => l.canGoForward);
   const shown = usePage(tabId, (p) => !!p.newTabShown);
   const backToNewTab = usePage(tabId, (p) => p.backToNewTab || !!p.engineBack);
-  return { back: !shown && (back || backToNewTab), forward: shown || forward };
+  const closes = useBrowser((s) => backClosesTab(s, tabId));
+  return { back: !shown && (back || backToNewTab || closes), forward: shown || forward, backCloses: !shown && !back && !backToNewTab && closes };
 }
 
 export function goBack(tabId: string): void {
@@ -36,7 +51,18 @@ export function goBack(tabId: string): void {
   if (pageOf(tabId).newTabShown) return;
   if (live?.canGoBack) return void webviews.get(tabId)?.goBack();
   if (pageOf(tabId).engineBack) return void goBackAcrossEngines(tabId);
-  if (pageOf(tabId).backToNewTab) showNewTab(tabId);
+  if (pageOf(tabId).backToNewTab) return showNewTab(tabId);
+  if (backClosesTab(store(), tabId)) {
+    noteBackCloseToOpener();
+    if (isPeekTab(store(), tabId)) dismissPeek(store().tabs[tabId]!.windowId);
+    else {
+      const tab = store().tabs[tabId]!;
+      const openerId = tab.openerId!;
+      const wasShown = activeTabId(store(), tab.windowId) === tabId;
+      store().closeTab(tabId);
+      if (wasShown && store().tabs[openerId]) store().activate(openerId);
+    }
+  }
 }
 
 export function goForward(tabId: string): void {

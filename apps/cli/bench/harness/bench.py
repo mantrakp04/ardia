@@ -18,7 +18,8 @@ HELP = f"""Browser-agent bench: Claude Code and Codex driving Ardia through `ard
 
 Commands:
   tasks                         list the registry ({registry.REGISTRY})
-  freeze-cli [--src DIR]        snapshot apps/cli into a venv the runs use (BENCH_HOME/cli, linked from devbin/ardia)
+  freeze-cli [--src DIR] [--name N]  snapshot apps/cli into a venv the runs use (BENCH_HOME/cli, linked from devbin/ardia;
+                                with --name, from devbin-N for plans with "cli": "dev:N")
   servers start|stop [TASK...]  start or stop task servers (all tasks when none named); start --port-offset N binds
                                 each port + N (stop stops every offset)
   run TASK claude|codex RUN_ID  one cold run against the hidden Ardia instance, record in --results/runs/RUN_ID.json;
@@ -43,6 +44,7 @@ def main():
     sub.add_parser("tasks")
     fz = sub.add_parser("freeze-cli")
     fz.add_argument("--src", default=str(registry.BENCH_DIR.parent))
+    fz.add_argument("--name")
     sv = sub.add_parser("servers")
     sv.add_argument("action", choices=["start", "stop"])
     sv.add_argument("task_ids", nargs="*")
@@ -54,7 +56,7 @@ def main():
     rn.add_argument("--results", default=str(registry.HOME / "results/adhoc"))
     rn.add_argument("--app")
     rn.add_argument("--port", type=int)
-    rn.add_argument("--cli", choices=["dev", "installed"])
+    rn.add_argument("--cli")
     rn.add_argument("--ardia-test")
     rn.add_argument("--model")
     rn.add_argument("--effort")
@@ -77,7 +79,7 @@ def main():
         for t in registry.load():
             print(f"{t['id']:<10} ports {','.join(map(str, t['server']['ports'])):<16} {t['deadline_s']:>4}s  {t['title']}")
     elif a.cmd == "freeze-cli":
-        print(json.dumps(ardia_side.freeze_cli(a.src), indent=2))
+        print(json.dumps(ardia_side.freeze_cli(a.src, a.name or ""), indent=2))
     elif a.cmd == "servers":
         ids = registry.task_ids(a.task_ids or "all")
         if a.action == "start":

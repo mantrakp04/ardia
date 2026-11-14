@@ -69,6 +69,8 @@ EOF
 - `page.goto/click/fill/select/press/text(sel)/links(pat)/snapshot('-i')`, `read(urls)`, `browse('cmd', …)`.
   The script runs outside the page (no `document`): DOM code goes in `page.evaluate((x) => …, x)`. Return only
   what you need. Recipes: `references/script.md`.
+- Click with `page.click(sel)` (i-th match: `` `li >> nth=${i}` ``), not `el.click()` in `page.evaluate`: that
+  sends no pointer events; many controls miss it.
 - Before editing dozens of records, look for the site's public API (a Developers or API docs link, a key in
   settings). If it documents one for the job, `curl` it with a key the site already shows you. The app's internal
   `/api` calls don't count (often session-bound or signed): script the UI. Creating a key changes the account: ask.

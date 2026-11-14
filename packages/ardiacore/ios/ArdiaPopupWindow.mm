@@ -251,6 +251,7 @@ NSImage *_Nullable PermissionIcon(NSDictionary *request) {
   const BOOL flipped = host.isFlipped;
   page.frame = NSMakeRect(0, flipped ? kPopupOriginStripHeight : 0, NSWidth(bounds), pageHeight);
   page.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+  [_tab noteInShownSlot];
   [host addSubview:page];
   _strip = [[ArdiaPopupOriginStrip alloc]
       initWithFrame:NSMakeRect(0, flipped ? 0 : pageHeight, NSWidth(bounds), kPopupOriginStripHeight)];

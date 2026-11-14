@@ -13,13 +13,17 @@ export function heldIndex(prev: Held | null, items: Suggestion[], typed: string,
   return at >= 0 ? at : selectedIndex;
 }
 
+export function heldKey(items: Suggestion[], selectedIndex: number): string | null {
+  const current = selectedIndex > 0 ? items[selectedIndex] : undefined;
+  return current ? suggestionKey(current) : null;
+}
+
 export function useHeldSelection(items: Suggestion[], typed: string, scope: SearchScope | null, selectedIndex: number, dispatch: (e: BarEvent) => void) {
   const held = useRef<Held | null>(null);
   useLayoutEffect(() => {
     const at = heldIndex(held.current, items, typed, scope, selectedIndex);
     if (at !== selectedIndex) return dispatch({ kind: "selected", index: at });
-    const current = items[selectedIndex];
-    held.current = { items, typed, scope, key: current ? suggestionKey(current) : null };
+    held.current = { items, typed, scope, key: heldKey(items, selectedIndex) };
   });
 }
 
