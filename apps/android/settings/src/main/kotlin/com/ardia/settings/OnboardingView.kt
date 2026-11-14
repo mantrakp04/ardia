@@ -76,6 +76,7 @@ import com.ardia.design.LocalReduceMotion
 import com.ardia.design.Motion
 import com.ardia.design.Palette
 import com.ardia.design.ProfileBackdrop
+import com.ardia.design.ProfileBackdropStyle
 import com.ardia.design.Radius
 import com.ardia.design.SettingsTint
 import com.ardia.design.Spacing
@@ -171,7 +172,7 @@ private val STEP_SHIFT = 60.dp
 fun OnboardingBackdrop(modifier: Modifier = Modifier) {
     val look = LocalProfileLook.current
     val dark = LocalArdiaDarkTheme.current
-    val fade = remember { Brush.verticalGradient(0f to Color.Black, 0.45f to Color.Black.copy(alpha = 0.6f), 0.8f to Color.Transparent) }
+    val fade = remember { Brush.verticalGradient(*ProfileBackdropStyle.fadeStops.map { (at, alpha) -> at to Color.Black.copy(alpha = alpha) }.toTypedArray()) }
     Box(modifier.background(SystemPalette.background.current).clearAndSetSemantics {}) {
         Box(
             Modifier
