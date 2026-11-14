@@ -141,4 +141,27 @@ class PhoneInboxTest {
         assertEquals(1, aside().size)
         assertTrue(inbox.problem != null)
     }
+
+    @Test
+    fun aQuarantineStaysReportedAcrossLaunchesUntilTheInboxIsWrittenAgain() {
+        val inbox = PhoneInbox(file)
+        inbox.damageForLab()
+        inbox.entries()
+        val problem = inbox.problem
+        assertNotNull(problem)
+        val relaunched = PhoneInbox(file)
+        assertEquals(problem, relaunched.problem)
+        val heard = ArrayList<String?>()
+        relaunched.listen(object : PhoneInbox.Listener {
+            override fun changed(count: Int) = Unit
+
+            override fun problem(message: String?) {
+                heard += message
+            }
+        })
+        assertTrue(relaunched.receive(listOf(tab("b"))))
+        assertNull(relaunched.problem)
+        assertEquals(listOf<String?>(null), heard)
+        assertNull(PhoneInbox(file).problem)
+    }
 }

@@ -26,7 +26,7 @@ const viewLine = (view: SyncedView | null) => {
 
 const statusLine = (status: SyncStatus | null) =>
   status
-    ? `${status.phase}${status.isSyncing ? " (cycling)" : ""} · ${status.statusText} · attention ${status.attention}${status.stalledMessage ? ` · ${status.stalledMessage}` : ""}\nfolder ${status.folderName ?? "-"} · device "${status.deviceName}" · pending ${status.pendingDownloads} · last ${status.lastSynced ? `${localTime(status.lastSynced)} (${Math.round((Date.now() - status.lastSynced) / 1000)} s ago)` : "-"}${status.showsResetNotice ? " · RESET NOTICE" : ""}`
+    ? `${status.phase}${status.isSyncing ? " (cycling)" : ""} · ${status.statusText} · attention ${status.attention}${status.stalledMessage ? ` · ${status.stalledMessage}` : ""}\nfolder ${status.folderName ?? "-"} · device "${status.deviceName}" · pending ${status.pendingDownloads} · last ${status.lastSynced ? `${localTime(status.lastSynced)} (${Math.round((Date.now() - status.lastSynced) / 1000)} s ago)` : "-"}${status.showsResetNotice ? " · RESET NOTICE" : ""}\ninboxProblem ${status.inboxProblem ?? "none"}`
     : "status: -";
 
 function Button({ label, onPress }: { label: string; onPress: () => void }) {
@@ -110,8 +110,10 @@ export function SyncLab({ note }: { note: (line: string) => void }) {
         <Button label="Rename device" onPress={() => run("rename", () => sync.setDeviceName(`Lab ${localTime(Date.now()).slice(0, 5)}`))} />
         <Button label="Damage inbox" onPress={() => run("damage inbox", async () => {
           const result = await syncLab.damageInbox();
-          console.log(`PAGELAB sync inbox damaged: inboxProblem ${result.inboxProblem ?? "none"}`);
-          return result;
+          const after = await sync.status();
+          setStatus(after);
+          console.log(`PAGELAB sync inbox damaged: status inboxProblem ${after.inboxProblem ?? "none"}`);
+          return { inboxProblem: after.inboxProblem };
         })} />
         <Button label="Runtime checks" onPress={() => {
           note("runtime checks: running in a second sync runtime");

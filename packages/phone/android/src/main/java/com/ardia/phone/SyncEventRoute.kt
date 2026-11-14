@@ -3,7 +3,7 @@ package com.ardia.phone
 internal class SyncEventRoute(
     private val inbox: PhoneInbox,
     private val send: (Map<String, Any?>) -> Unit,
-    private val statusWith: (String) -> Map<String, Any?>?,
+    private val statusWith: (String?) -> Map<String, Any?>?,
 ) : PhoneInbox.Listener {
     @Volatile
     private var open = true
@@ -19,7 +19,7 @@ internal class SyncEventRoute(
 
     override fun changed(count: Int) = emit(mapOf("name" to "sync.inbox", "count" to count))
 
-    override fun problem(message: String) {
+    override fun problem(message: String?) {
         if (!open) return
         statusWith(message)?.let { emit(mapOf("name" to "sync.status", "status" to it)) }
     }

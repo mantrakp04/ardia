@@ -29,14 +29,16 @@ class PhoneInbox(private val file: File, private val clock: () -> Long = System:
     private var contents: Contents? = null
     private var failNextWrite = false
 
+    private val problemFile get() = File(file.parentFile, "${file.name}.problem")
+
     @Volatile
-    var problem: String? = null
+    var problem: String? = runCatching { problemFile.takeIf { it.isFile }?.readText()?.ifBlank { null } }.getOrNull()
         private set
 
     interface Listener {
         fun changed(count: Int)
 
-        fun problem(message: String)
+        fun problem(message: String?)
     }
 
     private val listeners = java.util.concurrent.CopyOnWriteArrayList<Listener>()
@@ -92,6 +94,7 @@ class PhoneInbox(private val file: File, private val clock: () -> Long = System:
             contents = next
             next.entries.size
         }
+        clearProblem()
         tell { it.changed(count) }
     }
 
@@ -116,8 +119,16 @@ class PhoneInbox(private val file: File, private val clock: () -> Long = System:
             contents = next
             next.entries.size
         }
+        clearProblem()
         tell { it.changed(count) }
         return true
+    }
+
+    private fun clearProblem() {
+        if (problem == null) return
+        problem = null
+        runCatching { problemFile.delete() }
+        tell { it.problem(null) }
     }
 
     private fun add(current: Contents, received: List<ReceivedTab>, removals: List<HistoryRemoval>) {
@@ -189,6 +200,10 @@ class PhoneInbox(private val file: File, private val clock: () -> Long = System:
 
     private fun report(message: String) {
         problem = message
+        runCatching {
+            file.parentFile?.mkdirs()
+            problemFile.writeText(message)
+        }
         tell { it.problem(message) }
     }
 
