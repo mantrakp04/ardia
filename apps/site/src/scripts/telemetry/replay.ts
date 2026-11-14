@@ -1,16 +1,16 @@
 import { REPLAY_SAMPLE_RATE, REPLAY_START_AFTER_LOAD_MS, REPLAY_START_IDLE_MS } from "../../data/telemetry";
-import { sessionId } from "./core";
+import { onSessionChange, sessionId } from "./core";
+import { inSample, startWhenSampled } from "./sampling";
 
-export function sampled(id: string): boolean {
-  if (REPLAY_SAMPLE_RATE >= 1) return true;
-  const bits = parseInt(id.replace(/-/g, "").slice(-8), 16);
-  return Number.isFinite(bits) && bits / 0xffffffff < REPLAY_SAMPLE_RATE;
-}
+export const sampled = (id: string) => inSample(id, REPLAY_SAMPLE_RATE);
 
 const FIRST_INPUT = ["pointerdown", "keydown"] as const;
 
 export function startReplay() {
-  if (!sampled(sessionId())) return;
+  startWhenSampled(sessionId(), sampled, onSessionChange, begin);
+}
+
+function begin() {
   let scheduled = false;
   const load = () => import("./recorder").then((m) => m.record()).catch(() => {});
   const schedule = () => {

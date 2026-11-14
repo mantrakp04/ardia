@@ -126,6 +126,17 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
   so a full replay disk can't refuse a report. Only nginx is public. It limits
   bodies (512 KB events, 2 MB replay chunks), rates per visitor (20/s events, 5/s replays), and only accepts
   OTLP logs (no traces or metrics).
+- **Replay capacity:** `ph-objects` has a 20 GB disk, and the site records 5% of sessions
+  (`REPLAY_SAMPLE_RATE`, kept or dropped whole). SeaweedFS expires a TTL volume 30 days after its *last write*, so a
+  volume that never fills never expires. The volumes are therefore 256 MB (`-master.volumeSizeLimitMB`), at most 60
+  (`-volume.max`, 15 GB, 75% of the disk): each fills, stops taking writes and is deleted 30 days later, and the
+  disk can't fill up. The rule: 30 days of replay bytes at the sample rate, plus the 7 volumes SeaweedFS opens
+  at once, must fit in those 15 GB. At a rate of 1 the 11-12 peak was 4.4 GB a day, 30 days of that would be
+  133 GB; at 5% it is 6.7 GB. `infra/feedback/test/storage.test.mjs` checks the rule, so raising the rate or the
+  retention means a bigger disk first. On 11-12 the store was full (the volumes were the default 30 GB, never
+  filled, never expired) and replay PUTs answered 500 `No writable volumes and no free volumes left`. Changing the
+  flags doesn't shrink volumes that exist: free space once by hand (`weed shell`: `volume.list`, then
+  `volume.delete` the oldest replay volumes) before redeploying the `posthog` group.
 - **Format:** each event is an OTLP log record. The body and the `event` attribute are the event name, plus
   `uuid`, `distinct_id`, `$session_id` (site) and every property, under PostHog's names. Senders:
   `apps/site/src/scripts/telemetry/` and `apps/browser/src/state/telemetry/`. The collector
@@ -233,7 +244,7 @@ The 2026-09-30 switch's checklist; the Before column is history.
 | Exceptions | `capture_exceptions` | `$exception` with `$exception_list`, `_types`, `_values`… (site and app) | thrown errors; app harness live |
 | Web vitals | `capture_performance` | `$web_vitals` (web-vitals 6.2.2, loaded after the page) | local run |
 | Console warnings/errors | PostHog Logs | `telemetry.logs` (site and app) | local run; app harness live |
-| Session replay | PostHog recordings, inputs masked | rrweb (@rrweb/record 2.1.6, loaded after the page): inputs and `.ac-private` text masked, no canvas, network or console; sessions over 4 s; kept 30 days | live session replayed with `scripts/replay.mjs` |
+| Session replay | PostHog recordings, inputs masked | rrweb (@rrweb/record 2.1.6, loaded after the page): inputs and `.ac-private` text masked, no canvas, network or console; 5% of sessions, kept whole, over 4 s; kept 30 days | live session replayed with `scripts/replay.mjs` |
 | Custom events and `data-track*` props | posthog.capture | same names and props | local run |
 | Referrer, UTM, device, OS, browser | posthog-js | same props; UA parsed in the page (matches PostHog on 849 real UAs) | offline check |
 | Country | PostHog GeoIP | collector GeoIP (DB-IP City Lite since 2026-10-14), IP dropped | live |

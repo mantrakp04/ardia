@@ -63,7 +63,7 @@ pnpm preview    # serve dist/
 
 ardia.dev counts its own visitors: `src/scripts/telemetry/` posts events to `/otel/v1/logs` on the same
 origin (OTLP/HTTP JSON; ardia.dev's nginx hands them to our OpenTelemetry Collector, which writes
-ClickHouse) and rrweb session replays to `/otel/replay/<session>/<seq>.json[.gz]` (SeaweedFS, kept 30 days).
+ClickHouse) and rrweb session replays to `/otel/replay/<session>/<seq>.json[.gz]` (SeaweedFS, kept 30 days, for 5% of sessions).
 No third-party script loads. Event and property names follow PostHog's convention (`$pageview`, `$pageleave`,
 `$autocapture`, `$rageclick`, `$dead_click`, `$dead_swipe`, `$exception`, `$web_vitals`, `$feature_flag_called`,
 `$browser`, `$os`, `$device_type` …), so the September history in `telemetry.posthog_events` and new events read
