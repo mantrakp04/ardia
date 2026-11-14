@@ -162,13 +162,39 @@ export function validListUrl(text: string): string | null {
   return /^https?:\/\/[^\s/?#]+\.[^\s/?#]+[^\s]*$/i.test(trimmed) ? trimmed : null;
 }
 
-export type OnboardingStep = "welcome" | "blocking" | "sync" | "allSet";
+export type OnboardingStep = "welcome" | "blocking" | "defaultBrowser" | "sync" | "allSet";
 
-export const ONBOARDING_STEPS: readonly OnboardingStep[] = ["welcome", "blocking", "sync", "allSet"];
+export const ONBOARDING_STEPS: readonly OnboardingStep[] = ["welcome", "blocking", "defaultBrowser", "sync", "allSet"];
 
-export const nextStep = (step: OnboardingStep): OnboardingStep | null => ONBOARDING_STEPS[ONBOARDING_STEPS.indexOf(step) + 1] ?? null;
+const shownSteps = (offersDefaultBrowser: boolean) => ONBOARDING_STEPS.filter((step) => step !== "defaultBrowser" || offersDefaultBrowser);
 
-export const previousStep = (step: OnboardingStep): OnboardingStep | null => ONBOARDING_STEPS[ONBOARDING_STEPS.indexOf(step) - 1] ?? null;
+export const nextStep = (step: OnboardingStep, offersDefaultBrowser = false): OnboardingStep | null => {
+  const steps = shownSteps(offersDefaultBrowser);
+  const at = steps.indexOf(step);
+  return at < 0 ? (shownSteps(true).slice(shownSteps(true).indexOf(step) + 1).find((s) => steps.includes(s)) ?? null) : (steps[at + 1] ?? null);
+};
+
+export const previousStep = (step: OnboardingStep, offersDefaultBrowser = false): OnboardingStep | null => {
+  const steps = shownSteps(offersDefaultBrowser);
+  const at = steps.indexOf(step);
+  return at <= 0 ? null : (steps[at - 1] ?? null);
+};
+
+export type DefaultBrowserCopy = { title: string; subtitle: string; steps: string[]; action: string | null };
+
+export const DEFAULT_BROWSER_ACTION = "Set as Default Browser";
+
+export const offersDefaultBrowser = (status: { isDefault: boolean; canAsk: boolean } | null) => Boolean(status && (status.canAsk || status.isDefault));
+
+export function defaultBrowserCopy(status: { isDefault: boolean; canAsk: boolean }): DefaultBrowserCopy {
+  if (status.isDefault) return { title: "Ardia is your default browser", subtitle: "Links from other apps open in Ardia.", steps: [], action: null };
+  return {
+    title: "Make Ardia your default browser",
+    subtitle: "Open links from other apps in Ardia.",
+    steps: [`Tap “${DEFAULT_BROWSER_ACTION}”`, "Select Ardia"],
+    action: DEFAULT_BROWSER_ACTION,
+  };
+}
 
 export const exportableUrls = (tabs: readonly { url: string; isPrivate: boolean }[]) =>
   tabs.filter((tab) => !tab.isPrivate && /^https?:\/\//i.test(tab.url)).map((tab) => tab.url);

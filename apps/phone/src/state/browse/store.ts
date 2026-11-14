@@ -15,6 +15,7 @@ import type { VisitKind } from "../../platform/pages";
 import { showOnboarding, useOnboarding } from "../onboarding/store";
 import { pageUi } from "../page/store";
 import { settingsNav } from "../settings/nav";
+import { refreshDefaultBrowser } from "../settings/defaultBrowser";
 import { forgetPosition, saveTabPosition, watchFrontScroll } from "./positions";
 import { noteLocalChange } from "../sync/store";
 import { currentPreferences, loadPreferences } from "../settings/store";
@@ -91,6 +92,7 @@ export function pageCovered() {
 
 export function appBecameActive() {
   appActive = true;
+  void refreshDefaultBrowser();
   const selected = currentTabs().selectedId;
   if (selected) selectTabById(selected);
   archiveDueTabs();

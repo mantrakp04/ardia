@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { presentSearch } from "../search/store";
 import { closeSettings } from "../settings/nav";
-import { nextStep, previousStep, type OnboardingStep } from "../settings/settingsRules";
+import { defaultBrowserStatus, refreshDefaultBrowser } from "../settings/defaultBrowser";
+import { nextStep, offersDefaultBrowser, previousStep, type OnboardingStep } from "../settings/settingsRules";
 import { currentPreferences, setPreference } from "../settings/store";
 import { useTabs } from "../tabs/store";
 
@@ -12,10 +13,13 @@ export const onboardingShowing = () => useOnboarding.getState().showing;
 export function showOnboarding() {
   closeSettings();
   useOnboarding.setState({ showing: true, step: "welcome", forward: true });
+  void refreshDefaultBrowser();
 }
 
+const offers = () => offersDefaultBrowser(defaultBrowserStatus());
+
 export function advanceOnboarding() {
-  const next = nextStep(useOnboarding.getState().step);
+  const next = nextStep(useOnboarding.getState().step, offers());
   if (next) useOnboarding.setState({ step: next, forward: true });
   else finishOnboarding();
 }
@@ -23,7 +27,7 @@ export function advanceOnboarding() {
 export function onboardingBack(): boolean {
   const { showing, step } = useOnboarding.getState();
   if (!showing) return false;
-  const previous = previousStep(step);
+  const previous = previousStep(step, offers());
   if (previous) useOnboarding.setState({ step: previous, forward: false });
   else finishOnboarding();
   return true;

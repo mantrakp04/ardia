@@ -10,6 +10,7 @@ export type SettingsRoute =
   | { page: "trustedSites" }
   | { page: "clearData" }
   | { page: "sync" }
+  | { page: "defaultBrowser" }
   | { page: "syncConnect" }
   | { page: "about" }
   | { page: "licenses" };

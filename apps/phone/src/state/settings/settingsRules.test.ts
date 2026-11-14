@@ -13,7 +13,9 @@ import {
   listStatus,
   myFiltersCount,
   myFiltersSummary,
+  defaultBrowserCopy,
   nextStep,
+  offersDefaultBrowser,
   previousStep,
   resetMessage,
   updatedText,
@@ -84,4 +86,32 @@ test("Export Open Tabs shares the web addresses of regular tabs only", () => {
     ]),
     ["https://a.example/"],
   );
+});
+
+test("onboarding asks about the default browser only where the phone can be asked or already has Ardia", () => {
+  assert.equal(nextStep("blocking", true), "defaultBrowser");
+  assert.equal(nextStep("defaultBrowser", true), "sync");
+  assert.equal(nextStep("blocking", false), "sync");
+  assert.equal(previousStep("sync", true), "defaultBrowser");
+  assert.equal(previousStep("sync", false), "blocking");
+  assert.equal(nextStep("defaultBrowser", false), "sync");
+  assert.equal(offersDefaultBrowser({ isDefault: false, canAsk: true }), true);
+  assert.equal(offersDefaultBrowser({ isDefault: true, canAsk: false }), true);
+  assert.equal(offersDefaultBrowser({ isDefault: false, canAsk: false }), false);
+  assert.equal(offersDefaultBrowser(null), false);
+});
+
+test("the default browser page has the two steps until Ardia is the default, then says so", () => {
+  assert.deepEqual(defaultBrowserCopy({ isDefault: false, canAsk: true }), {
+    title: "Make Ardia your default browser",
+    subtitle: "Open links from other apps in Ardia.",
+    steps: ["Tap “Set as Default Browser”", "Select Ardia"],
+    action: "Set as Default Browser",
+  });
+  assert.deepEqual(defaultBrowserCopy({ isDefault: true, canAsk: false }), {
+    title: "Ardia is your default browser",
+    subtitle: "Links from other apps open in Ardia.",
+    steps: [],
+    action: null,
+  });
 });

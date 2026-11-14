@@ -10,6 +10,7 @@ import { SettingsRoot } from "./SettingsRoot";
 import { SearchEnginePage, SiteSettingsPage } from "./SitePages";
 import { SyncConnect } from "../sync/SyncConnect";
 import { SyncPage } from "../sync/SyncPage";
+import { DefaultBrowserPage } from "./DefaultBrowserPage";
 import { popSettings } from "../../state/settings/nav";
 
 const rise = SlideInDown.springify().stiffness(tabsMotion.sheetIn.stiffness).damping(tabsMotion.sheetIn.damping);
@@ -38,6 +39,8 @@ function Page({ route }: { route: SettingsRoute }) {
       return <ClearDataPage />;
     case "sync":
       return <SyncPage />;
+    case "defaultBrowser":
+      return <DefaultBrowserPage />;
     case "syncConnect":
       return <SyncConnect onClose={popSettings} onConnected={popSettings} />;
     case "about":

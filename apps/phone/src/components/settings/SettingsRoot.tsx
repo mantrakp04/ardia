@@ -1,4 +1,7 @@
+import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { refreshDefaultBrowser, useDefaultBrowser } from "../../state/settings/defaultBrowser";
+import { offersDefaultBrowser } from "../../state/settings/settingsRules";
 import { openArchive, openSpaces } from "../../state/browse/store";
 import { matchMyMac } from "../../state/sync/actions";
 import { useLookColor, useSyncEnabled, useSyncStatus, useSyncView } from "../../state/sync/hooks";
@@ -21,6 +24,10 @@ export function SettingsRoot() {
   const interval = usePreferences((p) => p.autoArchiveInterval);
   const engines = useEngines((s) => s.engines);
   const syncEnabled = useSyncEnabled();
+  const offersDefault = offersDefaultBrowser(useDefaultBrowser((s) => s.status));
+  useEffect(() => {
+    void refreshDefaultBrowser();
+  }, []);
   const synced = useSyncView().search;
   const engineName = syncEnabled && synced ? syncedEngineName(synced, engines) : (engines.find((engine) => engine.id === engineId)?.name ?? "");
   return (
@@ -57,7 +64,8 @@ export function SettingsRoot() {
         {syncEnabled ? <MatchMyMac /> : null}
       </Group>
       <Group>
-        <NavRow title="Site Settings" icon="globe" tint={settingsTint.neutral} onPress={() => pushSettings({ page: "siteSettings" })} />
+        <NavRow title="Site Settings" icon="globe" tint={settingsTint.neutral} divider={offersDefault} onPress={() => pushSettings({ page: "siteSettings" })} />
+        {offersDefault ? <NavRow title="Default Browser" icon="globe" tint={settingsTint.sync} onPress={() => pushSettings({ page: "defaultBrowser" })} /> : null}
       </Group>
       <Group>
         <NavRow title="Search Engine" icon="magnifyingglass" tint={settingsTint.search} value={engineName} divider onPress={() => pushSettings({ page: "searchEngine" })} />

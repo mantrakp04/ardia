@@ -7,6 +7,7 @@ import { refreshSettings, setBlockingCategory, useBlocking } from "../../state/s
 import { ArdiaLogo, Backdrop, capsule, font, radius, settingsLayout, settingsTint, space, spring, Symbol, tabsMotion, useTheme, type SymbolName } from "../ui";
 import { ToggleRow } from "../settings/SettingsKit";
 import { SyncConnect } from "../sync/SyncConnect";
+import { DefaultBrowserSteps } from "../settings/DefaultBrowserPage";
 import { useSyncConnected } from "../../state/sync/hooks";
 
 const welcomeSpring = spring(0.7, 0.7);
@@ -30,9 +31,18 @@ export function OnboardingView() {
         entering={(forward ? SlideInRight : SlideInLeft).springify().stiffness(tabsMotion.sheetIn.stiffness).damping(tabsMotion.sheetIn.damping)}
         style={[StyleSheet.absoluteFill, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
       >
-        {step === "welcome" ? <Welcome /> : step === "blocking" ? <Blocking /> : step === "sync" ? <SyncStep /> : <AllSet />}
+        {step === "welcome" ? <Welcome /> : step === "blocking" ? <Blocking /> : step === "sync" ? <SyncStep /> : step === "defaultBrowser" ? <DefaultBrowserStep /> : <AllSet />}
       </Animated.View>
     </Animated.View>
+  );
+}
+
+function DefaultBrowserStep() {
+  return (
+    <View style={[styles.column, styles.defaultBrowser]}>
+      <View style={styles.fill} />
+      <DefaultBrowserSteps onLater={advanceOnboarding} onDone={advanceOnboarding} />
+    </View>
   );
 }
 
@@ -205,6 +215,7 @@ const styles = StyleSheet.create({
   primary: { minHeight: settingsLayout.primaryButton, borderRadius: capsule(settingsLayout.primaryButton), alignItems: "center", justifyContent: "center" },
   illustration: { flex: 1, justifyContent: "flex-end", paddingHorizontal: space.l },
   card: { borderRadius: radius.card, paddingVertical: space.xs, elevation: 8, shadowOpacity: 0.4, shadowRadius: 16 },
+  defaultBrowser: { paddingBottom: space.m },
   syncArt: { alignSelf: "center", padding: space.huge, alignItems: "center" },
   secondary: { minHeight: 44, alignItems: "center", justifyContent: "center" },
   tips: { paddingHorizontal: space.xl, paddingVertical: space.xl, gap: space.xl },
