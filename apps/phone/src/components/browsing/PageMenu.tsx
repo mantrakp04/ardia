@@ -9,6 +9,7 @@ import {
   menuReload,
   menuStop,
   resetZoom,
+  openInDefaultBrowser,
   openSiteSettings,
   setBlockersOn,
   setDesktopSite,
@@ -60,7 +61,8 @@ export function PageMenu({ tabId }: { tabId: string }) {
                 detail={model.blockedCount}
                 onChange={setBlockersOn}
               />
-              <Row icon="gearshape" title="Site Settings" enabled divider={false} onPress={openSiteSettings} />
+              <Row icon="gearshape" title="Site Settings" enabled onPress={openSiteSettings} />
+              <Row icon="globe" title="Open in Default Browser" enabled={model.isWebPage} divider={false} onPress={openInDefaultBrowser} />
             </Group>
           </>
         ) : null}

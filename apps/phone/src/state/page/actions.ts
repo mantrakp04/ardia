@@ -52,6 +52,13 @@ export async function openPageMenu() {
 
 export const closePageMenu = () => usePageUi.setState({ menuOpen: false });
 
+export function openInDefaultBrowser() {
+  const tab = selectedTab();
+  closePageMenu();
+  const url = tab ? (usePages.getState().navigation[tab.id]?.url ?? tab.url) : null;
+  if (url && isSyncableUrl(url)) quietly(() => openExternal(url));
+}
+
 export function openSiteSettings() {
   closePageMenu();
   openSettings({ page: "siteSettings" });
