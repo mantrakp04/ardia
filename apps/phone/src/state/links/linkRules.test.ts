@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { heldAfterOnboarding, linkAction, type LinkState } from "./linkRules.ts";
 
-const browsing: LinkState = { onboarding: false, syncEnabled: true, hasTab: (id) => id === "t1" };
+const browsing: LinkState = { onboarding: false, syncEnabled: true, canSearchByVoice: false, hasTab: (id) => id === "t1" };
 
 test("a web link from another app opens in a new tab in front; anything else is ignored", () => {
   assert.deepEqual(linkAction({ kind: "open", url: " https://example.com/a " }, browsing), { kind: "openUrl", url: "https://example.com/a" });
@@ -15,6 +15,11 @@ test("search, voice search and incognito open the tray, with the query filled wh
   assert.deepEqual(linkAction({ kind: "search", query: null }, browsing), { kind: "tray", query: "", incognito: false });
   assert.deepEqual(linkAction({ kind: "voiceSearch" }, browsing), { kind: "tray", query: "", incognito: false });
   assert.deepEqual(linkAction({ kind: "incognito" }, browsing), { kind: "tray", query: "", incognito: true });
+});
+
+test("voice search opens the voice screen once the phone can recognise speech", () => {
+  assert.deepEqual(linkAction({ kind: "voiceSearch" }, { ...browsing, canSearchByVoice: true }), { kind: "voice" });
+  assert.deepEqual(linkAction({ kind: "voiceSearch" }, { ...browsing, onboarding: true, canSearchByVoice: true }), { kind: "hold" });
 });
 
 test("a tab link switches to that tab when it is still open", () => {

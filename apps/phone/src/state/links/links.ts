@@ -7,6 +7,7 @@ import { presentSearch } from "../search/store";
 import { closeSettings, openSettings } from "../settings/nav";
 import { applyInbox } from "../sync/actions";
 import { syncData } from "../sync/store";
+import { canSearchByVoice, presentVoiceSearch } from "../voice/store";
 import { currentTabs, setIncognito, useTabs } from "../tabs/store";
 import { findTab } from "../tabs/tabsState";
 import { heldAfterOnboarding, linkAction, type IncomingLink } from "./linkRules";
@@ -24,6 +25,7 @@ async function run(link: IncomingLink) {
   const action = linkAction(link, {
     onboarding: useOnboarding.getState().showing,
     syncEnabled: syncData().status.isEnabled,
+    canSearchByVoice: canSearchByVoice(),
     hasTab: (id) => Boolean(findTab(currentTabs(), id)),
   });
   switch (action.kind) {
@@ -42,6 +44,11 @@ async function run(link: IncomingLink) {
       presentSearch(useBrowse.getState().surface === "start" ? "start" : "page", action.query, was);
       return;
     }
+    case "voice":
+      prepare();
+      setIncognito(false);
+      presentVoiceSearch();
+      return;
     case "switchTab":
       prepare();
       openTab(action.id);

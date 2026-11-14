@@ -118,6 +118,12 @@ export function submitSearch(text: string) {
   if (resolution) openPage(resolution.url, resolution.kind === "url" ? "typed" : "search");
 }
 
+export function searchFor(query: string) {
+  const trimmed = query.trim();
+  const resolution = trimmed ? resolve(`?${trimmed}`) : null;
+  if (resolution) openPage(resolution.url, "search");
+}
+
 export function activateRow(row: TrayRow) {
   if (row.kind === "calc") return;
   if (row.kind === "page" && row.tabId && findTab(currentTabs(), row.tabId)) {

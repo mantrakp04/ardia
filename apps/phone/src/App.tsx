@@ -24,6 +24,8 @@ import { useSearchOpen } from "./state/search/hooks";
 import { useSheet, useSurface } from "./state/browse/hooks";
 import { appBecameActive, appWillResignActive, goBackToStartIfEmpty, startBrowser } from "./state/browse/store";
 import { handleSystemBack, startPageUi } from "./state/page/actions";
+import { VoiceSearchView } from "./components/search/VoiceSearchView";
+import { useVoicePresented } from "./state/voice/store";
 import { useSelectedTab } from "./state/tabs/hooks";
 
 export default function App() {
@@ -66,10 +68,11 @@ function Surfaces() {
   const settingsOpen = useSettingsNav((s) => s.open);
   const onboarding = useOnboarding((s) => s.showing);
   const searching = useSearchOpen();
+  const voice = useVoicePresented();
   useEffect(goBackToStartIfEmpty, [tab, surface]);
   return (
     <>
-      <Layer covered={sheet !== null || settingsOpen || onboarding}>
+      <Layer covered={sheet !== null || settingsOpen || onboarding || voice}>
         <Shade shaded={searching}>
           {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
           {surface === "deck" ? <TabDeck /> : null}
@@ -77,12 +80,15 @@ function Surfaces() {
         </Shade>
         <SearchTray />
       </Layer>
-      <Layer covered={settingsOpen || onboarding}>
+      <Layer covered={settingsOpen || onboarding || voice}>
         {sheet === "archive" ? <ArchiveView /> : null}
         {sheet === "spaces" ? <SpacesView /> : null}
       </Layer>
-      <Layer covered={onboarding}>
+      <Layer covered={onboarding || voice}>
         <SettingsView />
+      </Layer>
+      <Layer covered={onboarding}>
+        <VoiceSearchView />
       </Layer>
       <OnboardingView />
       <ToastHost />

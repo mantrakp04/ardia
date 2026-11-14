@@ -181,6 +181,29 @@ export const scanInk = {
 
 export const scanLayout = { frame: 250, frameRadius: 24, frameStroke: 3, noteRadius: 12, cancelInset: 8 } as const;
 
+export const voiceInk = {
+  label: "#FFFFFF",
+  soft: "rgba(255,255,255,0.8)",
+  quiet: "rgba(255,255,255,0.7)",
+  bar: "rgba(255,255,255,0.85)",
+  glass: "rgba(255,255,255,0.18)",
+  transcript: "rgba(0,0,0,0.18)",
+} as const;
+
+export const voiceLayout = {
+  logo: 128,
+  pill: 50,
+  cancel: 44,
+  icon: 17,
+  bar: 4,
+  barGap: 4,
+  barMin: 6,
+  barRange: 38,
+  waveHeight: 48,
+  transcriptRadius: 22,
+  levelMotion: 120,
+} as const;
+
 export const syncInk = { banner: "#FF9500" } as const;
 
 export const spacesLayout = {

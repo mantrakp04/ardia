@@ -7,12 +7,13 @@ export type IncomingLink =
   | { kind: "macTabs" }
   | { kind: "inbox" };
 
-export type LinkState = { onboarding: boolean; syncEnabled: boolean; hasTab: (id: string) => boolean };
+export type LinkState = { onboarding: boolean; syncEnabled: boolean; canSearchByVoice: boolean; hasTab: (id: string) => boolean };
 
 export type LinkAction =
   | { kind: "hold" }
   | { kind: "openUrl"; url: string }
   | { kind: "tray"; query: string; incognito: boolean }
+  | { kind: "voice" }
   | { kind: "switchTab"; id: string }
   | { kind: "spaces" }
   | { kind: "syncSettings" }
@@ -29,7 +30,7 @@ export function linkAction(link: IncomingLink, state: LinkState): LinkAction {
     case "search":
       return { kind: "tray", query: link.query?.trim() ?? "", incognito: false };
     case "voiceSearch":
-      return { kind: "tray", query: "", incognito: false };
+      return state.canSearchByVoice ? { kind: "voice" } : { kind: "tray", query: "", incognito: false };
     case "incognito":
       return { kind: "tray", query: "", incognito: true };
     case "tab":

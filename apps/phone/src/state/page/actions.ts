@@ -20,6 +20,7 @@ import { openSettings, popSettings } from "../settings/nav";
 import { pinToMac, sendTab } from "../sync/actions";
 import type { SyncedDevice } from "../../platform/sync";
 import { pageUi, usePageUi, type Press } from "./store";
+import { closeVoiceSearch, useVoice } from "../voice/store";
 import { showToast, TOAST_LONG_DURATION_MS } from "../toasts/store";
 
 const TITLE_FEEDBACK_MS = 1500;
@@ -298,6 +299,10 @@ export const openInOtherApp = (url: string) => quietly(() => openExternal(url));
 
 export function handleSystemBack(): boolean {
   if (onboardingBack()) return true;
+  if (useVoice.getState().presented) {
+    closeVoiceSearch();
+    return true;
+  }
   if (popSettings()) return true;
   const { surface, sheet } = useBrowse.getState();
   const id = selectedId();

@@ -11,6 +11,9 @@ import { searchState, setSearchText, typeSearch } from "../../state/search/store
 import { useIncognito } from "../../state/tabs/hooks";
 import { browseLayout, capsule, FloatingMenu, font, ink, radius, rolesFor, space, springs, Symbol, tabsInk, tabsLayout, trayShadow, useTheme } from "../ui";
 import { SuggestionRow } from "./SuggestionRow";
+import { canSearchByVoice, presentVoiceSearch } from "../../state/voice/store";
+
+const LARGE_FONT_SCALE = 1.5;
 import { useBottomLift } from "./useKeyboardHeight";
 
 const SHEET_ABOVE_KEYBOARD = 274;
@@ -131,10 +134,24 @@ function FieldInput({ first }: { first: boolean }) {
           <Pressable accessibilityRole="button" accessibilityLabel="Clear Text" style={styles.accessory} onPress={() => setSearchText("")}>
             <Symbol name="xmarkCircleFill" size={18} color={theme.foregroundTertiary} />
           </Pressable>
-        ) : null}
+        ) : (
+          <VoiceButton />
+        )}
         <IncognitoToggle />
       </View>
     </View>
+  );
+}
+
+function VoiceButton() {
+  const theme = useTrayTheme();
+  const incognito = useIncognito();
+  const { fontScale } = useWindowDimensions();
+  if (incognito || fontScale > LARGE_FONT_SCALE || !canSearchByVoice()) return null;
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel="Voice Search" style={styles.accessory} onPress={presentVoiceSearch}>
+      <Symbol name="mic" size={19} color={theme.foregroundTertiary} />
+    </Pressable>
   );
 }
 
