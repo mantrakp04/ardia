@@ -3,7 +3,7 @@ import { Animated, Pressable, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { useGroup, usePageProfileId, useWindowId } from "../../state/browser/hooks";
 import { updateGroup } from "../../state/groups/actions";
-import { noteGroupHeaderHide } from "../../state/telemetry/usage";
+import { noteSidebarCount } from "../../state/telemetry/usage";
 import { useGroupLabel } from "../../state/groups/hooks";
 import { useSelectionInGroup } from "../../state/pins/hooks";
 import { newCapture } from "../../state/sidebar/listCapture";
@@ -20,7 +20,8 @@ import { entryHeightNow, foldedGroupHeight, headGap } from "../../state/sidebar/
 import { dismissHover } from "../../state/sidebar/hover";
 import { useGroupHover, useRowHover } from "./hoverController";
 import { HOVER_CARD_FADE_MS } from "./hoverMotion";
-import { GhostSlot, ListMotionContext, useGroupMotion } from "./ListMotion";
+import { ListMotionContext, useGroupMotion } from "./ListMotion";
+import { EntryGhost, GhostSlot } from "./GhostEntry";
 import { pressGroupClose, useGroupCloseControlWhile } from "../../state/sidebar/closeControl";
 import { openGroupMenu } from "../../state/sidebar/menus";
 import { registerRow, useSidebarUi } from "../../state/sidebar/sidebarUi";
@@ -133,12 +134,16 @@ export const GroupBlock = memo(function GroupBlock({
             )}
             keep={keptEntries}
             rowHeight={(key) => entryHeightNow(windowId, profileId, key)}
-            padTop={headGap(collapsed && keptEntries.length ? keptEntries[0] : entries[0])}
-            padBottom={groupMembersPadBottom(collapsed ? keptEntries.length : entries.length)}
+            padTop={headGap}
+            padBottom={groupMembersPadBottom(entries.length)}
             indent={GROUP_INDENT}
             indentEnd={GROUP_INSET}
             mountClosed={selectedInside}
             footer={<Animated.View ref={tail.wrapper.ref} style={tail.wrapper.style} />}
+            farewell={(key) => {
+              const closed = motion.closedShot(key);
+              return closed?.shot ? { node: <EntryGhost snapshot={closed.shot} />, height: closed.height } : null;
+            }}
           />
         </InnerGroupHover.Provider>
         {motion.tail ? <Animated.View style={{ marginTop: motion.tail }} /> : null}
@@ -199,7 +204,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
             dismissHover();
             if (renaming) return;
             if (!collapsed || !showsExtra) return updateGroup(groupId, { collapsed: !collapsed });
-            noteGroupHeaderHide();
+            noteSidebarCount("groupHeaderHides");
             updateGroup(groupId, { shownTabIds: [] });
           }}
         >
