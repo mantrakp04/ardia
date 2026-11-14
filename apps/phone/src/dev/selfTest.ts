@@ -21,7 +21,38 @@ export const LAB_BLOCKED_REQUESTS = [
   "https://static.hotjar.com/c/hotjar-1.js",
   "https://cdn.taboola.com/libtrc/lab/loader.js",
 ];
-export const labBlockingHtml = `<!doctype html><meta name="viewport" content="width=device-width"><title>blocking</title><body style="font:18px sans-serif;padding:12px"><p>blocking</p>${LAB_BLOCKED_REQUESTS.map((url) => (url.endsWith(".gif") ? `<img src="${url}">` : `<script async src="${url}"></script>`)).join("")}</body>`;
+const busted = (url: string, token: string) => `${url}${url.includes("?") ? "&" : "?"}ardia=${token}`;
+const freshToken = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+export const labBlockingHtml = (token = freshToken()) =>
+  `<!doctype html><meta name="viewport" content="width=device-width"><title>blocking</title><body style="font:18px sans-serif;padding:12px"><p>blocking</p>${LAB_BLOCKED_REQUESTS.map((url) => (url.endsWith(".gif") ? `<img src="${busted(url, token)}">` : `<script async src="${busted(url, token)}"></script>`)).join("")}</body>`;
+export const REAL_SITE_URL = "https://example.com/";
+const injectRequests = (token: string) =>
+  `(() => { for (const url of ${JSON.stringify(LAB_BLOCKED_REQUESTS.map((url) => busted(url, token)))}) { if (url.includes(".gif?")) { const image = new Image(); image.src = url; document.body.appendChild(image); } else { const script = document.createElement("script"); script.async = true; script.src = url; document.head.appendChild(script); } } return ${LAB_BLOCKED_REQUESTS.length}; })()`;
+
+const steadyBlockedCount = async (pageId: string) => {
+  let last = -1;
+  let steadySince = Date.now();
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    const count = (await pages.state(pageId))?.blockedRequests ?? 0;
+    if (count !== last) {
+      last = count;
+      steadySince = Date.now();
+    } else if (Date.now() - steadySince >= 1500) {
+      break;
+    }
+    await pause(250);
+  }
+  return last;
+};
+
+const blockedOnRealSite = async (pageId: string, round: number) => {
+  await load(pageId, `${REAL_SITE_URL}?lab=${round}-${freshToken()}`, (state) => state.url?.startsWith(REAL_SITE_URL) ?? false, 45000);
+  await pause(500);
+  const before = await steadyBlockedCount(pageId);
+  await pages.evaluate(pageId, injectRequests(freshToken()));
+  return { before, after: await steadyBlockedCount(pageId) };
+};
 export const ARTICLE_URL = "https://en.wikipedia.org/wiki/Web_browser";
 export const DOWNLOAD_URL = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
 
@@ -79,23 +110,18 @@ const settledState = (pageId: string, accept: (state: PageState) => boolean, mil
 
 const loadLabHtml = async (pageId: string, html: string, baseUrl: string) => {
   let sawLoading = false;
-  const done = settledState(
-    pageId,
-    (state) => {
-      if (state.url !== baseUrl) return false;
-      return sawLoading;
-    },
-    30000,
-    `local page ${baseUrl}`,
-  );
+  const urls: string[] = [];
+  const done = settledState(pageId, (state) => state.url === baseUrl && sawLoading, 30000, `local page ${baseUrl}`);
   const loading = pages.addListener((event) => {
-    if (event.name === "page.state" && event.pageId === pageId && event.state.isLoading) sawLoading = true;
+    if (event.name !== "page.state" || event.pageId !== pageId) return;
+    if (event.state.isLoading) sawLoading = true;
+    const url = event.state.url?.slice(0, 30) ?? "null";
+    if (sawLoading && urls[urls.length - 1] !== url) urls.push(url);
   });
   try {
     await pages.loadHtml(pageId, html, baseUrl);
-    const state = await done;
-    await pause(1500);
-    return (await pages.state(pageId))?.blockedRequests ?? state.blockedRequests;
+    await done;
+    return { blocked: await steadyBlockedCount(pageId), urls };
   } finally {
     loading.remove();
   }
@@ -142,33 +168,38 @@ export async function runSelfTest(
     const trace = pages.addListener((event) => {
       if (event.name === "page.find" && event.pageId === pageId) seen.push(event.result ? `${event.result.activeIndex + 1}/${event.result.total}${event.result.isDone ? "" : "…"}` : "end");
     });
-    const findEvent = (accept: (index: number, total: number) => boolean, what: string, millis = 4000) =>
+    const settled = (accept: (index: number, total: number) => boolean, what: string, millis = 8000) =>
       waitForPage(
         (event) => (event.name === "page.find" && event.pageId === pageId && event.result?.isDone && accept(event.result.activeIndex, event.result.total) ? event.result : undefined),
         millis,
         what,
       );
     try {
-      const counted = findEvent((_, total) => total > 0, "find count", 10000);
+      const counted = settled((_, total) => total > 0, "find count", 15000);
       await pages.find(pageId, "browser");
       const first = await counted;
-      let tries = 0;
-      let moved: Awaited<typeof counted> | null = null;
-      while (!moved && tries < 3) {
-        tries += 1;
-        const next = findEvent((index) => index !== first.activeIndex, "find next");
-        await pages.findNext(pageId);
-        moved = await next.catch(() => null);
-      }
-      if (!moved) throw new Error(`no find event after ${tries} findNext calls`);
-      const back = findEvent((index) => index === first.activeIndex, "find previous");
+      const next = settled((index) => index !== first.activeIndex, "find next");
+      await pages.findNext(pageId);
+      const moved = await next;
+      const previous = settled((index) => index !== moved.activeIndex, "find previous");
       await pages.findPrevious(pageId);
-      await back;
+      const back = await previous;
+      const eventsBeforeRepeat = seen.length;
+      await pages.find(pageId, "browser");
+      await pause(800);
+      const repeatMoved = seen.length !== eventsBeforeRepeat;
       const ended = waitForPage((event) => (event.name === "page.find" && event.pageId === pageId && event.result === null ? true : undefined), 10000, "find end");
       await pages.endFind(pageId);
       await ended;
-      if (first.total !== 3) throw new Error(`expected 3 matches, got ${first.total}`);
-      return `total=${first.total} first=${first.activeIndex + 1} next=${moved.activeIndex + 1} (findNext calls ${tries}) previous=${first.activeIndex + 1} ended; events ${seen.join(" ")}`;
+      const unsettled = seen.filter((line) => line.endsWith("…"));
+      const problems = [
+        first.total !== 3 && `expected 3 matches, got ${first.total}`,
+        back.activeIndex !== first.activeIndex && `previous landed on ${back.activeIndex + 1}, not ${first.activeIndex + 1}`,
+        repeatMoved && "finding the same text again moved the match",
+        unsettled.length > 0 && `${unsettled.length} unsettled events`,
+      ].filter(Boolean);
+      if (problems.length) throw new Error(problems.join("; "));
+      return `findNext calls 1; total=${first.total} first=${first.activeIndex + 1} next=${moved.activeIndex + 1} previous=${back.activeIndex + 1}; same text again stays; events ${seen.join(" ")}`;
     } catch (error) {
       throw new Error(`${error instanceof Error ? error.message : String(error)}; events ${seen.join(" ") || "none"}`);
     } finally {
@@ -231,7 +262,7 @@ export async function runSelfTest(
     await pause(800);
     const snapshot = await pages.snapshot(pageId);
     if (!snapshot) throw new Error("no snapshot");
-    return `${snapshot.width}x${snapshot.height} ${snapshot.path}`;
+    return `route=${snapshot.route ?? "?"} ${snapshot.bytes ?? "?"} bytes ${snapshot.width}x${snapshot.height} ${snapshot.path}`;
   });
 
   await step("save state", async () => {
@@ -256,23 +287,47 @@ export async function runSelfTest(
     return `isPrivate=${state.isPrivate} → session ended, page closed`;
   });
 
+  await step("shown again after discard", async () => {
+    const other = `${pageId}-other`;
+    await pages.open(other, { url: FIND_PAGE });
+    await pages.discardBackgroundPages(other);
+    const afterDiscard = await pages.livePageIds();
+    if (afterDiscard.includes(pageId)) throw new Error(`still live after discard: ${afterDiscard.join(",")}`);
+    const live = settledState(pageId, (state) => state.isLive, 30000, "the page live again");
+    await pages.discardBackgroundPages(pageId);
+    await live;
+    await pause(1000);
+    const scroll = await pages.scrollPosition(pageId);
+    await pages.close(other);
+    const width = Math.round(scroll?.viewportWidth ?? 0);
+    const height = Math.round(scroll?.viewportHeight ?? 0);
+    if (width <= 0 || height <= 0) throw new Error(`web view is ${width}x${height} after showing it again`);
+    return `discarded, kept again with a new web view at ${width}x${height}; live ${(await pages.livePageIds()).join(",")}`;
+  });
+
   await step("blocking", async () => {
     const status = await blocking.state();
-    await blocking.setEnabledForSite(LAB_BLOCKING_URL, true);
-    const blocked = await loadLabHtml(pageId, labBlockingHtml, LAB_BLOCKING_URL);
+    await blocking.setEnabledForSite(REAL_SITE_URL, true);
+    const real = await blockedOnRealSite(pageId, 1);
+    const local = await loadLabHtml(pageId, labBlockingHtml(), LAB_BLOCKING_URL);
     const counted = await blocking.blockedCount(pageId);
-    if (blocked < 3) throw new Error(`blocked ${blocked} of ${LAB_BLOCKED_REQUESTS.length}; rules=${status.enabledRuleCount} status=${status.status}`);
-    return `local page: blocked ${blocked} of ${LAB_BLOCKED_REQUESTS.length}, blockedCount()=${counted}, rules=${status.enabledRuleCount}`;
+    const blocked = real.after - real.before;
+    if (blocked < LAB_BLOCKED_REQUESTS.length) throw new Error(`example.com: blocked ${blocked} of ${LAB_BLOCKED_REQUESTS.length}; rules=${status.enabledRuleCount} status=${status.status}`);
+    return `example.com: blocked ${blocked} of ${LAB_BLOCKED_REQUESTS.length}; local page: blocked ${local.blocked}, blockedCount()=${counted}, urls ${local.urls.join(" → ")}`;
   });
 
   await step("blocking off for site", async () => {
-    const host = await blocking.setEnabledForSite(LAB_BLOCKING_URL, false);
-    const enabled = await blocking.isEnabledForSite(LAB_BLOCKING_URL);
-    const off = await loadLabHtml(pageId, labBlockingHtml, LAB_BLOCKING_URL);
-    await blocking.setEnabledForSite(LAB_BLOCKING_URL, true);
-    const on = await loadLabHtml(pageId, labBlockingHtml, LAB_BLOCKING_URL);
-    if (enabled || off !== 0 || on < 3) throw new Error(`host=${host} isEnabledForSite=${enabled} blocked off=${off} back on=${on}`);
-    return `off for ${host}: blocked ${off}; back on: blocked ${on}`;
+    const host = await blocking.setEnabledForSite(REAL_SITE_URL, false);
+    const enabled = await blocking.isEnabledForSite(REAL_SITE_URL);
+    const off = await blockedOnRealSite(pageId, 2);
+    await blocking.setEnabledForSite(REAL_SITE_URL, true);
+    const on = await blockedOnRealSite(pageId, 3);
+    const offBlocked = off.after;
+    const onBlocked = on.after - on.before;
+    if (enabled || offBlocked !== 0 || onBlocked < LAB_BLOCKED_REQUESTS.length) {
+      throw new Error(`host=${host} isEnabledForSite=${enabled} off: ${off.before}→${off.after}, back on: ${on.before}→${on.after}`);
+    }
+    return `off for ${host}: blocked ${offBlocked}; back on: blocked ${onBlocked} of ${LAB_BLOCKED_REQUESTS.length}`;
   });
 }
 

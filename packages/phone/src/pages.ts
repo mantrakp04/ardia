@@ -42,6 +42,7 @@ type PagesNative = {
   snapshot(pageId: string, options: { maxWidth?: number; quality?: number; coveredInsets?: [number, number] }): Promise<PageSnapshot | null>;
   loadHtml(pageId: string, html: string, baseUrl: string): Promise<void>;
   scrollPosition(pageId: string): Promise<PageScrollPosition | null>;
+  evaluate(pageId: string, script: string): Promise<string | null>;
   discardBackgroundPages(keeping: string | null): Promise<void>;
   livePageIds(): Promise<string[]>;
   deleteSnapshots(pageId: string): Promise<void>;
@@ -95,6 +96,7 @@ export const pages = {
     }),
   loadHtml: (pageId: string, html: string, baseUrl: string) => native().loadHtml(pageId, html, baseUrl),
   scrollPosition: (pageId: string) => native().scrollPosition(pageId),
+  evaluate: (pageId: string, script: string) => native().evaluate(pageId, script),
   discardBackgroundPages: (keeping?: string | null) => native().discardBackgroundPages(keeping ?? null),
   livePageIds: () => native().livePageIds(),
   deleteSnapshots: (pageId: string) => native().deleteSnapshots(pageId),

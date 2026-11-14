@@ -29,6 +29,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
 typealias EventSink = (Map<String, Any?>) -> Unit
@@ -137,6 +138,20 @@ object PhonePages {
         engine.discardBackgroundPages()
     }
 
+    fun find(pageId: String, text: String) {
+        val page = require(pageId)
+        if (text.isNotEmpty() && page.find.value?.query == text) return
+        page.find(text)
+    }
+
+    suspend fun evaluate(pageId: String, script: String): String? {
+        activate(pageId)
+        val web = require(pageId).view.value as? WebView ?: throw CodedException("ERR_ENGINE", "The page has no web view", null)
+        return kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+            web.evaluateJavascript(script) { result -> if (continuation.isActive) continuation.resumeWith(Result.success(result?.takeUnless { it == "null" || it == "undefined" })) }
+        }
+    }
+
     fun livePageIds(): List<String> = shared?.livePageIds.orEmpty()
 
     fun loadHtml(pageId: String, html: String, baseUrl: String) {
@@ -156,6 +171,7 @@ object PhonePages {
         val contentPixels = web.contentHeight * web.scale
         return mapOf(
             "y" to (web.scrollY / density).toDouble(),
+            "viewportWidth" to (web.width / density).toDouble(),
             "viewportHeight" to (web.height / density).toDouble(),
             "contentHeight" to (contentPixels / density).toDouble(),
         )
@@ -220,7 +236,7 @@ object PhonePages {
         val id = page.id
         watchers[id] = scope.launch {
             launch { page.state.collect { send(id, "page.state", "state" to PagePayloads.state(app, it, page.isPrivate)) } }
-            launch { page.find.drop(1).collect { send(id, "page.find", "result" to PagePayloads.find(it)) } }
+            launch { page.find.drop(1).filter { it == null || it.isDone }.collect { send(id, "page.find", "result" to PagePayloads.find(it)) } }
             launch { page.request.collect { request -> send(id, "page.request", "request" to request?.let { PagePayloads.request(app, it) }) } }
             launch {
                 var shown: com.ardia.browser.FullscreenVideo? = null

@@ -130,7 +130,7 @@ class PageViewModule : Module() {
 
         AsyncFunction("goForward") { pageId: String -> PhonePages.require(pageId).goForward() }.runOnQueue(Queues.MAIN)
 
-        AsyncFunction("find") { pageId: String, text: String -> PhonePages.require(pageId).find(text) }.runOnQueue(Queues.MAIN)
+        AsyncFunction("find") { pageId: String, text: String -> PhonePages.find(pageId, text) }.runOnQueue(Queues.MAIN)
 
         AsyncFunction("findNext") { pageId: String -> PhonePages.require(pageId).findNext() }.runOnQueue(Queues.MAIN)
 
@@ -187,6 +187,10 @@ class PageViewModule : Module() {
         }
 
         AsyncFunction("loadHtml") { pageId: String, html: String, baseUrl: String -> PhonePages.loadHtml(pageId, html, baseUrl) }.runOnQueue(Queues.MAIN)
+
+        AsyncFunction("evaluate") Coroutine { pageId: String, script: String ->
+            withContext(Dispatchers.Main) { PhonePages.evaluate(pageId, script) }
+        }
 
         AsyncFunction("scrollPosition") { pageId: String -> PhonePages.scrollPosition(pageId) }.runOnQueue(Queues.MAIN)
 

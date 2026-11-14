@@ -29,7 +29,7 @@ class PageSnapshots(context: Context) {
             return@withContext null
         }
         older(folder, stem, keep = target).forEach(File::delete)
-        mapOf("path" to target.absolutePath, "uri" to "file://${target.absolutePath}", "width" to width, "height" to height)
+        mapOf("path" to target.absolutePath, "uri" to "file://${target.absolutePath}", "width" to width, "height" to height, "bytes" to target.length().toDouble())
     }
 
     fun delete(pageId: String) {

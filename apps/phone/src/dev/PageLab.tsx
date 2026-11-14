@@ -326,7 +326,7 @@ function Lab() {
           {presets.map(([label, target]) => (
             <Button key={label} label={label} onPress={() => go(target)} />
           ))}
-          <Button label="Ads" onPress={() => run("local ad page", () => pages.loadHtml(pageId, labBlockingHtml, LAB_BLOCKING_URL))} />
+          <Button label="Ads" onPress={() => run("local ad page", () => pages.loadHtml(pageId, labBlockingHtml(), LAB_BLOCKING_URL))} />
         </Row>
         <Row>
           <Button label="Back" onPress={() => run("back", () => pages.goBack(pageId))} />

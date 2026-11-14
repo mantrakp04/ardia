@@ -86,6 +86,21 @@ class PageView(context: Context, appContext: AppContext) : ExpoView(context, app
         if (view == null) return
         (view.parent as? ViewGroup)?.removeView(view)
         host.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        layOutChildren()
+    }
+
+    private val layOutAgain = Runnable { layOutChildren() }
+
+    private fun layOutChildren() {
+        if (width == 0 || height == 0) return
+        host.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
+        host.layout(0, 0, width, height)
+    }
+
+    override fun requestLayout() {
+        super.requestLayout()
+        @Suppress("SENSELESS_COMPARISON")
+        if (layOutAgain != null) post(layOutAgain)
     }
 
     private fun sendState(state: PageState) {

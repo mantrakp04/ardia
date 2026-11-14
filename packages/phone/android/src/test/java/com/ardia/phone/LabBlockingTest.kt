@@ -40,6 +40,8 @@ class LabBlockingTest {
         val blocker = blocker()
         val blocked = labRequests.filter { blocker.blocks(it, labPage, false) }
         assertEquals(labRequests, blocked)
+        val busted = labRequests.map { "$it?ardia=k3x9" }
+        assertEquals(busted, busted.filter { blocker.blocks(it, "https://example.com/?lab=1", false) })
     }
 
     @Test
@@ -47,6 +49,8 @@ class LabBlockingTest {
         val blocker = blocker()
         blocker.setBlockersEnabled(labPage, false)
         assertTrue(labRequests.none { blocker.blocks(it, labPage, false) })
+        blocker.setBlockersEnabled("https://example.com/", false)
+        assertTrue(labRequests.none { blocker.blocks("$it?ardia=k3x9", "https://example.com/?lab=2", false) })
         blocker.setBlockersEnabled(labPage, true)
         assertTrue(labRequests.all { blocker.blocks(it, labPage, false) })
     }
