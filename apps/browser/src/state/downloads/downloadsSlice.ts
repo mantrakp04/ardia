@@ -4,6 +4,7 @@ import type { BrowserWindow } from "../browser/types";
 import type { BrowserState } from "../browser/store";
 import { engineProfile, isIncognitoProfile, privateSession } from "../browser/model";
 import { focusedWindowOf, patchWindowUi } from "../windows/ui";
+import { noteDownloadsPanelOpen } from "../telemetry/downloadsPanelCounts";
 
 export type DownloadsSlice = {
   downloads: Download[];
@@ -32,6 +33,17 @@ const sessionOpen = (s: Pick<BrowserState, "windows" | "profiles">, session: str
   Object.values(s.windows).some((w) => w.kind === "private" && privateSession(s, w.profileId) === session);
 const endedPrivateDownloads = new Set<string>();
 
+export function withoutRepeats<Row extends Pick<Download, "url" | "path" | "profile" | "startTime">>(downloads: readonly Row[]): Row[] {
+  const seen = new Set<string>();
+  return downloads.filter((d) => {
+    if (!d.path || d.startTime === undefined) return true;
+    const key = `${d.profile ?? ""}\n${d.url}\n${d.path}\n${d.startTime}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export const downloadsIn = (s: Pick<BrowserState, "downloads" | "windows" | "profiles">, windowId: string) =>
   s.downloads.filter((d) => downloadVisibleIn(s, d, s.windows[windowId]));
 
@@ -52,6 +64,7 @@ export const createDownloadsSlice: StateCreator<BrowserState, [], [], DownloadsS
       const downloads = exists ? s.downloads.map((x) => (x.id === d.id ? d : x)) : [d, ...s.downloads].slice(0, MAX_DOWNLOADS);
       const focused = focusedWindowOf(s);
       const open = !exists && focused && downloadVisibleIn(s, d, s.windows[focused]);
+      if (open && !s.windowUi[focused]?.downloadsOpen) noteDownloadsPanelOpen("download");
       return { downloads, ...(open ? patchWindowUi(s, focused, { downloadsOpen: true }) : {}) };
     });
   },

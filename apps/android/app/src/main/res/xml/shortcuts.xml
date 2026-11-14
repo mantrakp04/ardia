@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="search"
+        android:enabled="true"
+        android:icon="@drawable/shortcut_search"
+        android:shortcutShortLabel="@string/shortcut_search"
+        android:shortcutLongLabel="@string/shortcut_search">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="ardia://search"
+            android:targetClass="com.ardia.browser.android.MainActivity"
+            android:targetPackage="com.ardia.browser.android" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="voice"
+        android:enabled="true"
+        android:icon="@drawable/shortcut_voice"
+        android:shortcutShortLabel="@string/shortcut_voice_search"
+        android:shortcutLongLabel="@string/shortcut_voice_search">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="ardia://voice"
+            android:targetClass="com.ardia.browser.android.MainActivity"
+            android:targetPackage="com.ardia.browser.android" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="incognito"
+        android:enabled="true"
+        android:icon="@drawable/shortcut_incognito"
+        android:shortcutShortLabel="@string/shortcut_incognito_short"
+        android:shortcutLongLabel="@string/shortcut_incognito">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="ardia://incognito"
+            android:targetClass="com.ardia.browser.android.MainActivity"
+            android:targetPackage="com.ardia.browser.android" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="mac-tabs"
+        android:enabled="true"
+        android:icon="@drawable/shortcut_mac_tabs"
+        android:shortcutShortLabel="@string/shortcut_mac_tabs_short"
+        android:shortcutLongLabel="@string/shortcut_mac_tabs">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="ardia://mac-tabs"
+            android:targetClass="com.ardia.browser.android.MainActivity"
+            android:targetPackage="com.ardia.browser.android" />
+    </shortcut>
+</shortcuts>

@@ -5,7 +5,7 @@ const ENGINE_ONLY: Record<string, string[]> = {
   ArdiaBookmarks: ["tree", "apply", "watch"],
   ArdiaFavicons: ["get", "set"],
   ArdiaTabs: ["lastTabPolicy"],
-  ArdiaEngine: ["batterySaver", "trimMemory", "openTaskManager", "cliControlStatus", "setCliControl", "setCliActiveTab", "cliTabTargets"],
+  ArdiaEngine: ["batterySaver", "trimMemory", "openTaskManager", "cliControlStatus", "setCliControl", "setCliActiveTab", "cliTabTargets", "cliOwnsTab", "cliMoveOffscreen", "cliCloseOffscreenTabs"],
   ArdiaExtensions: ["watchActions", "syncState", "syncApply"],
   ArdiaDownloads: ["settings", "setSettings"],
 };

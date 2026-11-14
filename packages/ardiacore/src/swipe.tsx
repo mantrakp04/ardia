@@ -51,7 +51,7 @@ export type SwipeAreaProps = ViewProps & {
   isPager?: boolean;
   onSwipe: (event: SwipeEvent) => void;
   nativePager?: NativePagerConfig;
-  onPagerPosition?: (...args: never[]) => void;
+  onPagerPosition?: (event: { nativeEvent: { position: number } }) => void;
   onPagerState?: (event: PagerStateEvent) => void;
 };
 
@@ -59,9 +59,11 @@ export type SwipeAreaHandle = {
   devSimulate(steps: SwipeStep[], options?: { x?: number; y?: number; ignorePreference?: boolean }): Promise<unknown>;
 };
 
-type NativeProps = Omit<SwipeAreaProps, "onSwipe" | "onPagerState"> & {
-  onSwipe: (e: NativeSyntheticEvent<SwipeEvent>) => void;
-  onPagerState?: (e: NativeSyntheticEvent<PagerStateEvent>) => void;
+type NativeSwipe<T> = Pick<NativeSyntheticEvent<T>, "nativeEvent">;
+
+export type NativeSwipeAreaProps = Omit<SwipeAreaProps, "onSwipe" | "onPagerState"> & {
+  onSwipe: (e: NativeSwipe<SwipeEvent>) => void;
+  onPagerState?: (e: NativeSwipe<PagerStateEvent>) => void;
 };
 type NativeHandle = { devLocate(): Promise<{ windowNumber: number; x: number; y: number; width: number; height: number } | null> };
 
@@ -74,10 +76,10 @@ export type SwipeModule = {
   devPagerState(key: string): Promise<unknown>;
   devSimulate(x: number, y: number, windowNumber: number, steps: SwipeStep[], ignorePreference: boolean): Promise<unknown>;
 };
-type NativeComponent = React.ComponentType<NativeProps & { ref?: React.Ref<NativeHandle> }>;
+type NativeComponent = React.ComponentType<NativeSwipeAreaProps & { ref?: React.Ref<NativeHandle> }>;
 
 const Module = nativeModule("ArdiaSwipe");
-const Native = requireNativeViewManager<NativeProps>("ArdiaSwipe") as unknown as NativeComponent;
+const Native = requireNativeViewManager<NativeSwipeAreaProps>("ArdiaSwipe") as unknown as NativeComponent;
 let AnimatedNative: NativeComponent | undefined;
 const animatedNative = () => (AnimatedNative ??= Animated.createAnimatedComponent(Native) as unknown as NativeComponent);
 
@@ -106,8 +108,8 @@ export const SwipeArea = forwardRef<SwipeAreaHandle, SwipeAreaProps>(function Sw
     <View
       ref={handle}
       {...props}
-      onSwipe={(e: NativeSyntheticEvent<SwipeEvent>) => onSwipe(e.nativeEvent)}
-      onPagerState={onPagerState && ((e: NativeSyntheticEvent<PagerStateEvent>) => onPagerState(e.nativeEvent))}
+      onSwipe={(e: NativeSwipe<SwipeEvent>) => onSwipe(e.nativeEvent)}
+      onPagerState={onPagerState && ((e: NativeSwipe<PagerStateEvent>) => onPagerState(e.nativeEvent))}
     />
   );
 });

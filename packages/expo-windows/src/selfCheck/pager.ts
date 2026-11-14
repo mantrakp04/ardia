@@ -1,9 +1,9 @@
 import { createElement } from "react";
 import { AccessibilityInfo } from "react-native";
-import type { SwipeModule } from "@ardia/ardiacore";
+import type { NativeSwipeAreaProps, SwipeModule } from "@ardia/ardiacore";
 import { requireNativeModule } from "../modules";
 import type { PagerStateEvent } from "../pager/pager";
-import { viewOnWindows } from "../views/registry";
+import { viewNamed } from "../views/registry";
 import { expectEqual, expectTrue, type Check } from "./check";
 import { holdOnStage } from "./stage";
 
@@ -29,7 +29,7 @@ async function staged(key: string) {
   const positions: number[] = [];
   const states: PagerStateEvent[] = [];
   const release = await holdOnStage(
-    createElement(viewOnWindows("ArdiaSwipe"), {
+    createElement(viewNamed<NativeSwipeAreaProps>("ArdiaSwipe"), {
       style: { width: 200, height: 40 },
       canSwipeBack: false,
       canSwipeForward: true,
