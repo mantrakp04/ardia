@@ -24,7 +24,9 @@
 #include "base/logging.h"
 #include "base/no_destructor.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/process/process.h"
 #include "base/values.h"
+#include "chrome/browser/devtools/chrome_devtools_manager_delegate.h"
 #include "chrome/install_static/user_data_dir.h"
 #include "chrome/browser/chrome_browser_main.h"
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
@@ -168,6 +170,14 @@ std::wstring ChromiumUserDataDir() {
   return user_data_dir;
 }
 
+constexpr const char* kWindowsSwitchesThatOpenTheProfile[] = {
+    "browser-subprocess-path",
+    "gpu-launcher",
+    "no-sandbox",
+    "renderer-cmd-prefix",
+    "utility-cmd-prefix",
+};
+
 void KeepRealProfileClosed(base::CommandLine* command_line) {
   if (TheGate().refusal.empty()) {
     return;
@@ -175,7 +185,15 @@ void KeepRealProfileClosed(base::CommandLine* command_line) {
   for (const char* name : kSwitchesThatOpenTheProfile) {
     command_line->RemoveSwitch(name);
   }
+  for (const char* name : kWindowsSwitchesThatOpenTheProfile) {
+    command_line->RemoveSwitch(name);
+  }
   ::SetEnvironmentVariableW(L"SSLKEYLOGFILE", nullptr);
+  if (::GetEnvironmentVariableW(L"SSLKEYLOGFILE", nullptr, 0) != 0) {
+    LOG(ERROR) << "Ardia engine: SSLKEYLOGFILE could not be cleared outside "
+                  "a test instance; not starting";
+    base::Process::TerminateCurrentProcessImmediately(1);
+  }
 }
 
 void DecideTestGate(base::CommandLine* command_line) {
@@ -196,7 +214,7 @@ void DecideTestGate(base::CommandLine* command_line) {
   Gate& gate = TheGate();
   std::wstring refusal = TestGateRefusal(data_dir, ChromiumUserDataDir());
   if (refusal.empty()) {
-    refusal = HoldScratchFolders(data_dir);
+    refusal = HoldScratchFolders(data_dir, ChromiumUserDataDir());
   }
   gate.refusal = base::WideToUTF8(refusal);
   gate.asked = !port.empty() || !test.empty() || !trace.empty();
@@ -468,6 +486,7 @@ const char* TestGateDecision() {
 
 void QuitApp() {
   KeepAlive().reset();
+  ChromeDevToolsManagerDelegate::AllowBrowserToClose();
   chrome::CloseAllBrowsersAndQuit();
 }
 

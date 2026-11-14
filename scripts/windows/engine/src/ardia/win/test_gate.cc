@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -183,9 +184,40 @@ std::wstring TestGateRefusal(const std::wstring& data_dir,
   return std::wstring();
 }
 
-std::wstring HoldScratchFolders(const std::wstring& data_dir) {
+std::wstring PathWithBackslashes(std::wstring path) {
+  std::replace(path.begin(), path.end(), L'/', L'\\');
+  while (path.size() > 3 && path.back() == L'\\') {
+    path.pop_back();
+  }
+  return path;
+}
+
+std::optional<std::wstring> HeldDosPath(HANDLE handle) {
+  constexpr DWORD kFlags = VOLUME_NAME_DOS | FILE_NAME_NORMALIZED;
+  DWORD size = ::GetFinalPathNameByHandleW(handle, nullptr, 0, kFlags);
+  if (size == 0) {
+    return std::nullopt;
+  }
+  std::wstring value(size, L'\0');
+  DWORD written =
+      ::GetFinalPathNameByHandleW(handle, value.data(), size, kFlags);
+  if (written == 0 || written >= size) {
+    return std::nullopt;
+  }
+  value.resize(written);
+  constexpr std::wstring_view kLocal = L"\\\\?\\";
+  if (!std::wstring_view(value).starts_with(kLocal) ||
+      std::wstring_view(value).substr(kLocal.size()).starts_with(L"UNC\\")) {
+    return std::nullopt;
+  }
+  return value.substr(kLocal.size());
+}
+
+std::wstring HoldScratchFolders(const std::wstring& data_dir,
+                                const std::wstring& chromium_user_data_dir) {
   const base::FilePath path(data_dir);
   std::vector<std::wstring> canonical;
+  std::optional<std::wstring> chromium_as_held;
   for (const base::FilePath& folder :
        {path, path.Append(FILE_PATH_LITERAL("Chromium"))}) {
     ::CreateDirectoryW(folder.value().c_str(), nullptr);
@@ -208,6 +240,13 @@ std::wstring HoldScratchFolders(const std::wstring& data_dir) {
       return L"ARDIA_DATA_DIR can't be resolved on a local volume";
     }
     canonical.push_back(*held);
+    chromium_as_held = HeldDosPath(handle);
+  }
+  if (!chromium_as_held ||
+      !SameText(*chromium_as_held,
+                PathWithBackslashes(chromium_user_data_dir))) {
+    return L"Chromium would open its folder by another path than the one "
+           L"held (a junction, a short name or a mapped drive in the way)";
   }
   return RealFolderClashOf(canonical);
 }

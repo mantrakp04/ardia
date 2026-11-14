@@ -342,6 +342,27 @@ const withEngine: Check[] = [
     },
   },
   {
+    name: "engine: a tab closed while its page runs its unload handlers can't be adopted or discarded",
+    async run() {
+      const windowId = await firstWindow();
+      const key = "self-check-closing-adopt";
+      const busy = 'data:text/html,<title>busy close</title><script>addEventListener("beforeunload", () => { const t = Date.now(); while (Date.now() - t < 3000) {} })</script>';
+      const listed = async (name: string) => (await hostCall<{ tabs: ListedTab[] }>("tabs.list")).tabs.find((tab) => tab.key === name);
+      await hostCall("tab.create", { key, url: busy, profile: "" }, windowId);
+      const loadedBy = Date.now() + LOAD_MS;
+      while ((await listed(key))?.title !== "busy close" && Date.now() < loadedBy) await new Promise((resolve) => setTimeout(resolve, 200));
+      const id = (await listed(key))?.tab;
+      expectTrue(typeof id === "number" && id > 0, `the busy page's tab id is ${String(id)}`);
+      await hostCall("tab.close", { key });
+      const adopted = await hostCall("tab.create", { key: `${key}-adopted`, adopt: `ardiacore:${id}`, profile: "" }, windowId).then(
+        () => true,
+        () => false,
+      );
+      if (adopted) await hostCall("tab.close", { key: `${key}-adopted` });
+      expectEqual(adopted, false, "adopting a tab that is closing");
+    },
+  },
+  {
     name: "engine: the tab closes",
     async run() {
       await hostCall("tab.close", { key: PAGE_KEY });

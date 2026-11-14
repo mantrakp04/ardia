@@ -11,7 +11,8 @@ inline constexpr wchar_t kTestBuildMarker[] = L"Ardia.test-build";
 std::wstring TestGateRefusal(const std::wstring& data_dir,
                              const std::wstring& chromium_user_data_dir);
 
-std::wstring HoldScratchFolders(const std::wstring& data_dir);
+std::wstring HoldScratchFolders(const std::wstring& data_dir,
+                                const std::wstring& chromium_user_data_dir);
 
 }
 
