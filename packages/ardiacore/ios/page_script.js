@@ -131,6 +131,7 @@
   const frame = Math.random().toString(36).slice(2);
   const tracked = new WeakSet();
   let active = null;
+  let lastHeard = null;
   const heard = new WeakSet();
 
   const session = navigator.mediaSession;
@@ -147,6 +148,7 @@
     if (heard.has(m) || !playingUnmuted(m)) return listening.delete(m);
     if (decodedAudio(m)) {
       heard.add(m);
+      lastHeard = m;
       listening.delete(m);
       return reportNowPlaying();
     }
@@ -161,12 +163,14 @@
   const isPlaying = (m) => !m.paused && !m.ended;
   const pickMedia = () => {
     const all = [...document.querySelectorAll("video,audio")];
-    if (active && !all.includes(active) && tracked.has(active)) all.push(active);
+    for (const m of [active, lastHeard]) if (m && !all.includes(m) && tracked.has(m)) all.push(m);
     const current = all.includes(active) ? active : null;
+    const heardBefore = all.includes(lastHeard) ? lastHeard : null;
     return (
       all.find((m) => heard.has(m) && isPlaying(m)) ||
       (current && heard.has(current) ? current : null) ||
       all.find(isPlaying) ||
+      heardBefore ||
       current
     );
   };
