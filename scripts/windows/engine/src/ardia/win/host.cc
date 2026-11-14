@@ -40,6 +40,10 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/unload_controller.h"
+#include "chrome/browser/lifetime/browser_shutdown.h"
+#include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
+#include "content/public/browser/browser_context.h"
+#include "content/public/browser/navigation_entry.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/version_info/version_info.h"
 #include "content/public/browser/navigation_controller.h"
@@ -597,17 +601,53 @@ base::DictValue Host::CloseTab(const base::DictValue& args) {
     Hide(browser, found->second);
   }
   tabs_.erase(key);
+  TabState* state = TabState::FromWebContents(contents);
+  if (state) {
+    state->ReleaseKey();
+  }
   if (!browser) {
     return Ok();
   }
   TabStripModel* model = browser->GetTabStripModel();
   int index = model->GetIndexOfWebContents(contents);
-  if (index != TabStripModel::kNoTab) {
-    model->CloseWebContentsAt(index,
-                              TabCloseTypes::CLOSE_USER_GESTURE |
-                                  TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
+  if (index == TabStripModel::kNoTab) {
+    return Ok();
   }
+  if (state && state->closing_after_unload()) {
+    return Ok();
+  }
+  if (state && !browser_shutdown::HasShutdownStarted() &&
+      contents->NeedToFireBeforeUnloadOrUnloadEvents()) {
+    state->CloseAfterUnloadHandlers(
+        browser_shutdown::IsTryingToQuit() ||
+        UnloadController::From(browser)->is_attempting_to_close_browser());
+    return Ok();
+  }
+  model->CloseWebContentsAt(index,
+                            TabCloseTypes::CLOSE_USER_GESTURE |
+                                TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
   return Ok();
+}
+
+void Host::DeleteClosedTab(content::WebContents* contents) {
+  Browser* browser = contents ? BrowserOf(contents) : nullptr;
+  if (!browser) {
+    return;
+  }
+  TabStripModel* model = browser->GetTabStripModel();
+  const int index = model->GetIndexOfWebContents(contents);
+  if (index == TabStripModel::kNoTab) {
+    return;
+  }
+  content::NavigationEntry* committed =
+      contents->GetController().GetLastCommittedEntry();
+  TabState* state = TabState::FromWebContents(contents);
+  if (!contents->GetBrowserContext()->IsOffTheRecord() && committed &&
+      !committed->IsInitialEntry() &&
+      !(state && state->OnlyShowedOpeningBlank())) {
+    model->delegate()->CreateHistoricalTab(contents);
+  }
+  model->DetachAndDeleteWebContentsAt(index);
 }
 
 base::DictValue Host::DiscardOffered(const base::DictValue& args) {
@@ -693,6 +733,7 @@ base::DictValue Host::Info() {
                                   .value()));
   result.Set("privateSessions", PrivateSessions::Get()->LiveSessions());
   result.Set("pageWindows", static_cast<int>(hosted_.size()));
+  result.Set("testInstance", ardiacore::TestInstance());
   result.Set("keyboardPage", KeyboardPage());
   result.Set("keyboardMayMove", KeyboardMayMove());
   base::ListValue wanted;

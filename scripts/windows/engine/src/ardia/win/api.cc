@@ -8,6 +8,7 @@
 
 #include "ardia/win/ac_calls.h"
 #include "ardia/win/host.h"
+#include "ardia/win/main.h"
 #include "ardia/win/profiles.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
@@ -129,7 +130,8 @@ void OnEngineEvent(void* context, const char* topic, const char* json) {
 }
 
 const ArdiaEngineApi kApi = {ARDIA_ENGINE_API_VERSION, sizeof(ArdiaEngineApi),
-                             &SetEventSink, &HostCall, &EngineCall};
+                             &SetEventSink,             &HostCall,
+                             &EngineCall,               &TestGateDecision};
 
 }
 

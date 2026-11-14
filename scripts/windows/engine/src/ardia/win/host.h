@@ -54,6 +54,7 @@ class Host : public TabStripModelObserver,
   bool Shows(const std::string& key) const;
   HWND VisibleParent() const;
   void TabDestroyed(TabState* state);
+  void DeleteClosedTab(content::WebContents* contents);
   void ParentDestroying(HWND parent);
   void ParentMoved(HWND parent);
   void ParentActivated(HWND parent);

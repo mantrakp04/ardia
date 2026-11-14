@@ -175,6 +175,16 @@ inline std::filesystem::path ChosenConfigDirectory(bool testInstance) noexcept {
   return Paths::Ensured(Paths::UserFolder(FOLDERID_RoamingAppData, L"APPDATA") / L"Ardia");
 }
 
+inline std::optional<std::wstring> &EngineTestGate() noexcept {
+  static std::optional<std::wstring> refusal;
+  return refusal;
+}
+
+inline std::wstring TestGateRefusal(bool isolated) noexcept {
+  if (EngineTestGate()) return *EngineTestGate();
+  return isolated ? TestGate::Refusal() : std::wstring{L"no scratch ARDIA_DATA_DIR"};
+}
+
 inline Config Read() noexcept {
   Config config;
   if (Paths::HasCustomDataDirectory()) {
@@ -184,7 +194,7 @@ inline Config Read() noexcept {
   }
   config.background = BackgroundRequested();
   config.isolated = !config.dataDirectory.empty();
-  std::wstring refusal = config.isolated ? TestGate::Refusal() : std::wstring{L"no scratch ARDIA_DATA_DIR"};
+  std::wstring refusal = TestGateRefusal(config.isolated);
   config.testInstance = refusal.empty();
   config.configDirectory = Paths::Utf8(ChosenConfigDirectory(config.testInstance).wstring());
   config.instance = KeyedEntries(Paths::Utf8(Paths::Environment(L"ARDIA_INSTANCE")), InstanceKeys(), L"ARDIA_INSTANCE");

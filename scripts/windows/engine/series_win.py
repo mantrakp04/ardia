@@ -186,7 +186,11 @@ def launch_switches_source():
     text = text.replace(mock, '').replace(native, 'return CommandLine().GetSwitchValueUTF8(name);')
     if len(signed.findall(text)) != 1:
         sys.exit(f'series_win.py: {LAUNCH_SWITCHES}.cc has no SignedForDistribution')
-    return signed.sub('bool SignedForDistribution() {\n  return false;\n}\n', text)
+    refusal = '    return "signed for distribution";\n'
+    if text.count(refusal) != 1:
+        sys.exit(f'series_win.py: {LAUNCH_SWITCHES}.cc has no signed-for-distribution refusal')
+    text = text.replace(refusal, '    return "the engine\'s launch gate refused it (see ardia/win/test_gate.cc)";\n')
+    return signed.sub('bool SignedForDistribution() {\n  return !CommandLine().HasSwitch("ardia-test-instance");\n}\n', text)
 
 
 def engine_calls():

@@ -11,7 +11,7 @@ import { fieldFocusedIn } from "../appKeyboard";
 import { textFocusForCheck } from "../textFocus";
 
 type TabEvent = { key?: unknown; name?: unknown; data?: { title?: unknown; isLoading?: unknown } };
-type ListedTab = { key: string; title: string; shown: boolean; windowVisible: boolean; width: number; height: number; session?: number };
+type ListedTab = { key: string; tab?: number; title: string; shown: boolean; windowVisible: boolean; width: number; height: number; session?: number };
 
 const PAGE_KEY = "self-check-page";
 const OTHER_WINDOW = "self-check-other-window";
@@ -288,6 +288,14 @@ const withEngine: Check[] = [
     },
   },
   {
+    name: "engine: the engine decided this is a test instance and the app took the same decision",
+    async run() {
+      const host = await hostCall<{ testInstance?: unknown }>("host.info");
+      const config = requireNativeModule<Pick<AppNative, "launchConfig">>("ArdiaApp").launchConfig();
+      expectEqual({ engine: host.testInstance, app: config.testInstance }, { engine: true, app: true }, "the test-instance decision");
+    },
+  },
+  {
     name: "engine: native and the engine agree where Chromium keeps profiles",
     async run() {
       expectEqual(comparable(profileDataFolder()), comparable(await userDataDir()), "profileDataFolder() against host.info");
@@ -435,6 +443,27 @@ const withEngine: Check[] = [
       const dropped = ids[10]!;
       await hostCall("tab.call", { key: PAGE_KEY, method: "externalAppForget", id: dropped });
       expectEqual({ dropped: await alive(dropped), newest: await alive(newest) }, { dropped: false, newest: true }, "an ask the app dropped, and the newest ask");
+    },
+  },
+  {
+    name: "engine: a key closed while its page still runs its unload handlers can be used again at once",
+    async run() {
+      const windowId = await firstWindow();
+      const key = "self-check-busy-unload";
+      const busy = 'data:text/html,<title>busy unload</title><script>addEventListener("beforeunload", () => { const t = Date.now(); while (Date.now() - t < 3000) {} })</script>';
+      const listed = async () => (await hostCall<{ tabs: ListedTab[] }>("tabs.list")).tabs.find((tab) => tab.key === key);
+      await hostCall("tab.create", { key, url: busy, profile: "" }, windowId);
+      const loadedBy = Date.now() + LOAD_MS;
+      while ((await listed())?.title !== "busy unload" && Date.now() < loadedBy) await new Promise((resolve) => setTimeout(resolve, 200));
+      expectEqual((await listed())?.title, "busy unload", "the busy page's title");
+      await hostCall("tab.close", { key });
+      const made = await hostCall<{ tab?: unknown }>("tab.create", { key, url: PAGE_URL, profile: "" }, windowId);
+      expectTrue(typeof made.tab === "number" && made.tab > 0, `tab.create again said ${JSON.stringify(made)}`);
+      await new Promise((resolve) => setTimeout(resolve, 6000));
+      const again = await listed();
+      expectEqual(again?.tab, made.tab, "the tab listed under the reused key after the old page's deadlines");
+      await hostCall("tab.call", { key, method: "navigationEntries" });
+      await hostCall("tab.close", { key });
     },
   },
   {

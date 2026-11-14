@@ -12,6 +12,7 @@
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/time/time.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/sessions/content/session_tab_helper.h"
 #include "components/tabs/public/tab_interface.h"
@@ -329,6 +330,60 @@ void TabState::OnInputEventAck(const content::RenderWidgetHost& widget,
   base::DictValue data;
   data.Set("command", "escape");
   Send("command", std::move(data));
+}
+
+namespace {
+constexpr base::TimeDelta kCloseStepDeadline = base::Seconds(2);
+}
+
+void TabState::CloseAfterUnloadHandlers(bool window_closing) {
+  if (close_step_ == CloseStep::kOpen) {
+    close_step_ = CloseStep::kAwaitingBeforeUnload;
+  }
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE,
+      base::BindOnce(&TabState::EnforceCloseDeadline,
+                     weak_factory_.GetWeakPtr(), false),
+      kCloseStepDeadline);
+  if (window_closing) {
+    StartUnload();
+    return;
+  }
+  web_contents()->DispatchBeforeUnload(true);
+}
+
+void TabState::StartUnload() {
+  if (close_step_ == CloseStep::kUnloading) {
+    return;
+  }
+  close_step_ = CloseStep::kUnloading;
+  web_contents()->ClosePage();
+}
+
+void TabState::EnforceCloseDeadline(bool unload_given) {
+  if (unload_given) {
+    Host::Get()->DeleteClosedTab(web_contents());
+    return;
+  }
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE,
+      base::BindOnce(&TabState::EnforceCloseDeadline,
+                     weak_factory_.GetWeakPtr(), true),
+      kCloseStepDeadline);
+  StartUnload();
+}
+
+void TabState::BeforeUnloadFired(bool proceed) {
+  if (close_step_ == CloseStep::kOpen) {
+    return;
+  }
+  if (proceed) {
+    close_step_ = CloseStep::kUnloading;
+    return;
+  }
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE,
+      base::BindOnce(&TabState::StartUnload, weak_factory_.GetWeakPtr()));
 }
 
 void TabState::WebContentsDestroyed() {
