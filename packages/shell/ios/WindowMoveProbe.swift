@@ -3,6 +3,7 @@ import AppKit
 #if DEBUG
 enum WindowMoveProbe {
   private static var buttonsDown = false
+  private static var dragRunning = false
 
   private static func dirtyViews(_ view: NSView) -> Int {
     view.subviews.reduce(view.needsLayout || view.needsDisplay ? 1 : 0) { $0 + dirtyViews($1) }
@@ -46,6 +47,20 @@ enum WindowMoveProbe {
     RunLoop.main.add(timer, forMode: .common)
   }
 
+  private static func pacingReport(from began: CFTimeInterval, to ended: CFTimeInterval) -> [String: Any] {
+    let placements = WindowMove.moveTimes.filter { $0 >= began && $0 <= ended }
+    let frames = WindowMove.frameTimes.filter { $0 >= began && $0 <= ended }
+    let gaps = zip(placements.dropFirst(), placements).map { ($0 - $1) * 1000 }
+    let mean = gaps.isEmpty ? 0 : gaps.reduce(0, +) / Double(gaps.count)
+    let variance = gaps.isEmpty ? 0 : gaps.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(gaps.count)
+    return [
+      "placements": placements.count, "frames": frames.count,
+      "placementsPerFrame": frames.isEmpty ? 0 : Double(placements.count) / Double(frames.count),
+      "placementGapMs": ["min": gaps.min() ?? 0, "max": gaps.max() ?? 0, "mean": mean, "variance": variance],
+      "truncated": WindowMove.traceOverflowed,
+    ]
+  }
+
   static func replayAfterMove(_ window: NSWindow, _ rect: NSRect, keepTrace: Bool = false) -> [String: Any] {
     typealias AfterMove = @convention(c) (NSWindow, Selector, NSRect) -> Void
     let selector = NSSelectorFromString("_setFrameAfterMove:")
@@ -80,6 +95,7 @@ enum WindowMoveProbe {
     _ window: NSWindow, x: CGFloat, top: CGFloat, count: Int, dx: CGFloat, dy: CGFloat, interval: TimeInterval,
     settle: TimeInterval = 0.2, keep: Bool = false, replayStale: Bool = false, done: @escaping ([String: Any]) -> Void
   ) {
+    guard !dragRunning else { return done(["error": "a probe drag is already running"]) }
     guard let frameView = window.contentView?.superview, let restoreButtons = installButtons() else { return done(["error": "no frame view"]) }
     let origin = window.frame.origin
     let local = NSPoint(x: x, y: frameView.bounds.height - top)
@@ -88,12 +104,20 @@ enum WindowMoveProbe {
     let serverOwns = ServerWindowDrag.serverOwnsPress(window, at: local)
     var origins: [[Double]] = []
     WindowMove.afterMoveTrace = []
+    WindowMove.moveTimes = []
+    WindowMove.frameTimes = []
+    WindowMove.traceOverflowed = false
     let began = CACurrentMediaTime()
     var releasedAt = 0.0
+    var ended = began
     var backSteps = 0
     var step = 0
+    guard let down = mouse(.leftMouseDown, window, screen: pointer) else {
+      restoreButtons()
+      return done(["error": "no event"])
+    }
+    dragRunning = true
     buttonsDown = true
-    guard let down = mouse(.leftMouseDown, window, screen: pointer) else { return done(["error": "no event"]) }
     NSApp.postEvent(down, atStart: false)
     let timer = Timer(timeInterval: interval, repeats: true) { timer in
       let now = window.frame.origin
@@ -113,13 +137,16 @@ enum WindowMoveProbe {
         }
       }
       let released = window.frame.origin
-      releasedAt = CACurrentMediaTime() - began
+      ended = CACurrentMediaTime()
+      releasedAt = ended - began
       var after: [[Double]] = []
       let sampler = Timer(timeInterval: 1.0 / 60, repeats: true) { _ in after.append([window.frame.minX, window.frame.minY]) }
       RunLoop.main.add(sampler, forMode: .common)
       DispatchQueue.main.asyncAfter(deadline: .now() + settle) {
         sampler.invalidate()
         restoreButtons()
+        dragRunning = false
+        let pacing = pacingReport(from: began, to: CACurrentMediaTime())
         let end = window.frame.origin
         let screen = window.screen.map { NSStringFromRect($0.frame) } ?? "nil"
         if !keep { window.setFrameOrigin(origin) }
@@ -127,7 +154,7 @@ enum WindowMoveProbe {
           "hit": hit, "serverOwnsPress": serverOwns, "moved": [end.x - origin.x, end.y - origin.y],
           "pointerTravel": [dx * CGFloat(count), dy * CGFloat(count)], "backSteps": backSteps, "samples": origins.count,
           "start": [origin.x, origin.y], "released": [released.x, released.y], "end": [end.x, end.y], "screen": screen,
-          "afterRelease": after, "path": origins, "releasedAt": releasedAt,
+          "afterRelease": after, "path": origins, "releasedAt": releasedAt, "pacing": pacing,
           "afterMoves": WindowMove.afterMoveTrace.map { entry in entry.merging(["t": ((entry["t"] as? Double) ?? 0) - began]) { $1 } },
         ])
       }
