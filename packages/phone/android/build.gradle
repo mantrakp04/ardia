@@ -109,9 +109,11 @@ android {
         targets "ardiahermes"
       }
     }
+    buildConfigField "boolean", "ARDIA_LAB", (findProperty('ardiaLab') == 'true').toString()
   }
   buildFeatures {
     prefab true
+    buildConfig true
   }
   externalNativeBuild {
     cmake {

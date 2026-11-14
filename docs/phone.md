@@ -101,6 +101,24 @@ Needs JDK 17 and the Android SDK (`local.properties` or `ANDROID_HOME`). The fir
 Expo's Gradle plugins and the C++ of every native module, about 15 minutes on a busy Mac; JS-only changes rebuild the
 release APK in about 2.
 
+### The lab switch
+
+The page lab (`com.ardia.phone.PAGE_LAB`) and sync's demo mode (`com.ardia.phone.SYNC_DEMO`) exist only in lab
+builds. `gradle-locked` makes them: it passes `-PardiaLab=true`, which `@ardia/phone-native` turns into
+`BuildConfig.ARDIA_LAB` (checked before either launch extra is read), and sets `EXPO_PUBLIC_ARDIA_LAB=true`, which
+`index.js` reads at bundle time, so a build without it has no lab JavaScript at all and never makes the demo
+controller. Even in a lab build the demo is refused while real sync is set up. The app's Gradle file fails the build
+when the property and the variable disagree, and Metro's cache is keyed on the variable.
+
+A store build leaves both off:
+
+```
+ARDIA_LAB=0 apps/phone/scripts/gradle-locked :app:bundleRelease
+```
+
+To see the lab with Metro, start it with `EXPO_PUBLIC_ARDIA_LAB=true pnpm -C apps/phone dev` and run a debug
+build from `gradle-locked`.
+
 ### iPhone
 
 ```

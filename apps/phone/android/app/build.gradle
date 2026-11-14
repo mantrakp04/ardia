@@ -17,6 +17,12 @@ react {
     autolinkLibrariesWithApp()
 }
 
+def ardiaLab = findProperty('ardiaLab') == 'true'
+if (ardiaLab != (System.getenv('EXPO_PUBLIC_ARDIA_LAB') == 'true')) {
+    throw new GradleException("-PardiaLab and EXPO_PUBLIC_ARDIA_LAB disagree: build through apps/phone/scripts/gradle-locked, or set both or neither")
+}
+tasks.matching { it.name.startsWith('createBundle') && it.name.endsWith('JsAndAssets') }.configureEach { inputs.property('ardiaLab', ardiaLab) }
+
 def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
 
 android {

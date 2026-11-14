@@ -101,7 +101,11 @@ class PageViewModule : Module() {
 
         Function("launchOptions") {
             val intent = appContext.currentActivity?.intent ?: return@Function null
-            mapOf("pageLab" to intent.getBooleanExtra(PAGE_LAB_EXTRA, false), "syncDemo" to intent.getBooleanExtra(PhoneSync.DEMO_EXTRA, false))
+            mapOf(
+                "lab" to PhoneLab.isOn,
+                "pageLab" to (PhoneLab.isOn && intent.getBooleanExtra(PAGE_LAB_EXTRA, false)),
+                "syncDemo" to (PhoneLab.isOn && intent.getBooleanExtra(PhoneSync.DEMO_EXTRA, false)),
+            )
         }
 
         AsyncFunction("openPage") { pageId: String, setup: PageSetupRecord ->

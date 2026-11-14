@@ -56,21 +56,22 @@ class PhoneSyncReplaceTest {
                 release.await(5, TimeUnit.SECONDS)
             }
         }
+        PhoneSync.labBuild = true
         PhoneSync.makeRows = ::JdbcRows
-        PhoneSync.makeController = { _, _ -> SyncController(Logged(first, "real", log), ManualTimers(), RecordingScheduler()) }
-        PhoneSync.makeDemo = { SyncController(Logged(FakeDevice(), "demo", log), ManualTimers(), RecordingScheduler()) }
-        val real = PhoneSync.controller(app)
-        val cycle = thread { runBlocking { runCatching { real.syncNow() } } }
+        PhoneSync.makeDemo = { SyncController(Logged(first, "demo", log), ManualTimers(), RecordingScheduler()) }
+        PhoneSync.makeController = { _, _ -> SyncController(Logged(FakeDevice(), "real", log), ManualTimers(), RecordingScheduler()) }
+        val demo = PhoneSync.controller(app, demo = true)
+        val cycle = thread { runBlocking { runCatching { demo.syncNow() } } }
         assertTrue(inCycle.await(5, TimeUnit.SECONDS))
         thread {
             Thread.sleep(300)
             release.countDown()
         }
-        val demo = PhoneSync.controller(app, demo = true)
-        PhoneTestWaits.until { "demo start" in log }
+        val real = PhoneSync.controller(app, demo = false)
+        PhoneTestWaits.until { "real start" in log }
         cycle.join(5_000)
         val order = log.toList()
-        assertTrue("the old engine closed before the new one started: $order", order.indexOf("real close") in 0 until order.indexOf("demo start"))
-        assertEquals(demo, PhoneSync.current())
+        assertTrue("the old engine closed before the new one started: $order", order.indexOf("demo close") in 0 until order.indexOf("real start"))
+        assertEquals(real, PhoneSync.current())
     }
 }

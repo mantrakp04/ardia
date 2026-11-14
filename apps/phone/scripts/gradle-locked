@@ -1,4 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/../android"
-exec /usr/bin/lockf -t "${ARDIA_GRADLE_WAIT:-540}" /tmp/ardia-android-gradle.lock ./gradlew "$@"
+lab=()
+if [ "${ARDIA_LAB:-1}" = "1" ]; then
+  export EXPO_PUBLIC_ARDIA_LAB=true
+  lab=(-PardiaLab=true)
+else
+  unset EXPO_PUBLIC_ARDIA_LAB
+fi
+exec /usr/bin/lockf -t "${ARDIA_GRADLE_WAIT:-540}" /tmp/ardia-android-gradle.lock ./gradlew ${lab[@]+"${lab[@]}"} "$@"

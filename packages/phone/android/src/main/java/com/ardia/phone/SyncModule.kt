@@ -31,7 +31,7 @@ class SyncModule : Module() {
     private val controller: SyncController
         get() {
             val launch = appContext.currentActivity?.intent
-            val demo = launch?.getBooleanExtra(PhoneSync.DEMO_EXTRA, false)
+            val demo = launch?.getBooleanExtra(PhoneSync.DEMO_EXTRA, false)?.and(PhoneLab.isOn)
             val sync = PhoneSync.controller(context, demo)
             if (watched !== sync) watch(sync)
             return sync

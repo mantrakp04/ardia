@@ -19,7 +19,7 @@ import type {
 type PagesNative = {
   addListener(eventName: "onPageEngineEvent", listener: (event: PageEngineEvent) => void): Subscription;
   capabilities(): PageEngineCapabilities;
-  launchOptions(): { pageLab: boolean; syncDemo?: boolean } | null;
+  launchOptions(): { pageLab: boolean; syncDemo?: boolean; lab?: boolean } | null;
   openPage(pageId: string, setup: PageSetup): Promise<void>;
   closePage(pageId: string): Promise<void>;
   pageIds(): Promise<string[]>;
