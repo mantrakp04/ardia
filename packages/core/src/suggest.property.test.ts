@@ -43,9 +43,9 @@ function makeProfile(r: Rng, size: number) {
     const h = r.int(2) && history.length ? r.pick(history) : null;
     return { url: h ? h.url : url(), title: h ? h.title : title(), favicon: null };
   });
-  const tabs = Array.from({ length: Math.floor(size / 6) }, (_, i) => {
+  const tabs: SuggestionSource["tabs"][number][] = Array.from({ length: Math.floor(size / 6) }, (_, i) => {
     const h = r.int(2) && history.length ? r.pick(history) : null;
-    return { id: `t${i}`, url: r.int(15) ? (h ? h.url : url()) : "", title: h ? h.title : title(), favicon: null };
+    return { id: `t${i}`, url: r.int(15) ? (h ? h.url : url()) : "", title: h ? h.title : title(), ...(r.int(4) ? {} : { customTitle: title() }), favicon: null };
   });
   return { history, bookmarks, tabs };
 }
@@ -123,7 +123,7 @@ function compareRun(seed: number, size: number) {
     if (r.int(40) === 0) source = { ...source, history: [] };
     if (r.int(10) === 0 && source.tabs.length) {
       const at = r.int(source.tabs.length);
-      source = { ...source, tabs: source.tabs.map((t, i) => (i === at ? { ...t, title: `${r.pick(WORDS)} ${t.title}` } : t)) };
+      source = { ...source, tabs: source.tabs.map((t, i) => (i === at ? (r.int(2) ? { ...t, title: `${r.pick(WORDS)} ${t.title}` } : { ...t, customTitle: t.customTitle ? null : r.pick(WORDS) }) : t)) };
     }
     if (r.int(12) === 0) source = { ...source, tabs: [...source.tabs, { id: `new${i}`, url: `https://${r.pick(HOSTS)}/${r.pick(WORDS)}`, title: r.pick(WORDS), favicon: null }] };
     if (r.int(10) === 0) {
