@@ -25,7 +25,7 @@ if (ardiaLab != (System.getenv('EXPO_PUBLIC_ARDIA_LAB') == 'true')) {
 tasks.matching { it.name.startsWith('createBundle') && it.name.endsWith('JsAndAssets') }.configureEach { inputs.property('ardiaLab', ardiaLab) }
 
 def composeApp = "${projectRoot}/../android/app/src/main"
-def composeSystemInThisApp = ['ArdiaWidgets.kt', 'SystemSnapshot.kt', 'SystemSnapshots.kt', 'SearchTileService.kt']
+def composeSystemInThisApp = ['ArdiaWidgets.kt', 'SystemSnapshot.kt', 'SystemSnapshots.kt', 'SearchTileService.kt', 'ShortcutActivity.kt']
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
     exclude { element -> !element.directory && element.file.canonicalPath.startsWith(new File("${composeApp}/kotlin").canonicalPath) && !(element.name in composeSystemInThisApp) }
 }

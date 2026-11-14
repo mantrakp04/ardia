@@ -9,7 +9,7 @@
         <intent
             android:action="android.intent.action.VIEW"
             android:data="ardia://search"
-            android:targetClass="com.ardia.browser.android.MainActivity"
+            android:targetClass="com.ardia.browser.android.system.ShortcutActivity"
             android:targetPackage="com.ardia.browser.android">
             <extra
                 android:name="com.ardia.SOURCE"
@@ -25,7 +25,7 @@
         <intent
             android:action="android.intent.action.VIEW"
             android:data="ardia://voice"
-            android:targetClass="com.ardia.browser.android.MainActivity"
+            android:targetClass="com.ardia.browser.android.system.ShortcutActivity"
             android:targetPackage="com.ardia.browser.android">
             <extra
                 android:name="com.ardia.SOURCE"
@@ -41,7 +41,7 @@
         <intent
             android:action="android.intent.action.VIEW"
             android:data="ardia://incognito"
-            android:targetClass="com.ardia.browser.android.MainActivity"
+            android:targetClass="com.ardia.browser.android.system.ShortcutActivity"
             android:targetPackage="com.ardia.browser.android">
             <extra
                 android:name="com.ardia.SOURCE"
@@ -57,7 +57,7 @@
         <intent
             android:action="android.intent.action.VIEW"
             android:data="ardia://mac-tabs"
-            android:targetClass="com.ardia.browser.android.MainActivity"
+            android:targetClass="com.ardia.browser.android.system.ShortcutActivity"
             android:targetPackage="com.ardia.browser.android">
             <extra
                 android:name="com.ardia.SOURCE"
