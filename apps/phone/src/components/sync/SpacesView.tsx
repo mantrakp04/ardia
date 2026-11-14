@@ -9,7 +9,8 @@ import { openRemote, selectProfile, syncNow } from "../../state/sync/actions";
 import { useSelectedProfile, useSyncStatus, useSyncView } from "../../state/sync/hooks";
 import { remoteTitle, spaceRows, type SpaceRow } from "../../state/sync/spaces";
 import { syncBanner, type BannerIcon } from "../../state/sync/syncRules";
-import { Backdrop, capsule, FloatingMenu, font, space, Symbol, tabsLayout, useTheme, type MenuItem, type SymbolName } from "../ui";
+import { sfSymbol } from "../../lib/sfSymbols";
+import { Backdrop, capsule, FloatingMenu, font, isSymbolName, space, Symbol, tabsLayout, useTheme, type MenuItem, type SymbolName } from "../ui";
 
 const BANNER_ICONS: Record<BannerIcon, SymbolName> = { folder: "folderFill", lock: "lockFill", reset: "arrowClockwise", warning: "exclamationmarkTriangle", offline: "wifiSlash" };
 const HEADER_ICONS: Record<"star" | "laptop" | "desktop" | "phone", SymbolName> = { star: "star", laptop: "laptop", desktop: "macDesktop", phone: "iphone" };
@@ -251,13 +252,20 @@ function Switcher({ profiles, selected, onChoose, bottom }: { profiles: SyncedPr
               onPress={() => onChoose(profile.syncId)}
               style={[styles.switch, { opacity: isSelected ? 1 : 0.35 }]}
             >
-              <View style={[styles.dot, { backgroundColor: theme.label }]} />
+              <ProfileMark icon={profile.icon} />
             </Pressable>
           );
         })}
       </View>
     </View>
   );
+}
+
+function ProfileMark({ icon }: { icon: string | null }) {
+  const theme = useTheme();
+  const symbol = sfSymbol(icon, isSymbolName);
+  if (symbol && isSymbolName(symbol)) return <Symbol name={symbol} size={20} color={theme.label} />;
+  return <View style={[styles.dot, { backgroundColor: theme.label }]} />;
 }
 
 function Unavailable({ isOff }: { isOff: boolean }) {

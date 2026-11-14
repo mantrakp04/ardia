@@ -14,6 +14,6 @@ export { PageView, type PageNavigationState, type PageTone, type PageViewHandle 
 export { PressScale } from "./PressScale";
 export { Symbol } from "./Symbol";
 export { placeholderTint, TabFace, tabFill } from "./TabFace";
-export type { SymbolName } from "./symbolPaths";
+export { isSymbolName, type SymbolName } from "./symbolPaths";
 export { profileBackdrop, rolesFor, ThemeColorContext, useTheme, type Theme } from "./theme";
 export { browseLayout, capsule, font, ink, radius, space, dialogLayout, menuLayout, pageInk, readerInk, readerLayout, settingsLayout, settingsTint, PROFILE_COLORS, tabsInk, tabsLayout, toastLayout, trayShadow, type ColorRoles, type ProfileColor } from "./tokens";

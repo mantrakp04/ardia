@@ -208,3 +208,5 @@ export const SYMBOLS = {
 } satisfies Record<string, SymbolLayer[]>;
 
 export type SymbolName = keyof typeof SYMBOLS;
+
+export const isSymbolName = (name: string): name is SymbolName => name in SYMBOLS;
