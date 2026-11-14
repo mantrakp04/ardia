@@ -1,11 +1,11 @@
 import type { AppNative, DialogsNative, FileDropNative, MenusNative, NotificationsNative, SystemNative, SystemSignalsNative, WindowControlsNative, WindowsNative } from "@ardia/shell";
-import type { FolderInfo, PhraseResult } from "@ardia/sync";
+import type { FolderInfo } from "@ardia/sync";
 import type { TurboModule } from "react-native";
 import type { PowerReading } from "./engine/domains/calling";
 import type { EventSubscription } from "./events";
 import type { ImportHost } from "./import/host";
 import type { LaunchArguments } from "./launchLinks/addresses";
-import type { VaultNative } from "./sync/vault";
+import type { SyncContract, VaultNative } from "./sync/vault";
 import type { DropAreaFrame } from "./views/fileDropAreas";
 
 export type WindowFade = {
@@ -108,19 +108,13 @@ export type SystemSignalsModule = SystemSignalsNative & { powerState(): PowerRea
 export type SyncFolderState = Pick<FolderInfo, "exists" | "writable" | "hasSyncData">;
 
 export type WindowsSyncModule = TurboModule &
-  VaultNative & {
+  VaultNative &
+  Pick<SyncContract, "enterPhrase" | "unlock" | "sealLocal" | "openLocal" | "recoveryWords" | "copyRecoveryPhrase" | "savePassword"> & {
     getConstants(): { computerName?: unknown; oneDriveFolder?: unknown; documentsFolder?: unknown; testFolder?: unknown };
     createKey(account: string): Promise<boolean>;
-    enterPhrase(account: string, text: string, folder: string): Promise<PhraseResult>;
-    unlock(account: string): Promise<boolean>;
     forget(account: string): Promise<boolean>;
-    sealLocal(text: string): Promise<string>;
-    openLocal(sealed: string): Promise<string | null>;
-    recoveryWords(): Promise<string[] | null>;
-    copyRecoveryPhrase(): Promise<boolean | null>;
     folderState(path: string): Promise<SyncFolderState>;
     readPasswords(profile: string): Promise<string | null>;
-    savePassword(profile: string, origin: string, username: string, sealed: string, replacing: boolean): Promise<boolean>;
     saveFile(path: string, base64: string): Promise<boolean>;
     copyKitFile(name: string, base64: string): Promise<boolean>;
     renderPdf(base64: string, width: number): Promise<string | null>;

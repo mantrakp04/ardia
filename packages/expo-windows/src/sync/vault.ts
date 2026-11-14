@@ -7,7 +7,7 @@ export type VaultEntry = { name: string; dir: boolean; modified: number; placeho
 
 export type Opened = { state: "data"; payload: string } | { state: "busy" | "placeholder" | "missing" | "damaged" | "unreadable" };
 
-type SyncContract = NonNullable<typeof SyncNative>;
+export type SyncContract = NonNullable<typeof SyncNative>;
 
 export type VaultNative = Pick<SyncContract, "chainStatus" | "write"> & {
   createChain(folder: string): Promise<unknown>;
