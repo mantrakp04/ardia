@@ -291,3 +291,67 @@ test("with Hide toolbar while scrolling off, a page's scrolling is not kept, and
   noteScroll(tabId, "down");
   assert.equal(st().scrolledDown[tabId], true);
 });
+
+test("vertical mandatory scroll-snap containers do not trigger toolbar auto-hide", () => {
+  const full = script.match(/const scrollDirection = [\s\S]*?(?=\n {2}addEventListener\("resize",)/)?.[0];
+  assert.ok(full, "page_script.js defines measureScroll");
+  const sent = [];
+  const listeners = {};
+  const clock = { now: 1000 };
+  const doc = { scrollTop: 0, scrollHeight: 5000, clientHeight: 800, clientWidth: 1200, scrollSnapType: "none" };
+  const body = { scrollSnapType: "none" };
+  const snapFeed = { scrollTop: 0, scrollHeight: 5000, clientHeight: 800, clientWidth: 1200, scrollSnapType: "y mandatory" };
+  const proximityInner = { scrollTop: 0, scrollHeight: 5000, clientHeight: 800, clientWidth: 1200, scrollSnapType: "y proximity" };
+  const horizCarousel = { scrollTop: 0, scrollHeight: 5000, clientHeight: 800, clientWidth: 1200, scrollSnapType: "x mandatory" };
+  const document = { scrollingElement: doc, documentElement: doc, body };
+  let raf = null;
+  const build = new Function(
+    "addEventListener",
+    "performance",
+    "document",
+    "getComputedStyle",
+    "requestAnimationFrame",
+    "guard",
+    "send",
+    "innerHeight",
+    "innerWidth",
+    `${full}\nreturn measureScroll;`,
+  );
+  const measure = build(
+    (type, fn) => (listeners[type] = fn),
+    { now: () => clock.now },
+    document,
+    (el) => ({ scrollSnapType: el.scrollSnapType }),
+    (fn) => (raf = fn),
+    (fn) => fn,
+    (kind, payload) => sent.push([kind, payload]),
+    800,
+    1200,
+  );
+  const scroll = (target, y) => {
+    listeners.wheel({ deltaX: 0, deltaY: 200, ctrlKey: false });
+    target.scrollTop = y;
+    listeners.scroll({ target });
+    clock.now += 16;
+    measure();
+  };
+  scroll(snapFeed, 20);
+  scroll(snapFeed, 200);
+  body.scrollSnapType = "y mandatory";
+  scroll(document, 20);
+  scroll(document, 200);
+  assert.deepEqual(sent, []);
+  scroll(proximityInner, 20);
+  scroll(proximityInner, 200);
+  assert.deepEqual(sent, [["scroll", { state: "down" }]]);
+  clock.now += 400;
+  scroll(horizCarousel, 20);
+  scroll(horizCarousel, 200);
+  assert.deepEqual(sent, [["scroll", { state: "down" }], ["scroll", { state: "down" }]]);
+  body.scrollSnapType = "none";
+  clock.now += 400;
+  scroll(doc, 20);
+  scroll(doc, 200);
+  assert.deepEqual(sent, [["scroll", { state: "down" }], ["scroll", { state: "down" }], ["scroll", { state: "down" }]]);
+  assert.equal(typeof raf, "function");
+});
