@@ -12,7 +12,8 @@
     "@ardia/ardiacore": "workspace:*",
     "@ardia/import": "workspace:*",
     "@ardia/shaders": "workspace:*",
-    "@ardia/shell": "workspace:*"
+    "@ardia/shell": "workspace:*",
+    "@ardia/sync": "workspace:*"
   },
   "peerDependencies": {
     "expo": "*",

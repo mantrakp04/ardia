@@ -102,7 +102,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Appearance: light and dark | Works | |
 | Keyboard Shortcuts pane | Works, Windows keys | |
 | "…" menu (12 items, Windows keys) | Works, except Check for Updates | #1517 |
-| Sync | Not offered ("isn't available in this build"); hidden | #1521 |
+| Sync | Works with the Mac's vault through any folder the user picks (OneDrive's `Ardia Sync` by default); a Mac and a PC exchanged pinned tabs and bookmarks both ways in the VM on 2026-11-13. Passwords don't sync on Windows yet: the engine refuses to list logins (below). Share… in the Recovery Kit menu is not offered | #1575, #1425 |
 | Calendar | Does nothing (Connect answered with macOS copy); hidden | #1521 |
 | Trackpad gestures, video upscaling, reorder haptics, thin scroll bars | Does nothing; hidden (thin scroll bars need the engine: #1425) | #1522, #1520 |
 | The ardia command, Widevine | Not offered (each says so) | |
@@ -662,6 +662,43 @@ that answers the same methods with the same result shapes, so the wizard (`compo
   real files there. Telemetry: `import_runs`, `import_kinds_done`, `import_kinds_failed` and
   `import_secrets_left` in the hourly `usage_counts` (`state/telemetry/importRuns.ts`, every platform): a rising share of
   failed kinds or secrets left on Windows is the sign to look at.
+
+## Sync
+
+Windows syncs with Macs through the same folder and the same vault: `folder\<chain tag>\<scope tag>\<file id>.nns`,
+sealed exactly as `packages/sync/ios/Core/SyncCrypto.swift` seals it. The engine (`state/sync`) is the Mac's;
+`ArdiaSync` is answered by `packages/expo-windows/src/sync` (layout, listing, QR code, Recovery Kit) over the native
+`ArdiaWindowsSync` (`SyncModule.h` and the `Sync*.h` headers next to it), which keeps every secret out of JS:
+
+- Keys: the 24 words are made and read natively (`SyncPhrase.h`, the Mac's wordlist in `SyncWordlist.h`), the entropy
+  is sealed with DPAPI for the current user into `<data folder>\Sync\sync-key-<device id>.dpapi` and wiped after the
+  four keys are derived (BCrypt HKDF, HMAC and AES-256-GCM in `SyncCrypto.h`). A failed unseal never makes a new key;
+  sync asks for the phrase. Each operation holds the keys it started with; `forget` bumps a generation, so a result or
+  an owner check that began before it is dropped.
+- Passwords are off on Windows (`PLATFORM_FEATURES.syncsPasswords`: no What Syncs row, the type never syncs, and
+  the Mac's synced passwords stay in the vault untouched). Chromium turns `kSkipUndecryptablePasswords` on by default
+  on Windows only, and with it `ac_passwords_logins` answers "partial password reads": a login list that may silently
+  leave out undecryptable passwords would look like deletions to sync. The engine needs to list every login on
+  Windows (#1425); the native side below is ready for it.
+- Passwords, once the engine lists them: `ac_passwords_logins` is called and its reply sealed in C++ (`SyncSystem.h`),
+  and a synced password is opened only to hand it to `ac_passwords_add`. The Mac's vault files carry plaintext `p` in `pw:` records, as the Mac
+  writes them; `SyncLogins.h` swaps them for sealed `s` before JS sees a document (escaped keys included; a login it
+  can't seal loses its `p`) and back when writing. Replacing a password reads the old one first and puts it back if
+  the add fails, because `ac_passwords_update` asks the user to sign in again.
+- Disclosure (Show Words, Copy Words, Show Code, the Recovery Kit): Windows Hello, else Windows' own password prompt
+  checked with `LogonUser` against this user's SID, valid for 60 seconds as on the Mac. A hidden test instance answers
+  from `ARDIA_TEST=reauth=granted`. Copied words are kept out of clipboard history and the cloud clipboard.
+- Files: written to a hidden staging file, flushed, then moved into place without replacing; read only when the size
+  and write time didn't change during the read. OneDrive's online-only files are never opened: they wait as pending
+  while a single background reader downloads them (one try per file a minute, at most 64 queued). A file another
+  program is writing waits too. Links where the vault's own folders belong are refused, and deleting the vault never
+  follows one. Like the Mac, sync polls every 15 seconds; it does not watch the folder.
+- The Recovery Kit is drawn in TypeScript (`kit.ts`, `pdf.ts`), with a QR code module for module CoreImage's
+  (`qr.ts`, `windows-interop/qr.txt`); the preview is the kit with masked words, rendered by `Windows.Data.Pdf`.
+
+Proof that the formats agree: `packages/sync/tests/WindowsInteropTests.swift` opens a vault written through the
+Windows code path (`fixtures/windows-interop/windows`), `state/sync/windowsVault.test.mjs` reads the vault the Mac's
+Swift core wrote (`fixtures/windows-interop/mac`), and the self-check opens that same Mac vault with the native code.
 
 ## Updates
 

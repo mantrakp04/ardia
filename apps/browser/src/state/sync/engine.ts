@@ -26,6 +26,7 @@ import { queueSend, sendTargetsIn } from "./sentTabs";
 import { errorText } from "../../lib/errors";
 import { isQuitting, saveBeforeQuit } from "../app/quit";
 import { onProfilesOpened, profileOpened } from "../profiles/profileLoading";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
 export { onTabsReceived } from "./sentTabs";
 
@@ -259,7 +260,7 @@ export async function turnOnSync(folder: string): Promise<{ ok: true } | { error
   if (!native) return { error: "Sync isn’t available in this build." };
   const deviceId = native.newDeviceId();
   try {
-    if (!(await native.createPhrase(deviceId))) return { error: "Couldn’t save the sync key in your Keychain." };
+    if (!(await native.createPhrase(deviceId))) return { error: `Couldn’t save the sync key in ${PLATFORM_TERMS.secretStore}.` };
     await native.createChain(folder);
   } catch (error) {
     await native.forget(deviceId);
@@ -360,7 +361,7 @@ export function startSync() {
   if (doc.enabled && doc.deviceId) {
     void SyncNative.unlock(doc.deviceId)
       .then(async (ok) => {
-        if (!ok) return publishUi({ status: "locked", error: "Enter your recovery phrase to keep syncing on this Mac." });
+        if (!ok) return publishUi({ status: "locked", error: `Enter your recovery phrase to keep syncing on this ${PLATFORM_TERMS.computer}.` });
         await loadSavedState();
         publishUi();
         scheduleSync(500);
