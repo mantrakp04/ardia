@@ -139,3 +139,28 @@ export function idleMacTabs(profile: SyncedProfile | null, devices: readonly Syn
     .slice(0, IDLE_MAC_TABS)
     .map((tab) => ({ url: tab.url, title: remoteTitle(tab.title, tab.url), deviceName: device.deviceName }));
 }
+
+const SPACE_COLORS: Record<string, string> = {
+  red: "#FF3B30",
+  orange: "#FF9500",
+  yellow: "#FFCC00",
+  green: "#34C759",
+  mint: "#00C7BE",
+  teal: "#30B0C7",
+  cyan: "#32ADE6",
+  blue: "#007AFF",
+  indigo: "#5856D6",
+  purple: "#AF52DE",
+  violet: "#AF52DE",
+  pink: "#FF2D55",
+  brown: "#A2845E",
+  gray: "#8E8E93",
+  grey: "#8E8E93",
+};
+
+export function spaceGroupColor(name: string | null): string | null {
+  const key = name?.trim().toLowerCase();
+  if (!key) return null;
+  if (key.startsWith("#")) return /^#[0-9a-f]{6}$/.test(key) ? key.toUpperCase() : null;
+  return SPACE_COLORS[key] ?? null;
+}

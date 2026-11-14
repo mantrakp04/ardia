@@ -162,32 +162,6 @@ export function syncedEngineName(
   return engines.find((engine) => engine.id === search.engineId)?.name ?? search.engineId.charAt(0).toUpperCase() + search.engineId.slice(1);
 }
 
-function rgb(hex: string): [number, number, number] | null {
-  const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!match) return null;
-  const value = parseInt(match[1]!, 16);
-  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
-}
-
-export function matchedColor<K extends string>(
-  profile: Pick<SyncedProfile, "color" | "theme"> | null,
-  swatches: readonly { key: K; hex: string }[],
-): K | null {
-  if (!profile) return null;
-  const named = swatches.find((swatch) => swatch.key === profile.color?.toLowerCase());
-  if (named) return named.key;
-  const target = rgb(profile.color ?? "") ?? rgb(profile.theme?.colors[0] ?? "");
-  if (!target) return null;
-  let best: { key: K; distance: number } | null = null;
-  for (const swatch of swatches) {
-    const color = rgb(swatch.hex);
-    if (!color) continue;
-    const distance = color.reduce((sum, channel, i) => sum + (channel - target[i]!) ** 2, 0);
-    if (!best || distance < best.distance) best = { key: swatch.key, distance };
-  }
-  return best?.key ?? null;
-}
-
 export const INBOX_RETRY = "Sync couldn’t read some changes your Mac sent and set that file aside. Sync Now tries again.";
 
 export function inboxNotice(status: SyncStatus): { message: string; footer: string } | null {

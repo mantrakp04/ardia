@@ -11,8 +11,8 @@ import { OnboardingView } from "./components/onboarding/OnboardingView";
 import { SettingsView } from "./components/settings/SettingsView";
 import { SpacesView } from "./components/sync/SpacesView";
 import { ToastHost } from "./components/toasts/ToastHost";
-import { OverlayHost, PROFILE_COLORS, Shade, ThemeColorContext, type ProfileColor } from "./components/ui";
-import { useLookColor } from "./state/sync/hooks";
+import { DEFAULT_PROFILE_COLOR, OverlayHost, PROFILE_PRESETS, ProfileLookContext, Shade } from "./components/ui";
+import { useLook } from "./state/sync/hooks";
 import { startSettingsSources } from "./state/settings/actions";
 import { startSync } from "./state/sync/actions";
 import { useSettingsNav } from "./state/settings/hooks";
@@ -26,8 +26,6 @@ import { appBecameActive, appWillResignActive, goBackToStartIfEmpty, startBrowse
 import { handleSystemBack, startPageUi } from "./state/page/actions";
 import { useSelectedTab } from "./state/tabs/hooks";
 
-const SWATCHES = (Object.keys(PROFILE_COLORS) as ProfileColor[]).map((key) => ({ key, hex: PROFILE_COLORS[key].swatch }));
-
 export default function App() {
   useState(() =>
     bootApp(() => {
@@ -40,7 +38,7 @@ export default function App() {
   );
   const ready = useBoot((s) => s.ready);
   const dark = useColorScheme() === "dark";
-  const color = useLookColor(SWATCHES, "plum");
+  const look = useLook(PROFILE_PRESETS, DEFAULT_PROFILE_COLOR);
   useBaseSystemBars(dark);
   useEffect(() => {
     const back = BackHandler.addEventListener("hardwareBackPress", handleSystemBack);
@@ -53,9 +51,9 @@ export default function App() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <ThemeColorContext.Provider value={color}>
+        <ProfileLookContext.Provider value={look}>
           <OverlayHost>{ready ? <Surfaces /> : null}</OverlayHost>
-        </ThemeColorContext.Provider>
+        </ProfileLookContext.Provider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

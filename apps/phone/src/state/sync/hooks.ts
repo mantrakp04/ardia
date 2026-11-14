@@ -1,9 +1,11 @@
+import { useMemo } from "react";
+import { lookForApp, type PresetSpec, type ProfileLook } from "../../lib/profileLook";
 import { usePreferences } from "../settings/store";
 import { useTab } from "../tabs/hooks";
 import { isSyncableUrl } from "../tabs/tabModels";
 import { isPinnedOnMac } from "./spaces";
 import { useSync } from "./store";
-import { isSyncConnected, matchedColor, sendReceivers, shownProfile } from "./syncRules";
+import { isSyncConnected, sendReceivers, shownProfile } from "./syncRules";
 
 export const useSyncStatus = () => useSync((s) => s.status);
 
@@ -19,11 +21,11 @@ export function useSelectedProfile() {
   return useSync((s) => shownProfile(s.view, s.status));
 }
 
-export function useLookColor<K extends string>(swatches: readonly { key: K; hex: string }[], fallback: K): K {
-  const choice = usePreferences((p) => p.colorChoice) as K | null;
+export function useLook(presets: readonly PresetSpec[], fallback: string): ProfileLook {
+  const choice = usePreferences((p) => p.colorChoice);
+  const enabled = useSyncEnabled();
   const profile = useSelectedProfile();
-  if (choice) return choice;
-  return matchedColor(profile, swatches) ?? fallback;
+  return useMemo(() => lookForApp(choice, enabled, profile, presets, fallback), [choice, enabled, profile, presets, fallback]);
 }
 
 export function useSendTargets(tabId: string) {

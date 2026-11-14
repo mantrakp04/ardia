@@ -4,14 +4,14 @@ import { refreshDefaultBrowser, useDefaultBrowser } from "../../state/settings/d
 import { offersDefaultBrowser } from "../../state/settings/settingsRules";
 import { openArchive, openSpaces } from "../../state/browse/store";
 import { matchMyMac } from "../../state/sync/actions";
-import { useLookColor, useSyncEnabled, useSyncStatus, useSyncView } from "../../state/sync/hooks";
+import { useSyncEnabled, useSyncStatus, useSyncView } from "../../state/sync/hooks";
 import { syncedEngineName, syncRowSubtitle } from "../../state/sync/syncRules";
 import { showOnboarding } from "../../state/onboarding/store";
 import { appVersion, exportOpenTabs, setArchiveInterval, setAutoOpenKeyboard, setColorChoice, setSearchSuggestions, useEngines } from "../../state/settings/actions";
 import { usePreferences } from "../../state/settings/hooks";
 import { closeSettings, pushSettings } from "../../state/settings/nav";
 import { AUTO_ARCHIVE_INTERVALS, autoArchiveTitle, type AutoArchiveInterval } from "../../state/tabs/tabModels";
-import { capsule, font, PROFILE_COLORS, settingsLayout, settingsTint, space, Symbol, useTheme, type ProfileColor } from "../ui";
+import { capsule, font, PROFILE_COLORS, settingsLayout, settingsTint, space, Symbol, useProfileLook, useTheme, type ProfileColor } from "../ui";
 import { BarButton, Group, IconTile, NavRow, PickerRow, SettingsPage, ToggleRow } from "./SettingsKit";
 
 const INTERVALS = (Object.keys(AUTO_ARCHIVE_INTERVALS) as AutoArchiveInterval[]).map((id) => ({ id, title: autoArchiveTitle(id) }));
@@ -122,7 +122,7 @@ function SyncCard() {
 function MatchMyMac() {
   const theme = useTheme();
   const chosen = usePreferences((p) => p.colorChoice);
-  const look = useLookColor(SWATCHES, "plum");
+  const look = useProfileLook();
   return (
     <>
       <View style={[styles.divider, { backgroundColor: theme.separator }]} />
@@ -131,20 +131,18 @@ function MatchMyMac() {
   );
 }
 
-const SWATCHES = COLORS.map((key) => ({ key, hex: PROFILE_COLORS[key].swatch }));
-
 function ColorRow() {
   const theme = useTheme();
-  const chosen = useLookColor(SWATCHES, "plum");
+  const look = useProfileLook();
   return (
     <View style={styles.colorRow}>
       <View style={styles.colorLabel}>
-        <IconTile icon="paintpaletteFill" tint={PROFILE_COLORS[chosen].swatch} />
+        <IconTile icon="paintpaletteFill" tint={look.swatch} />
         <Text style={[font.body, { color: theme.label }]}>Color</Text>
       </View>
       <View style={styles.swatches} accessibilityRole="radiogroup">
         {COLORS.map((color) => {
-          const selected = color === chosen;
+          const selected = color === look.preset;
           const swatch = PROFILE_COLORS[color].swatch;
           return (
             <Pressable

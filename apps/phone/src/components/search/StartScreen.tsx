@@ -31,7 +31,7 @@ export function StartScreen() {
       ];
   return (
     <View style={StyleSheet.absoluteFill}>
-      <Backdrop colors={incognito ? tabsInk.incognitoBackdrop : theme.backdrop} />
+      {incognito ? <Backdrop colors={tabsInk.incognitoBackdrop} /> : <Backdrop colors={theme.start.colors} diagonal={theme.start.diagonal} />}
       <View style={[styles.logo, { paddingBottom: BAR_RESERVE / 2, opacity: trayUp ? 0 : 1 }]} pointerEvents="none">
         <ArdiaLogo width={browseLayout.logoWidth} />
       </View>

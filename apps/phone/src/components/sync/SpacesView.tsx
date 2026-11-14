@@ -8,14 +8,19 @@ import { copyLink, menuOpenedHaptic, shareUrl } from "../../state/browse/tabMenu
 import { openSettings } from "../../state/settings/nav";
 import { openRemote, selectProfile, syncNow } from "../../state/sync/actions";
 import { useSelectedProfile, useSyncStatus, useSyncView } from "../../state/sync/hooks";
-import { remoteTitle, spaceRows, type SpaceRow } from "../../state/sync/spaces";
+import { remoteTitle, spaceGroupColor, spaceRows, type SpaceRow } from "../../state/sync/spaces";
+import { spaceTone } from "../../lib/profileLook";
+import { sfSymbol } from "../../lib/sfSymbols";
 import { syncBanner, type BannerIcon } from "../../state/sync/syncRules";
 import {
   Backdrop,
   capsule,
+  DEFAULT_PROFILE_COLOR,
   Favicon,
   FloatingMenu,
   font,
+  isSymbolName,
+  PROFILE_PRESETS,
   space,
   Symbol,
   spacesLayout,
@@ -53,6 +58,7 @@ export function SpacesView() {
   useEffect(() => {
     if (chosen && shown?.syncId === chosen) setChosen(null);
   }, [chosen, shown?.syncId]);
+  const tone = useMemo(() => spaceTone(profile, theme.dark, false, PROFILE_PRESETS, DEFAULT_PROFILE_COLOR), [profile, theme.dark]);
   const banner = syncBanner(status);
   const choose = (id: string) => {
     setChosen(id);
@@ -60,7 +66,7 @@ export function SpacesView() {
   };
   return (
     <View style={StyleSheet.absoluteFill}>
-      <Backdrop colors={theme.backdrop} />
+      <Backdrop colors={tone} />
       <View style={[styles.column, { paddingTop: insets.top }]}>
         <View style={styles.header}>
           <Text accessibilityRole="header" style={[font.title2, styles.bold, styles.fill, { color: theme.label }]} numberOfLines={1}>
@@ -206,7 +212,7 @@ function Row({ row, profileId, tint, onToggle, onShowAll, onLongPress, onFolder 
           onPress={() => onToggle(row.key)}
           style={({ pressed }) => [styles.row, { paddingLeft: space.l + INDENT * row.depth }, pressed ? { backgroundColor: theme.rowHighlight } : null]}
         >
-          <Symbol name="folderFill" size={20} color={tint} />
+          <Symbol name={groupSymbol(row.kind === "group" ? row.icon : null)} size={20} color={(row.kind === "group" ? spaceGroupColor(row.color) : null) ?? tint} />
           <Text style={[font.body, styles.medium, styles.fill, { color: theme.label }]} numberOfLines={2}>
             {row.title}
           </Text>
@@ -237,6 +243,11 @@ function Row({ row, profileId, tint, onToggle, onShowAll, onLongPress, onFolder 
         </View>
       );
   }
+}
+
+function groupSymbol(icon: string | null): SymbolName {
+  const symbol = sfSymbol(icon, isSymbolName);
+  return symbol && isSymbolName(symbol) ? symbol : "folderFill";
 }
 
 const styles = StyleSheet.create({

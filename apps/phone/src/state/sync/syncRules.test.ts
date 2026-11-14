@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { NOW, status, view } from "../../../test/syncFixture.ts";
-import { idleMacTabs, isPinnedOnMac, macTabIndex, pinKey, pinsStillOnTheirWay, mergeSyncedHistory, spaceRows, syncedBookmarks } from "./spaces.ts";
+import { idleMacTabs, isPinnedOnMac, macTabIndex, pinKey, pinsStillOnTheirWay, mergeSyncedHistory, spaceGroupColor, spaceRows, syncedBookmarks } from "./spaces.ts";
 import {
   connectMessage,
   deviceIcon,
   deviceSeen,
   isSyncConnected,
-  matchedColor,
   orderedDevices,
   phraseFooter,
   profileOf,
@@ -169,7 +168,7 @@ test("the omnibox gets the Mac's history, bookmarks and open tabs for the select
   assert.deepEqual(idleMacTabs(work, view().devices), [{ url: "https://linear.example/", title: "Linear", deviceName: "Shivam’s MacBook Air" }]);
 });
 
-test("the Mac's search engine and colour carry over", () => {
+test("the Mac's search engine carries over", () => {
   const engines = [
     { id: "google", name: "Google" },
     { id: "duckduckgo", name: "DuckDuckGo" },
@@ -177,15 +176,6 @@ test("the Mac's search engine and colour carry over", () => {
   assert.equal(syncedEngineName({ engineId: "duckduckgo", customEngines: [] }, engines), "DuckDuckGo");
   assert.equal(syncedEngineName({ engineId: "k", customEngines: [{ id: "k", name: "Kagi Work" }] }, engines), "Kagi Work");
   assert.equal(syncedEngineName({ engineId: "custom", customEngines: [] }, engines), "Custom");
-  const swatches = [
-    { key: "plum", hex: "#C07A98" },
-    { key: "blue", hex: "#4691C3" },
-    { key: "green", hex: "#3EB489" },
-  ] as const;
-  assert.equal(matchedColor({ color: "#4691C3", theme: null }, swatches), "blue");
-  assert.equal(matchedColor({ color: "Green", theme: null }, swatches), "green");
-  assert.equal(matchedColor({ color: null, theme: { colors: ["#40B080"], darkColors: null } }, swatches), "green");
-  assert.equal(matchedColor({ color: null, theme: null }, swatches), null);
 });
 
 test("a set-aside inbox shows the module's message and that Sync Now tries again", () => {
@@ -213,4 +203,13 @@ test("the switcher marks the profile the view shows, even before the user has pi
   assert.equal(shownProfile(view({ shownProfileId: "gone", selectedProfileId: null }), status({ selectedProfileId: null }))?.syncId, "personal");
   assert.equal(shownProfile(view({ shownProfileId: undefined }), status({ selectedProfileId: "work" }))?.syncId, "work");
   assert.equal(shownProfile(view({ shownProfileId: "work" }), status({ isEnabled: false })), null);
+});
+
+test("a synced group takes its Mac colour by name or hex", () => {
+  assert.equal(spaceGroupColor("Teal"), "#30B0C7");
+  assert.equal(spaceGroupColor("grey"), "#8E8E93");
+  assert.equal(spaceGroupColor("#a1b2c3"), "#A1B2C3");
+  assert.equal(spaceGroupColor("#abc"), null);
+  assert.equal(spaceGroupColor("chartreuse"), null);
+  assert.equal(spaceGroupColor(null), null);
 });

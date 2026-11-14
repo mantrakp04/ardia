@@ -1,4 +1,5 @@
 import { sync, type ConnectResult, type PhraseCheck, type SyncedDevice } from "../../platform/sync";
+import { choiceAfterMatchToggle, type ProfileLook } from "../../lib/profileLook";
 import { pasteText } from "../../platform/system";
 import { openTab, showDeck, useBrowse } from "../browse/store";
 import { history } from "../history/store";
@@ -134,8 +135,8 @@ export function selectProfile(profileSyncId: string) {
   quietly(() => sync.selectProfile(profileSyncId));
 }
 
-export function matchMyMac(on: boolean, current: ColorChoice) {
-  setPreference("colorChoice", on ? null : current);
+export function matchMyMac(on: boolean, look: ProfileLook) {
+  setPreference("colorChoice", choiceAfterMatchToggle(on, look, "plum") as ColorChoice | null);
 }
 
 export function sendTargetsFor(tab: BrowserTab | null): SyncedDevice[] {

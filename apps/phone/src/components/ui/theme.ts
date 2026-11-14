@@ -1,26 +1,34 @@
 import { createContext, useContext, useMemo } from "react";
 import { useColorScheme } from "react-native";
-import { backdropTint, opaqueTint, tintForHue } from "../../lib/windowTint";
+import { backdropStops, presetLook, showsTheme, windowTintStops, type PresetSpec, type ProfileLook } from "../../lib/profileLook";
 import { colorRoles, PROFILE_COLORS, type ColorRoles, type ProfileColor } from "./tokens";
 
-export type Theme = ColorRoles & { backdrop: [string, string]; surface: string };
+export type StartBackdrop = { colors: string[]; diagonal: boolean };
 
-export function profileBackdrop(color: ProfileColor, dark: boolean): [string, string] {
-  const spec = PROFILE_COLORS[color];
-  const neutral = color === "neutral";
-  return opaqueTint(backdropTint(spec.tint ?? tintForHue(spec.swatch, neutral), neutral), dark);
-}
+export type Theme = ColorRoles & { backdrop: [string, string]; surface: string; start: StartBackdrop };
 
 export const rolesFor = (dark: boolean): ColorRoles => (dark ? colorRoles.dark : colorRoles.light);
 
-export const ThemeColorContext = createContext<ProfileColor>("plum");
+export const PROFILE_PRESETS: PresetSpec[] = (Object.keys(PROFILE_COLORS) as ProfileColor[]).map((key) => ({
+  key,
+  swatch: PROFILE_COLORS[key].swatch,
+  tint: PROFILE_COLORS[key].tint,
+}));
 
-export function useTheme(override?: ProfileColor): Theme {
-  const chosen = useContext(ThemeColorContext);
-  const color = override ?? chosen;
+export const DEFAULT_PROFILE_COLOR: ProfileColor = "plum";
+
+const DEFAULT_LOOK = presetLook(PROFILE_PRESETS.find((preset) => preset.key === DEFAULT_PROFILE_COLOR)!);
+
+export const ProfileLookContext = createContext<ProfileLook>(DEFAULT_LOOK);
+
+export const useProfileLook = () => useContext(ProfileLookContext);
+
+export function useTheme(): Theme {
+  const look = useProfileLook();
   const dark = useColorScheme() === "dark";
   return useMemo(() => {
-    const backdrop = profileBackdrop(color, dark);
-    return { ...rolesFor(dark), backdrop, surface: backdrop[0] };
-  }, [color, dark]);
+    const backdrop = windowTintStops(look, dark);
+    const start = { colors: backdropStops(look, dark, true), diagonal: showsTheme(look, dark, true) };
+    return { ...rolesFor(dark), backdrop, surface: backdrop[0], start };
+  }, [look, dark]);
 }
