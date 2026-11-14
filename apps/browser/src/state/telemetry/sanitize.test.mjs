@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { cleanProperties, errorCode, errorMessage, errorType, nativeCrashExceptions, nativeFrames, parseStack, scrubText } from "./sanitize.ts";
-import { customColorProfiles, settingsSnapshot, themeFileSnapshot } from "./settingsSnapshot.ts";
+import { customColorProfiles, narrowWindows, settingsSnapshot, themeFileSnapshot } from "./settingsSnapshot.ts";
 const { DEFAULT_SETTINGS, SETTING_SPECS } = await import("../settings/settings.ts");
 
 const leaks = (text, ...secrets) => secrets.filter((s) => text.includes(s));
@@ -283,6 +283,20 @@ test("the snapshot says whether text adjusts to the colour, and how many profile
   const theme = { stops: [{ x: 0, y: 0, color: { r: 0.88, g: 0.88, b: 0.88, a: 1 } }], intensity: 1, mode: "dark" };
   const counted = customColorProfiles({ a: { name: "Work", theme }, b: { name: "Home" }, c: { name: "Play", theme: null } });
   assert.deepEqual(counted, { custom_color_profiles: "1" });
+  assert.deepEqual(cleanProperties(counted), counted);
+});
+
+test("the snapshot counts browser windows narrower than the old 720 point minimum, never their size", () => {
+  const frame = (width) => [10, 20, width, 600];
+  const counted = narrowWindows({
+    a: { kind: "main", frame: frame(500) },
+    b: { kind: "private", frame: frame(719) },
+    c: { kind: "main", frame: frame(720) },
+    d: { kind: "small", frame: frame(400) },
+    e: { kind: "main", frame: null },
+    f: { kind: "main", frame: frame(600), fullScreen: 1700000000000 },
+  });
+  assert.deepEqual(counted, { narrow_windows: "2" });
   assert.deepEqual(cleanProperties(counted), counted);
 });
 

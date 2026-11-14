@@ -413,7 +413,7 @@ void ConfigureWindow(NSWindow *window) {
   window.titlebarAppearsTransparent = YES;
   window.titleVisibility = NSWindowTitleHidden;
   window.title = @"Ardia";
-  window.minSize = NSMakeSize(720, 460);
+  window.minSize = NSMakeSize(500, 460);
   window.backgroundColor = WindowColor();
   window.releasedWhenClosed = NO;
   window.tabbingMode = NSWindowTabbingModeDisallowed;
