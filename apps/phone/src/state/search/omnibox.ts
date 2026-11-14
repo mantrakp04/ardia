@@ -7,9 +7,9 @@ import {
   mobileSetSources,
   mobileSuggest,
   mobileSuggestRequest,
-} from "@ardia/core/src/mobile";
-import { dedupeByLanding, displayHost, landingKey } from "../../lib/url";
-import type { PasteOffer } from "./pasteRow";
+} from "@ardia/core/src/mobile.ts";
+import { dedupeByLanding, displayHost, landingKey } from "../../lib/url.ts";
+import type { PasteOffer } from "./pasteRow.ts";
 
 export type TrayRow =
   | { key: string; kind: "query"; title: string; url: string; query: string }
@@ -35,7 +35,9 @@ export function suggest(text: string, remote: readonly string[], context: Sugges
   const result = mobileSuggest(text, { remote: [...remote], preference: "website", limit: 8, now: Date.now(), ...context });
   const rows: TrayRow[] = [];
   for (const item of result.items) {
-    if (item.kind === "search") rows.push({ key: `q:${item.query}`, kind: "query", title: item.query, url: item.url, query: item.query });
+    const typedAddress = item.kind === "search" ? mobileResolve(item.query) : null;
+    if (item.kind === "search" && typedAddress?.kind === "url") rows.push(addressRow(typedAddress.url));
+    else if (item.kind === "search") rows.push({ key: `q:${item.query}`, kind: "query", title: item.query, url: item.url, query: item.query });
     else if (item.kind === "page") {
       const shown = mobileDisplay(item.url, item.title);
       const host = displayHost(shown.host, item.url);
@@ -53,6 +55,25 @@ export function suggest(text: string, remote: readonly string[], context: Sugges
   }
   const unique = dedupeByLanding(rows.map((row) => ({ row, url: row.kind === "page" ? row.url : row.key, opensTab: row.kind === "page" && row.switchesTab })));
   return { rows: unique.map((item) => item.row), completion: result.completion };
+}
+
+function addressRow(url: string): TrayRow {
+  const host = displayHost(mobileDisplay(url, "").host, url);
+  return { key: `p::${url}`, kind: "page", title: host, detail: host, url, favicon: null, tabId: null, switchesTab: false };
+}
+
+export type RowTarget = { url: string; origin: "search" | "typed" };
+
+export function rowTarget(row: TrayRow): RowTarget | null {
+  if (row.kind === "calc" || row.kind === "paste") return null;
+  if (row.kind === "page") return { url: row.url, origin: "typed" };
+  const typed = mobileResolve(row.query);
+  return typed?.kind === "url" ? { url: typed.url, origin: "typed" } : { url: row.url, origin: "search" };
+}
+
+export function enterTarget(text: string): RowTarget | null {
+  const resolution = mobileResolve(text);
+  return resolution ? { url: resolution.url, origin: resolution.kind === "url" ? "typed" : "search" } : null;
 }
 
 export function idleRows(queries: readonly string[], macTabs: readonly { url: string; title: string; deviceName: string; favicon?: string | null }[] = []): TrayRow[] {

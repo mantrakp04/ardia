@@ -21,7 +21,7 @@ import { forgetPosition, saveTabPosition, watchFrontScroll } from "./positions";
 import { noteLocalChange } from "../sync/store";
 import { currentPreferences, loadPreferences } from "../settings/store";
 import type { VisitTransition, Visit } from "../store/browserDatabase";
-import { resolve, type TrayRow } from "../search/omnibox";
+import { enterTarget, rowTarget, resolve, type TrayRow } from "../search/omnibox";
 import { applySearchEngine, dismissSearch, presentSearch, refreshSearchRows, searchState, useSearch } from "../search/store";
 import {
   archiveDueTabs,
@@ -117,8 +117,8 @@ export function openPage(url: string, origin: TabOrigin) {
 }
 
 export function submitSearch(text: string) {
-  const resolution = resolve(text);
-  if (resolution) openPage(resolution.url, resolution.kind === "url" ? "typed" : "search");
+  const target = enterTarget(text);
+  if (target) openPage(target.url, target.origin);
 }
 
 export function searchFor(query: string) {
@@ -139,7 +139,8 @@ export function activateRow(row: TrayRow) {
     openTab(row.tabId);
     return;
   }
-  openPage(row.url, row.kind === "query" ? "search" : "typed");
+  const target = rowTarget(row);
+  if (target) openPage(target.url, target.origin);
 }
 
 export function openTab(id: string) {
