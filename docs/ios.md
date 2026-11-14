@@ -119,6 +119,26 @@ sizes, copy), on Apple's controls, in the Mac's colours:
   The Mac's Spaces (profiles), pinned tiles, rows and groups, and its open tabs sit behind the deck's leading button.
 - **Blocking.** Ads, trackers and cookie banners: seed rules plus EasyList, EasyPrivacy and the EasyList Cookie List
   converted on device, and a reject-all script for consent platforms; off per site from the page menu.
+- **Browse for Me.** Arc Search's answer page, written on the iPhone (`App/Research`, logic in
+  `ArdiaBrowser/Research`). Typing a search (not an address or a bang) adds a Browse for Me row under the typed
+  query, and voice search has a Browse for Me button. It loads DuckDuckGo's HTML results in a hidden web view with a
+  throwaway data store, keeps the first five readable pages (one per site, no video or social sites), reads three at
+  a time with the Reader's extraction (8 s each), then asks Apple Intelligence (`SystemLanguageModel`, Foundation
+  Models) for a short answer with `[n]` citations, the pages' most relevant paragraphs cut to fit the model's
+  context. Without Apple Intelligence (an older iPhone, turned off, still downloading) or when the model refuses, the
+  answer is the pages' most relevant sentences, cited, and the page says why. Nothing is saved to history, and
+  Incognito changes nothing. The sources sit in a row above the answer and open as normal tabs.
+  - **Hold to your ear.** While the page is open the proximity sensor is on. Raising the phone to the ear reads the
+    answer (citations and markup stripped) through the earpiece with the best installed voice, and lowering it pauses;
+    raising it again resumes, and after the end starts over. Holding it up before the answer is ready starts it when
+    it is. The speaker button plays it out loud, and raising the phone moves that to the earpiece. The rules are
+    `EarListening` (tested); the earpiece needs the `.playAndRecord` session, so the microphone prompt can appear
+    the first time.
+  - **Testing without a sensor.** The simulator has no proximity sensor, so `ProximityFeed` takes fake values two
+    ways: `-ArdiaProximity "4:near,12:far,15:near"` plays near and far at those seconds after the page opens, and
+    `xcrun simctl notify_post <udid> com.ardia.browser.ios.proximity.near` (or `.far`) sends one at any time
+    (simulator and Debug builds). In the simulator a near value blacks the page out, the way the real screen turns
+    off. `-BrowseResearch <query>` opens the page at launch, and `-ArdiaResearchWriter excerpts` skips the model.
 - **System.** Widgets (search, the Mac's tabs, Lock Screen), Control Center controls, App Intents and Siri phrases,
   a share extension and an Open in Ardia action, Spotlight for open and archived tabs, Handoff of the current page,
   Home Screen quick actions, and http/https link handling. Being the default browser waits on an entitlement Apple

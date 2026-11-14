@@ -58,7 +58,7 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_NSCameraUsageDescription: "Ardia uses the camera to scan the sync code your Mac shows, and for websites that ask to use it."
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Ardia uses the microphone when you search with your voice, and for websites that ask to use it."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Ardia uses the microphone when you search with your voice, to read answers into your ear when you hold your iPhone up, and for websites that ask to use it."
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Ardia turns what you say into a search when you use Voice Search."
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Websites you visit may ask for your location."
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "Ardia saves images you choose to your photo library."

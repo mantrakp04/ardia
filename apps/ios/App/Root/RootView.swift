@@ -43,6 +43,9 @@ struct RootView: View {
     .fullScreenCover(isPresented: $browse.isVoicePresented) {
       VoiceSearchView()
     }
+    .fullScreenCover(item: $app.research, onDismiss: app.researchClosed) { session in
+      ResearchView(session: session)
+    }
     .onboardingCover()
     .toastHost(app.toasts)
     .task { await app.runDeckDemoScript() }

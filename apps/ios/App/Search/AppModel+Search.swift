@@ -39,6 +39,8 @@ extension AppModel {
       if let url { openPage(url, origin: .sync) }
     case .url, .history, .bookmark:
       if let url { openPage(url, origin: .typed) }
+    case .research:
+      startResearch(suggestion.query)
     case .calculation:
       if let value = suggestion.copyValue {
         UIPasteboard.general.string = value
