@@ -88,7 +88,7 @@ in the page's own world. `console` and `errors` start capturing on first use (or
 
 ## Output cap
 
-Text output stops at about 6,000 characters (20,000 for `script`) with a last line naming the file that holds all of
+Text output stops at about 12,000 characters (20,000 for `script`) with a last line naming the file that holds all of
 it and saying how to narrow it. Narrow with `-s <sel>`, `snapshot -i`, `read --links <pattern>`, or a script that
 returns only the fields you need. `--json` and output redirected to a file (`> out.json`) are never cut.
 

@@ -907,7 +907,7 @@ class ScriptRuns(unittest.TestCase):
         result, closed = self.run_script(controller)
         self.assertEqual(controller.answers[0], [1, {"ok": True, "text": "✓ get", "data": {"text": "get text h1"}}])
         self.assertEqual(controller.answers[1][0], 2)
-        self.assertEqual(result.text, 'read 1 page\n[\n  {\n    "name": "Dock"\n  }\n]')
+        self.assertEqual(result.text, 'read 1 page\n{"name": "Dock"}')
         self.assertEqual(result.data, {"value": [{"name": "Dock"}], "logs": ["read 1 page"]})
         self.assertEqual(closed, ["C1"])
 

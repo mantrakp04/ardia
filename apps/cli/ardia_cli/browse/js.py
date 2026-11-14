@@ -227,6 +227,35 @@ LIBRARY = r"""
       if (label) return null;
       return api.describe(hit);
     },
+    scope() {
+      const text = ((document.body && document.body.innerText) || "").slice(0, 200000);
+      const counts = [];
+      const range = text.match(/\b\d[\d,.]*\s*[-–—]\s*\d[\d,.]*\s+of\s+(about\s+|over\s+)?\d[\d,.]*\+?(\s+[A-Za-z]+)?/);
+      if (range) counts.push(range[0]);
+      const total = text.match(/\b\d[\d,.]*\+?\s+(results|items|products|listings|jobs|homes|properties|matches|reviews|rentals|vehicles|cars|hotels|apartments|roles|positions|articles|stores|locations|courses|events|deals)\b/i);
+      if (total && !(range && range[0].includes(total[0]))) counts.push(total[0]);
+      const paged = text.match(/\bpage\s+\d+\s+of\s+\d+\b/i);
+      if (paged) counts.push(paged[0]);
+      const controls = [];
+      const named = (pattern) => {
+        for (const el of document.querySelectorAll("a, button, [role=button], [role=link]")) {
+          const name = ((el.getAttribute("aria-label") || el.innerText || "").trim()).slice(0, 40);
+          if (pattern.test(name) && api.visible(el)) return true;
+        }
+        return false;
+      };
+      if (document.querySelector("a[rel=next], link[rel=next]") || named(/^(next( page)?|next ›|›|»)$/i)) controls.push("a Next page link");
+      if (named(/^(load|show|see|view) more\b/i)) controls.push("a Load more button");
+      const pager = document.querySelector("nav[aria-label*=pagination i], [class*=pagination i]");
+      if (pager) {
+        const numbers = Array.from(pager.querySelectorAll("a, button")).map((el) => parseInt((el.innerText || "").replace(/[^\d]/g, ""), 10)).filter((n) => n > 0 && n < 100000);
+        if (numbers.length) controls.push("pages up to " + Math.max(...numbers));
+      }
+      const parts = [];
+      if (counts.length) parts.push("page says " + counts.map((count) => JSON.stringify(count.trim())).join(", "));
+      if (controls.length) parts.push("has " + controls.join(", "));
+      return parts.join("; ");
+    },
     dismissConsent(x, y) {
       const about = /cookie|consent|gdpr|privacy|tracking|personal data|datenschutz|partners/i;
       const vendor = "[id*=cookie i],[class*=cookie i],[id*=consent i],[class*=consent i],[id*=onetrust i],[class*=onetrust i],[id*=osano i],[class*=osano i],[id*=didomi i],[id*=usercentrics i],[id*=truste i],[class*=truste i],[class*=qc-cmp i],[id*=sp_message i],[id*=cmp i],[class*=cmp-],[role=dialog],[role=alertdialog],[aria-modal=true]";

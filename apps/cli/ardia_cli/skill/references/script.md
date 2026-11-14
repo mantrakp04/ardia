@@ -98,6 +98,11 @@ return state.rows;
 EOF
 ```
 
+## Many records: the site's public API
+
+Before editing dozens of records, look for the site's documented public API and `curl` it with a key the site
+shows you; internal `/api` calls don't count (script the UI). Creating a key changes the account: ask first.
+
 ## Anything else
 
 `browse('tab', 'list')` runs any other command and returns `{text, data}`. `page.snapshot('-i -s main')` returns a
