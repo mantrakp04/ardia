@@ -48,7 +48,7 @@ export const generalRows = {
       rows: {
         windowsAndTabs: {
           title: "Windows and tabs",
-          description: "What you see the next time you open it. Closed windows stay in History › Recently Closed.",
+          description: `What you see the next time you open it. ${PLATFORM_FEATURES.menuBar ? "Closed windows stay in History › Recently Closed." : `${keyText("⇧⌘T")} reopens closed windows too.`}`,
           keywords: ["restore", "session", "reopen", "preserve tabs", "start fresh"],
         },
       },
@@ -161,7 +161,7 @@ export const generalRows = {
         showClearButton: {
           advanced: true,
           title: "Show Clear button",
-          description: `The ↓ Clear between your pinned tabs and your tabs. ${keyText("⇧⌘K")} and File › Close All Tabs still clear them.`,
+          description: `The ↓ Clear between your pinned tabs and your tabs. ${keyText("⇧⌘K")}${PLATFORM_FEATURES.menuBar ? " and File › Close All Tabs" : ""} still ${PLATFORM_FEATURES.menuBar ? "clear" : "clears"} them.`,
           keywords: ["clear unpinned tabs", "close all tabs", "clear today", "divider", "arc"],
           shown: inSidebar,
         },
@@ -207,7 +207,7 @@ export const generalRows = {
         },
         reuseEmptyNewTab: {
           title: "Reuse an empty New Tab page",
-          description: "When the tab you're on is still an empty New Tab page, ⌘T, + New Tab and a double-click under the tabs put the cursor in its address field instead of opening another empty tab. Off, each one opens a new tab.",
+          description: `When the tab you're on is still an empty New Tab page, ${keyText("⌘T")}, + New Tab and a double-click under the tabs put the cursor in its address field instead of opening another empty tab. Off, each one opens a new tab.`,
           keywords: ["blank tab", "empty tab", "reuse", "one new tab", "multiple new tabs", "cmd t"],
           shown: (settings) => settings.newTabOpens === "page",
         },

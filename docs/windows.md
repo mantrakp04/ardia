@@ -19,43 +19,49 @@ Logic is written once. Only code that calls the OS is written per platform.
 
 ## What works on Windows today
 
-Walked by hand on 2026-11-13 in the Windows 11 ARM VM, with the `Ardia-Setup-arm64` installer of run 43371556107
-(commit bfd586fe, engine `windows-engine-20261113-1`), from a fresh data folder, as a user would. Works with a
-difference says what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidden" are off on Windows
-behind `PLATFORM_FEATURES` until what they need exists.
+Walked by hand on 2026-11-14 in the Windows 11 ARM VM (1920 by 1080), with the `Ardia-Setup-arm64` installer of run
+43544610044 (commit 45a0962e6, engine `windows-engine-20261113-12`, `ArdiaApp.dll` checked against the artifact), from
+a fresh data folder, as a user would: 41 driven runs, every row below seen on that build. Of the 64 rows, 43 work, 9
+work with a difference, 2 are broken, 4 do nothing, 3 are not offered and 3 were not walked. Works with a difference says
+what differs; the Mac's list is `docs/dia-feature-parity.md`. Rows marked "hidden" are off on Windows behind
+`PLATFORM_FEATURES` until what they need exists. The walk before this one (2026-11-13, bfd586fe) is in git history.
 
 **Install, first launch, updates**
 
 | Feature | State | Tracked in |
 | --- | --- | --- |
-| Installer (wizard, Start menu, Open Ardia) | Works | |
-| First launch after the installer | Works: onboarding, no release notes (they wait while a first run is under way) | #1517 |
-| Onboarding (source, look, last choices; resumes where you left it) | Works | |
-| Intro animation and music | Differs: the Mac's dawn poster stands in for the animated meadow (none at night); the music is the Mac's, rendered from its synthesis and played with XAudio2 | #1547, #1546, #1249 |
-| Tour | Works (first card seen) | |
+| Installer (wizard, Start menu, Open Ardia) | Works (`setup exit 0` over an empty and over an existing install) | |
+| First launch after the installer | Works: onboarding, no release notes | #1517 |
+| First launch with a link | Works: the link opens in a Little Ardia window in front, onboarding waits in the main window behind it | |
+| Onboarding (source, look, last choices) | Works: three steps, Edge found on this PC, Get Started and Take the Tour | |
+| Intro animation and music | Differs: the dawn poster stands in for the animated meadow, then hands over to step 1 after about 20 s; music not checked (the VM has no audio out) | #1547, #1546, #1249 |
+| Tour | Not walked this time (Get Started taken) | |
 | Import from Edge | Works (onboarding finds Edge; import itself checked in #1357) | #1516 |
-| Check for updates | Differs: no `windows-alpha` release is published, so Check Now says no Windows update has been published yet; the automatic check stays silent | #1517 |
-| Default browser | Works: Settings follows Windows' choice within one window activation (Edge, Ardia, Edge again, set in Windows Settings); Windows 11 keeps the choice in `UserChoiceLatest` | #1439 |
+| Check for updates | Differs: Check Now says "No Windows update published yet" and names the build (0.2.47-nightly.1, Windows alpha 290) | #1517 |
+| Default browser | Works: Settings › General says "Ardia is your default browser" in this VM | #1439 |
 | Open at login | Not walked: an instance with its own data folder leaves it alone | |
 
 **Windows and tabs**
 
 | Feature | State | Tracked in |
 | --- | --- | --- |
-| New tab, close, reopen closed tab | Works | |
+| New tab, close, reopen closed tab (Ctrl+Shift+T) | Works | |
+| Ctrl+Z reopens closed tabs | Works once turned on in Keyboard Shortcuts (off by default, as on the Mac) | |
 | New window | Works | |
-| Private window | Works: its session ends with its last private window | #1453 |
-| Quit and relaunch with the session restored | Works | |
-| Engine memory trimmed after tabs close, once input is idle | Works: input idle time from `GetLastInputInfo` (`ArdiaWindowsHost.inputIdleSeconds`) | #1544 |
-| Little Ardia (Ctrl+Alt+N) | Works, app-drawn chrome | |
-| Search Tabs, Ctrl+Tab | Works | |
-| Pin, Top Apps, New Group with Tab | Works | |
-| Page picture (a pinned tab open in another window, a pinned page moving windows, the tab drag preview) | Works: the app captures the page's window (`ArdiaAppWindows.capturePage`) | #1540 |
-| Tab, pinned tab, sidebar and New Tab row menus | Works | |
-| Tabs in the sidebar or across the top, auto-hide tabs | Works | |
-| Open in WebKit (tab menu), Engines pane, Opens in | Does nothing (no WebKit on Windows); hidden | #1522 |
-| Split View | Works (each visible page has its own page window; seen in the VM at 125%). Two gaps until #1658: Focus Next Split Pane into an empty pane types into the other pane, and a page that is full screen when its tab is switched away comes back full screen and needs a click before Escape reaches it | #1490, #1658 |
-| Peek | Works as on the Mac: the Peek key on a link, or a plain click to another site on a tab that peeks those; Escape closes it from either page | #1531 |
+| Private window | Works; closing one with two tabs asks first (Close 2 tabs?, Don't ask me again) | #1453 |
+| Close-tabs confirm while other windows load | Broken: while "Close 2 tabs?" is open, new pages in every other window stay blank until it is answered, and the dialog can sit behind the main window | #1672 |
+| Quit and relaunch with the session restored | Works (tabs, the split and the open windows came back) | |
+| Engine memory trimmed after tabs close, once input is idle | Works (logged after closes) | #1544 |
+| Little Ardia (Ctrl+Alt+N) | Works, app-drawn chrome; its command bar lists recent pages | |
+| Search Tabs (Ctrl+Shift+A), Ctrl+Tab | Works. The walk saw no element of the new page focused after Ctrl+Tab, so typing went nowhere until a click; #1658's VM run shows the new page has the keyboard after Ctrl+Tab, a numbered tab or closing the active tab (fixed by #1658, not re-walked). Known gap: a tab switched to before its page is mounted (an asleep tab, or one made in front with an address) gets no keyboard, tracked in #1689 | #1658, #1689 |
+| Pin, Top Apps, New Group with Tab, tab menus | Works (the tab menu offers Move to Top Apps, Remove from Split View, Close Split View) | |
+| Page picture (a pinned page in another window) | Works: the other window shows the page picture | #1540 |
+| Tabs in the sidebar or across the top (Ctrl+Shift+S), hide the sidebar (Ctrl+S) | Works; after Ctrl+S twice a pale box stays over the page's top-left corner | #1673 |
+| Profiles: switch with Alt+1, Alt+2 | Works (Work opened in its own colour) | |
+| Open in WebKit, Engines pane, Opens in | Does nothing (no WebKit on Windows); hidden | #1522 |
+| Split View (Ctrl+\, two pages, Next Pane) | Works: the empty pane takes the next address, Alt+Shift+] moves focus to the other pane's page. Per #1658's VM run, Focus Next Split Pane into an empty pane puts the typing in its search field, and a page left full screen by a tab switch comes back in a window | #1490, #1658 |
+| Peek | Works: Shift-click opens it over a split pane and in a private window; Escape closes it and keys reach the page beneath again. Typing in a Peek needs a click first: the keyboard stays in the page beneath while it is open | #1531 |
+| A download while split | Differs: an insecure (http) download is blocked by Chromium's own download bubble; a download from localhost reaches Ardia's panel | #1519 |
 | Pop-up windows from pages | Broken: a bare Chromium window with the Windows title bar | #1518 |
 | Main, Settings and Little Ardia window chrome | Works, no system title bar | |
 
@@ -63,20 +69,19 @@ behind `PLATFORM_FEATURES` until what they need exists.
 
 | Feature | State | Tracked in |
 | --- | --- | --- |
-| Command bar (history, open tabs, suggestions, calculator) | Works | |
-| Inline completion in the command bar | Works: the top match completes inline and selected; typing replaces it, Backspace removes it, an IME composition is left alone | #1520 |
+| Command bar (history, open tabs, suggestions) | Works | |
+| Inline completion in the command bar | Works (top match completes inline) | #1520 |
 | Find in page | Differs: Chromium's find bar | stand-ins (Chromium's own UI) |
-| Zoom | Works | |
-| Print | Works (Chromium's print preview) | |
-| JavaScript confirm and prompt | Works | |
-| File upload | Works (Windows' Open dialog) | |
-| Page, link and image menus | Differs: Chromium's; offers split view, Cast, Save as Ctrl+S | #1518 |
-| Full-screen video | Works | |
+| Zoom (Ctrl+=, Ctrl+0) | Works, with the zoom icon in the address bar | |
+| Print | Works (Chromium's print preview, Microsoft Print to PDF) | |
+| JavaScript alert, confirm and prompt | Works (Chromium's dialogs over the page) | |
+| Page, link and image menus | Differs: Chromium's (Reload, Save as, Print, Cast, View page source, Inspect) | #1518 |
+| Full-screen (a page element) | Works; Escape leaves it | |
 | Picture in picture | Differs: Chromium's window, no stash, corners or mini player | #1425 |
-| Downloads (download, panel, Ctrl+J, cancel) | Works: the panel opens for a new download, from its button and Ctrl+J, and closes on Escape, a click in the page and its button; one row per download across a relaunch | #1519 |
-| History (Ctrl+H, ardia://history), Clear Browsing Data | Works | |
-| Bookmarks (Ctrl+D, ardia://bookmarks, bar) | Works | |
-| mailto and other app links | Does nothing until the engine announces the request: the app side (prompt with the handler's name and icon, per-site "always allow", the launch) is done | #1425 (engine), #1590 |
+| Downloads (download, panel, Ctrl+J) | Works: the panel opens for a new download and lists it; Ctrl+J opens it | #1519 |
+| History (Ctrl+H), Clear Browsing Data (Ctrl+Shift+Del) | Works | |
+| Bookmarks (Ctrl+D, Ctrl+Shift+O) | Works | |
+| mailto and other app links | Does nothing until the engine announces the request (no prompt, no launch) | #1425 (engine), #1590 |
 | Translate | Not offered | #1520 |
 | Network error page | Works (Chromium's) | |
 | DevTools (F12), Task Manager (Shift+Esc) | Works (Chromium's) | |
@@ -85,29 +90,30 @@ behind `PLATFORM_FEATURES` until what they need exists.
 
 | Feature | State | Tracked in |
 | --- | --- | --- |
-| Offer to save a password | Differs: Chromium's bubble | #1425 |
+| Offer to save a password | Differs: Chromium's bubble (Save, Never, No thanks) | #1425 |
 | Fill a saved password | Works | |
-| Location and notification prompts | Differs: Chromium's prompts; location then asks Windows | #1425 |
+| Notification and location prompts | Differs: Chromium's prompts (Allow, Block; while visiting, this time, never) | #1425 |
 | Camera and microphone | Not walked: the VM has no camera | |
-| Chrome Web Store install | Differs: Chromium's Add extension dialog; installs, icon in the toolbar | stand-ins `extensions.resolveInstallPrompt` |
+| Chrome Web Store install | Differs: the store says Add to Ardia, Chromium's Add extension dialog, then the icon in the toolbar and the extension's own page | stand-ins `extensions.resolveInstallPrompt` |
 | ardia://extensions | Works | |
 | Ad, tracker and cookie-banner blocking | Not offered; hidden | #1425 |
-| Bookmark and password export | Works; the password export confirms over the app window | #1551 |
+| Bookmark export | Works: Windows' Save As, then the HTML file is written | #1551 |
+| Password export | Works up to Windows' own sign-in prompt over the app window; the walk cancelled it there (the VM account's password is not typed in a test), so the file was not written | #1551 |
 
 **Settings**
 
 | Feature | State | Tracked in |
 | --- | --- | --- |
-| Settings window, panes, search | Works | |
+| Settings window, panes, search | Works (all twelve panes; search finds rows and opens their pane) | |
 | Profiles: create, switcher | Works | |
 | Appearance: light and dark | Works | |
 | Keyboard Shortcuts pane | Works, Windows keys | |
-| "…" menu (12 items, Windows keys) | Works, except Check for Updates | #1517 |
-| Sync | Works with the Mac's vault through any folder the user picks (OneDrive's `Ardia Sync` by default); a Mac and a PC exchanged pinned tabs and bookmarks both ways in the VM on 2026-11-13. Passwords don't sync on Windows yet: the engine refuses to list logins (below). Share… in the Recovery Kit menu is not offered | #1575, #1425 |
-| Calendar | Does nothing (Connect answered with macOS copy); hidden | #1521 |
-| Trackpad gestures, video upscaling, reorder haptics, thin scroll bars | Does nothing; hidden (thin scroll bars need the engine: #1425) | #1522, #1520 |
+| "…" menu | Works, except Check for Updates | #1517 |
+| Sync | Works: Turn On Sync at the default folder shows the Recovery Kit, the pane says updated just now, every What Syncs row but Passwords; a Mac and a PC exchanged pinned tabs and bookmarks both ways (#1594) | #1575, #1425 |
+| Calendar | Does nothing; hidden | #1521 |
+| Trackpad gestures, video upscaling, reorder haptics, thin scroll bars | Does nothing; hidden | #1522, #1520 |
 | The ardia command, Widevine | Not offered (each says so) | |
-| Copy naming the Mac (Touch ID, macOS full screen, View ›, this Mac, Keychain) | Fixed | #1522 |
+| Copy naming the Mac | Works: the walk found three more (a ⌘T, "History › Recently Closed", "File › Close All Tabs"), fixed in #1668's PR | #1522, #1668 |
 
 ## The Windows app
 
@@ -846,6 +852,43 @@ The Mac's numbers are the targets for Windows, measured from the first engine bu
 | Launch to window shown | 451 ms |
 | Tab switch to shown | 9 ms |
 | New tab to first paint | 78 ms |
+
+## What still separates Windows from the Mac (2026-11-14 walk)
+
+Ranked by how much a user notices. Sizes are rough: S is under a day, M is one to three days, L is more.
+
+App side, an agent can do these now:
+1. The close-tabs confirm freezes other windows' pages (#1672): show it without a modal loop on the shared UI
+   thread and keep it in front of its window. M.
+2. The box left over the page's top-left (#1673): the next profile's sidebar page, clipped beside the sidebar, still
+   cut a hole in the page (fix in #1686). S.
+3. Typing in a Peek needs a click first: the keyboard stays in the page beneath while the Peek is open (the engine
+   thread is matching the Mac). Also #1689: a tab switched to before its page is mounted gets no keyboard. M, with the
+   engine thread.
+4. Pop-up windows in the app's own frame instead of Chromium's (#1518). M.
+5. The app's own page, link and image menus instead of Chromium's (#1518). M.
+6. The app's own prompts for passwords, notifications and location, drawn like the Mac's (#1425 for the events the app
+   needs). M each once the engine reports them.
+7. The intro: the animated meadow instead of the dawn poster (#1547). L (Direct3D).
+8. Picture in picture: the Mac's stash, corners and mini player (#1425 for the window events). L.
+
+Engine work (#1425): the walk found nothing new missing beyond what is already listed there:
+- an `externalApp` tab event and the `externalAppAlive` page call, so the app can ask before launching mailto and other
+  app links (the Mac's hook is `g_ardia_external_protocol_dialog`; the app side is done, #1590);
+- `ac_passwords_logins` answering on Windows, where Chromium's `kSkipUndecryptablePasswords` is on by default (password
+  sync);
+- the password, permission and picture-in-picture events the app needs to draw its own prompts and windows;
+- the 67 calls `packages/expo-windows/src/engine/domains/forwarded.json` lists under `missing`.
+
+Decisions for Shivam:
+- the calendar source on Windows (#1521);
+- Translate (#1520);
+- publishing a `windows-alpha` release, so Check for Updates has something to find (#1517);
+- signing, or a per-machine install (#1659).
+
+With the engine and owner items set aside, the app side has not reached parity yet: items 1 and 2 are bugs a user
+hits, and 4 to 6 are visible differences with Chromium's own UI. Everything else in the table works or differs only
+where the engine, Windows itself or a decision stands in the way.
 
 ## Order of work
 
