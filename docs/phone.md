@@ -48,7 +48,7 @@ the Expo app calls `@ardia/core` itself and hosts the page's view natively.
 
 Sync is a native subsystem with its own script runtime; the app's JavaScript never sees the host functions,
 keys, the phrase's entropy or sealed bytes. `@ardia/phone-native` compiles `apps/android/sync` and
-`apps/android/shared` in place, and `ArdiaSync` (`packages/phone/src/sync.ts`) wraps `SyncController` whole:
+`apps/android/shared` in place, and `ArdiaPhoneSync` (`packages/phone/src/sync.ts`) wraps `SyncController` whole:
 status and the synced view as getters and events, connect and change folder with the system folder picker, sync
 now, stop, the reset notice, device name, profile, send, pin to Mac, incoming sends. One controller owns every
 cycle on its own thread; `MainApplication` is the `SyncControllerOwner`, so WorkManager's `SyncWorker` (every 15
@@ -182,7 +182,7 @@ titles and phrases that post links instead.
 
 #### Sync on iPhone
 
-`ArdiaSync` on iPhone wraps the SwiftUI app's `SyncService` (ArdiaKit's ArdiaSync) whole, behind the same
+`ArdiaPhoneSync` on iPhone wraps the SwiftUI app's `SyncService` (ArdiaKit's ArdiaSync) whole, behind the same
 interface and events as Android. `PhoneSyncHost` owns the one service: `AppDelegate` creates it in
 `didFinishLaunching`, registers the background refresh task (`com.ardia.browser.ios.sync`) and starts it, so a
 background launch with no scene runs a cycle without React Native. `SceneDelegate` tells it when the app becomes
@@ -209,9 +209,12 @@ active and resigns. Keys, the phrase's entropy and sealed bytes stay in Swift; o
   `EXPO_PUBLIC_ARDIA_LAB=true` in the JS bundle phase; it is `NO` in the project, so a store build has no lab, no
   demo and no logging hooks. In a test build, `-ArdiaSyncDemo YES` swaps in `SyncService.demo` unless sync is set up,
   and `-ArdiaPageLab YES` opens the page lab. With Metro, start it with `EXPO_PUBLIC_ARDIA_LAB=true`.
-- **Background refresh on the simulator.** With the app running, pause it in the debugger and run
+- **Background refresh.** The app registers the task at launch and submits a request each time it resigns
+  (the simulator's log shows `submitTaskRequest: <BGAppRefreshTaskRequest: com.ardia.browser.ios.sync …>`). On the
+  iOS 27 simulator, `_simulateLaunchForTaskWithIdentifier:` from lldb on a backgrounded, suspended app did not run
+  the handler. To check it on a device: run from Xcode, send the app to the background, pause, run
   `e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"com.ardia.browser.ios.sync"]`,
-  then continue.
+  continue, and look for the Mac's latest send in `Application Support/PhoneSync/inbox.json`.
 
 Edge swipes for back and forward are WebKit's own gesture. Simulator automation (agent-device swipes and pans from
 the edge) has never triggered it; check it with a finger on a device or with the mouse in the Simulator window.
