@@ -216,6 +216,13 @@ export const SYMBOLS = {
   ],
   equalCircleFill: [{ d: circle(12, 12, 10) + roundRect(7.3, 8.8, 9.4, 2, 1) + roundRect(7.3, 13.2, 9.4, 2, 1), fill: true, evenOdd: true }],
   xmarkCircleFill: [{ d: circle(12, 12, 10) + cross(12, 12, 4.4, 1.05), fill: true, evenOdd: true }],
+  camera: [
+    {
+      d: "M4 7.5h3l1.5-2.5h7L17 7.5h3a1.5 1.5 0 0 1 1.5 1.5v9.5A1.5 1.5 0 0 1 20 20H4a1.5 1.5 0 0 1-1.5-1.5V9A1.5 1.5 0 0 1 4 7.5zM12 10a3.5 3.5 0 1 1 0 7a3.5 3.5 0 1 1 0-7z",
+      stroke: STROKE,
+    },
+  ],
+  video: [{ d: "M3.5 7h11a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 2 15.5v-7A1.5 1.5 0 0 1 3.5 7zM16 10.5l5-3v9l-5-3", stroke: STROKE }],
   mic: [{ d: roundRect(9, 2.8, 6, 11.4, 3) + "M5.8 11a6.2 6.2 0 0 0 12.4 0" + line(12, 17.2, 12, 21), stroke: STROKE }],
   micFill: [{ d: roundRect(8.6, 2.5, 6.8, 12, 3.4), fill: true }, { d: "M5.8 11a6.2 6.2 0 0 0 12.4 0" + line(12, 17.2, 12, 21), stroke: STROKE }],
   stopFill: [{ d: roundRect(5.5, 5.5, 13, 13, 2.8), fill: true }],

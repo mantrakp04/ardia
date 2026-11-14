@@ -19,7 +19,15 @@ export type RequestKind =
   | { kind: "openExternal"; url: string; app: string }
   | { kind: "httpAuthentication"; realm: string | null; isProxy: boolean; failedBefore: boolean; isSecure: boolean }
   | { kind: "permission"; permission: SitePermission }
-  | { kind: "fileChooser"; acceptTypes: string[]; allowsMultiple: boolean; prefersCapture: boolean };
+  | {
+      kind: "fileChooser";
+      acceptTypes: string[];
+      allowsMultiple: boolean;
+      prefersCapture: boolean;
+      offersPhoto?: boolean;
+      offersVideo?: boolean;
+      capturesDirectly?: boolean;
+    };
 
 export type Request = RequestKind & { id: string; host: string; title: string; message: string | null };
 
@@ -29,7 +37,11 @@ export type RequestAnswer =
   | { type: "text"; text: string }
   | { type: "credential"; user: string; password: string }
   | { type: "files"; uris: string[] }
-  | { type: "pickFiles" };
+  | { type: "pickFiles" }
+  | { type: "takePhoto" }
+  | { type: "recordVideo" };
+
+export type RequestChoice = { title: string; icon: "camera" | "video" | "folder"; answer: RequestAnswer };
 
 export type RequestDialog = {
   title: string;
@@ -38,15 +50,29 @@ export type RequestDialog = {
   defaultText: string;
   confirm: string;
   cancel: string | null;
+  choices: RequestChoice[];
 };
 
 export type RequestPlan = { kind: "dialog"; dialog: RequestDialog } | { kind: "answer"; answer: RequestAnswer };
 
+function fileChooserPlan(request: Extract<Request, { kind: "fileChooser" }>, base: Omit<RequestDialog, "confirm">): RequestPlan {
+  if (request.capturesDirectly && (request.offersPhoto || request.offersVideo)) {
+    return { kind: "answer", answer: { type: request.offersPhoto ? "takePhoto" : "recordVideo" } };
+  }
+  if (!request.offersPhoto && !request.offersVideo) return { kind: "answer", answer: { type: "pickFiles" } };
+  const choices: RequestChoice[] = [
+    ...(request.offersPhoto ? [{ title: "Take Photo", icon: "camera" as const, answer: { type: "takePhoto" as const } }] : []),
+    ...(request.offersVideo ? [{ title: "Record Video", icon: "video" as const, answer: { type: "recordVideo" as const } }] : []),
+    { title: request.allowsMultiple ? "Choose Files" : "Choose File", icon: "folder", answer: { type: "pickFiles" } },
+  ];
+  return { kind: "dialog", dialog: { ...base, message: null, confirm: "", choices } };
+}
+
 export function requestPlan(request: Request): RequestPlan {
-  const base = { title: request.title, message: request.message, defaultText: "", cancel: "Cancel" as string | null, field: "none" as RequestDialog["field"] };
+  const base = { title: request.title, message: request.message, defaultText: "", cancel: "Cancel" as string | null, field: "none" as RequestDialog["field"], choices: [] };
   switch (request.kind) {
     case "fileChooser":
-      return { kind: "answer", answer: { type: "pickFiles" } };
+      return fileChooserPlan(request, base);
     case "alert":
       return { kind: "dialog", dialog: { ...base, confirm: "OK", cancel: null } };
     case "confirm":

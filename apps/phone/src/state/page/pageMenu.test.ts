@@ -114,6 +114,24 @@ test("each page request maps to its dialog or a direct answer", () => {
     kind: "answer",
     answer: { type: "pickFiles" },
   });
+  assert.deepEqual(requestPlan(request("fileChooser", { acceptTypes: ["image/*"], allowsMultiple: false, prefersCapture: true, offersPhoto: true, capturesDirectly: true })), {
+    kind: "answer",
+    answer: { type: "takePhoto" },
+  });
+  assert.deepEqual(requestPlan(request("fileChooser", { acceptTypes: ["video/*"], allowsMultiple: false, prefersCapture: true, offersVideo: true, capturesDirectly: true })), {
+    kind: "answer",
+    answer: { type: "recordVideo" },
+  });
+  const chooser = requestPlan(request("fileChooser", { acceptTypes: [], allowsMultiple: true, prefersCapture: false, offersPhoto: true, offersVideo: true }));
+  assert.deepEqual(
+    chooser.kind === "dialog" && chooser.dialog.choices.map((choice) => [choice.title, choice.answer.type]),
+    [
+      ["Take Photo", "takePhoto"],
+      ["Record Video", "recordVideo"],
+      ["Choose Files", "pickFiles"],
+    ],
+  );
+  assert.equal(chooser.kind === "dialog" && chooser.dialog.cancel, "Cancel");
   assert.deepEqual(confirmAnswer(request("prompt"), "Bo", "", ""), { type: "text", text: "Bo" });
   assert.deepEqual(confirmAnswer(request("httpAuthentication"), "", "u", "p"), { type: "credential", user: "u", password: "p" });
   assert.deepEqual(confirmAnswer(request("openExternal"), "", "", ""), { type: "accept" });
