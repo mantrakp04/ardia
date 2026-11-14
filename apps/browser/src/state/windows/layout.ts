@@ -7,7 +7,7 @@ import { DEFAULT_SIDEBAR_WIDTH, pageFrameInsetOf } from "../../lib/windowLayout"
 import { useBrowser, type BrowserState } from "../browser/store";
 import { useWindowId } from "../browser/hooks";
 
-export { windowCornerRadius } from "../../platform/windows";
+export { windowCornerRadius, windowFrame } from "../../platform/windows";
 
 export function useTabLayout(): "sidebar" | "top" {
   const windowId = useWindowId();
