@@ -18,7 +18,7 @@ test("a Peek's page keeps the card behind it, and the page under the Peek gets t
 });
 
 const { coversIn } = await import("../../../../packages/expo-windows/src/engine/covers.ts");
-const { coverMeasurer } = await import("../../../../packages/expo-windows/src/engine/coverClip.ts");
+const { coverClip, coverMeasurer, watchClips } = await import("../../../../packages/expo-windows/src/engine/coverClip.ts");
 
 const node = (x, y, width, height) => ({ box: { x, y, width, height }, measureInWindow(callback) {
   setTimeout(() => callback(this.box.x, this.box.y, this.box.width, this.box.height), 0);
@@ -30,7 +30,7 @@ test("a surface on the next profile's sidebar page, clipped out beside the sideb
   const page = { x: 256, y: 8, width: 900, height: 640 };
   const currentRow = node(14, 52, 228, 34);
   const nextProfileRow = node(254, 52, 228, 34);
-  const clips = [() => sidebarPages];
+  const clips = [coverClip(() => sidebarPages)];
   const current = coverMeasurer(windowId, "current-row", 10, () => currentRow, clips);
   const next = coverMeasurer(windowId, "next-row", 10, () => nextProfileRow, clips);
   await Promise.all([current.measure(), next.measure()]);
@@ -59,4 +59,24 @@ test("a measurement that lands after the surface stopped never brings its cover 
   measurer.stop();
   await pending;
   assert.deepEqual(coversIn(windowId), []);
+});
+
+test("a clip that grows or moves without its surfaces laying out has them measured again", async () => {
+  const windowId = "moving-clip-window";
+  const strip = node(0, 0, 400, 40);
+  const tab = node(380, 4, 120, 32);
+  const clip = coverClip(() => strip);
+  const measurer = coverMeasurer(windowId, "tab", 8, () => tab, [clip]);
+  const measured = [];
+  const unwatch = watchClips([clip], () => measured.push(measurer.measure()));
+  await measurer.measure();
+  assert.deepEqual(coversIn(windowId), [{ x: 380, y: 4, width: 20, height: 32, radius: 8 }]);
+  strip.box.width = 900;
+  clip.moved();
+  await Promise.all(measured);
+  assert.deepEqual(coversIn(windowId), [{ x: 380, y: 4, width: 120, height: 32, radius: 8 }], "the window grew, so the whole tab shows");
+  unwatch();
+  strip.box.width = 400;
+  clip.moved();
+  assert.equal(measured.length, 1, "a surface that stopped watching is not measured");
 });

@@ -1,7 +1,7 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode, type Ref } from "react";
 import type { LayoutChangeEvent, ViewProps } from "react-native";
 import { followMotion } from "../animation/motion";
-import { assignRef, CoverClips, coverMeasurer, type Measurable } from "./coverClip";
+import { assignRef, CoverClips, coverMeasurer, watchClips, type Measurable } from "./coverClip";
 import { setCover } from "./covers";
 import { engineAvailable } from "./host";
 import { WindowIdContext } from "./windowId";
@@ -37,13 +37,15 @@ export function usePageCover<Node extends Measurable>(forwarded: Ref<Node> | und
     if (!live) return;
     const timers = SETTLE_MS.map((delay) => setTimeout(measure, delay));
     const unfollow = followMotion(measure);
+    const unwatch = watchClips(clips, measure);
     return () => {
       unfollow();
+      unwatch();
       timers.forEach(clearTimeout);
       measurer.stop();
       setCover(windowId, id, null);
     };
-  }, [live, measure, measurer, windowId, id]);
+  }, [live, measure, measurer, clips, windowId, id]);
 
   const layout = useCallback(
     (event: LayoutChangeEvent) => {

@@ -4,13 +4,32 @@ import { setCover, type Box } from "./covers";
 
 export type Measurable = Pick<NativeMethods, "measureInWindow">;
 
-export type ClipNode = () => Measurable | null;
+export type CoverClip = { node: () => Measurable | null; watch(listener: () => void): () => void };
 
-export const CoverClips = createContext<readonly ClipNode[]>([]);
+export const CoverClips = createContext<readonly CoverClip[]>([]);
 
 export function assignRef<Node>(target: Ref<Node> | undefined, node: Node | null) {
   if (typeof target === "function") target(node);
   else if (target) target.current = node;
+}
+
+export function coverClip(node: () => Measurable | null): CoverClip & { moved(): void } {
+  const listeners = new Set<() => void>();
+  return {
+    node,
+    watch(listener) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+    moved() {
+      for (const listener of [...listeners]) listener();
+    },
+  };
+}
+
+export function watchClips(clips: readonly CoverClip[], listener: () => void): () => void {
+  const unwatch = clips.map((clip) => clip.watch(listener));
+  return () => unwatch.forEach((stop) => stop());
 }
 
 export function clipBox(box: Box, clips: readonly Box[]): Box | null {
@@ -29,7 +48,7 @@ export function clipBox(box: Box, clips: readonly Box[]): Box | null {
 
 const boxOf = (node: Measurable) => new Promise<Box>((resolve) => node.measureInWindow((x, y, width, height) => resolve({ x, y, width, height })));
 
-export function coverMeasurer(windowId: string, id: string, radius: number, node: () => Measurable | null, clips: readonly ClipNode[]) {
+export function coverMeasurer(windowId: string, id: string, radius: number, node: () => Measurable | null, clips: readonly CoverClip[]) {
   let latest = 0;
   let stopped = false;
   return {
@@ -37,7 +56,7 @@ export function coverMeasurer(windowId: string, id: string, radius: number, node
       const own = node();
       if (!own || stopped) return;
       const asked = ++latest;
-      const clipNodes = clips.map((clip) => clip()).filter((clip): clip is Measurable => !!clip);
+      const clipNodes = clips.map((clip) => clip.node()).filter((clip): clip is Measurable => !!clip);
       const [box, ...clipBoxes] = await Promise.all([own, ...clipNodes].map(boxOf));
       if (stopped || asked !== latest || node() !== own) return;
       const visible = clipBox(box!, clipBoxes);
