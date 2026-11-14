@@ -8,6 +8,7 @@
     <ClInclude Include="pch.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="ExternalAppsModule.h" />
     <ClInclude Include="WindowsHostModule.h" />
   </ItemGroup>
   <ItemGroup>

@@ -14,3 +14,9 @@ export const RELOAD_BUTTON_MOTION = {
   breatheOpacity: [0.86, 1],
   returnRotation: 28,
 } as const;
+
+export const HISTORY_BUTTON_MOTION = {
+  duration: duration.slow + 50,
+  incomingDelay: 35,
+  travel: 4,
+} as const;

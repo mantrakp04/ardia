@@ -16,6 +16,7 @@ type RawRow = {
   unit: string;
   lowerIsBetter: boolean;
   group?: string;
+  machine?: string | RawMachine;
   browsers: RawBrowser[] | Record<string, RawBrowser>;
 };
 type MeasuredBrowser = Omit<RawBrowser, "median"> & { median: number };
@@ -71,6 +72,7 @@ export type Bench = {
   span: string;
   machine: string;
   versions: string;
+  elsewhere: string | null;
   rivals: string[];
 };
 
@@ -246,6 +248,20 @@ function versionsOf(rows: Measured[]): string {
   return [...seen.values()].join(", ");
 }
 
+function elsewhereOf(source: RawBench): string | null {
+  const byMachine = new Map<string, string[]>();
+  for (const row of source.rows) {
+    if (!machineNote(row, source.machine)) continue;
+    const name = shortMachineOf(row.machine!);
+    const label = row.group ?? row.label.split(/[,(]/)[0].trim();
+    const labels = byMachine.get(name) ?? [];
+    if (!labels.includes(label)) labels.push(label);
+    byMachine.set(name, labels);
+  }
+  if (!byMachine.size) return null;
+  return [...byMachine].map(([name, labels]) => `${labels.join(", ")}: measured earlier on a ${name}`).join(". ");
+}
+
 function formatDate(date: string) {
   const d = new Date(`${date}T12:00:00Z`);
   return Number.isNaN(d.getTime())
@@ -271,12 +287,21 @@ function headlinesOf(source: RawBench): DatedBrowser[] {
   return [...seen.values()];
 }
 
-function measure(row: RawRow, headline: Map<string, string>, date: string): Measured {
+const shortMachineOf = (machine: string | RawMachine) =>
+  typeof machine === "string" ? machine : [machine.model?.replace(/\s*\(.*\)$/, ""), machine.chip?.replace(/^Apple /, "")].filter(Boolean).join(", ");
+
+function machineNote(row: RawRow, home: string | RawMachine): string | null {
+  if (!row.machine || machineOf(row.machine) === machineOf(home)) return null;
+  const other = shortMachineOf(row.machine);
+  return shortMachineOf(home) === other ? null : `on a ${other}`;
+}
+
+function measure(row: RawRow, headline: Map<string, string>, date: string, home: string | RawMachine): Measured {
   const browsers = (Array.isArray(row.browsers) ? row.browsers : Object.values(row.browsers))
     .filter((b) => SHOWN.test(b.name.trim()))
     .map((b) => ({ ...b, measured: b.measured ?? headline.get(b.name) ?? date }));
   const measured = browsers.filter(hasMedian);
-  const older = olderThanHeadline(measured, headline);
+  const older = [olderThanHeadline(measured, headline), machineNote(row, home)].filter(Boolean).join(" ") || null;
   return { ...row, browsers, measured, older };
 }
 
@@ -284,7 +309,7 @@ function build(source: RawBench | undefined, isSample: boolean): Bench | null {
   if (!source?.rows?.length) return null;
   const headlines = headlinesOf(source);
   const headline = new Map(headlines.map((b) => [b.name, b.measured]));
-  const raw = { ...source, machine: machineOf(source.machine), rows: source.rows.map((r) => measure(r, headline, source.date)) };
+  const raw = { ...source, machine: machineOf(source.machine), rows: source.rows.map((r) => measure(r, headline, source.date, source.machine)) };
   const days = headlines.map((b) => b.measured).sort();
   const groups = groupRows(raw.rows);
   if (!groups.length) return null;
@@ -297,6 +322,7 @@ function build(source: RawBench | undefined, isSample: boolean): Bench | null {
     span: days.length && days[0] !== days[days.length - 1] ? `${days[0]}/${days[days.length - 1]}` : raw.date,
     machine: raw.machine,
     versions: versionsOf(raw.rows),
+    elsewhere: elsewhereOf(source),
     rivals: [...new Set(raw.rows.flatMap((r) => r.browsers.map((b) => b.name)))].filter((n) => !isArdia(n)),
   };
 }

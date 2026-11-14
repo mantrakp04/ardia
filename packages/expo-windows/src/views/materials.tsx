@@ -1,12 +1,13 @@
 import { usePageCover } from "../engine/usePageCover";
-import { forwardRef, useCallback, useState, type ReactNode } from "react";
+import { forwardRef, useCallback, useState } from "react";
+import type { GlassEffectProps, GlassGroupProps, NativePopoverBubbleProps, VisualEffectProps } from "@ardia/shell";
 import { StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { parseColor, rgbaString } from "./color";
 import { bubblePath, NativeMaterialBlur, nativeBlur } from "./nativeMaterials";
 import { useAppDark as useDark } from "./appearance";
 import { RoundedShadow } from "./RoundedShadow";
 import { shadowSpec } from "./shadowLayers";
-import { colorOrUndefined, finite, useFirstWindow, type AnyProps } from "./shared";
+import { colorOrUndefined, finite, useFirstWindow } from "./shared";
 
 type Tone = { light: string; dark: string };
 
@@ -57,7 +58,7 @@ const GLASS_RIM = {
   dark: { top: "rgba(255,255,255,0.3)", side: "rgba(255,255,255,0.14)", bottom: "rgba(255,255,255,0.08)" },
 };
 
-export const VisualEffect = forwardRef<View, AnyProps>(function VisualEffect({ material, blendingMode: _blendingMode, cornerRadius, style, children, ...rest }, ref) {
+export const VisualEffect = forwardRef<View, VisualEffectProps>(function VisualEffect({ material, blendingMode: _blendingMode, cornerRadius, style, children, ...rest }, ref) {
   useFirstWindow();
   const dark = useDark(undefined);
   const radius = Math.max(0, finite(cornerRadius, 0));
@@ -65,7 +66,7 @@ export const VisualEffect = forwardRef<View, AnyProps>(function VisualEffect({ m
   const blur = nativeBlur() ? materialBlur(material, dark) : null;
   const look: ViewStyle = { backgroundColor: blur ? undefined : fill, borderRadius: radius, overflow: radius > 0 ? "hidden" : undefined };
   return (
-    <View {...rest} ref={ref} pointerEvents="none" style={[look, style as ViewStyle]}>
+    <View {...rest} ref={ref} pointerEvents="none" style={[look, style]}>
       {blur ? (
         <NativeMaterialBlur
           pointerEvents="none"
@@ -77,12 +78,12 @@ export const VisualEffect = forwardRef<View, AnyProps>(function VisualEffect({ m
           style={StyleSheet.absoluteFill}
         />
       ) : null}
-      {children as ReactNode}
+      {children}
     </View>
   );
 });
 
-export const GlassEffect = forwardRef<View, AnyProps>(function GlassEffect({ cornerRadius, tint, glassStyle, dark, style, children, ...rest }, ref) {
+export const GlassEffect = forwardRef<View, GlassEffectProps>(function GlassEffect({ cornerRadius, tint, glassStyle, dark, style, children, ...rest }, ref) {
   const tone = useDark(dark) ? "dark" : "light";
   const radius = Math.max(0, finite(cornerRadius, 0));
   const rim = GLASS_RIM[tone];
@@ -101,7 +102,7 @@ export const GlassEffect = forwardRef<View, AnyProps>(function GlassEffect({ cor
   };
   const tintColor = colorOrUndefined(tint);
   return (
-    <View {...rest} ref={ref} pointerEvents="none" style={[look, style as ViewStyle]}>
+    <View {...rest} ref={ref} pointerEvents="none" style={[look, style]}>
       {blurs ? (
         <NativeMaterialBlur
           pointerEvents="none"
@@ -114,15 +115,15 @@ export const GlassEffect = forwardRef<View, AnyProps>(function GlassEffect({ cor
         />
       ) : null}
       {tintColor ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: tintColor }]} /> : null}
-      {children as ReactNode}
+      {children}
     </View>
   );
 });
 
-export const GlassGroup = forwardRef<View, AnyProps>(function GlassGroup({ strength: _strength, children, ...rest }, ref) {
+export const GlassGroup = forwardRef<View, GlassGroupProps>(function GlassGroup({ strength: _strength, children, ...rest }, ref) {
   return (
     <View {...rest} ref={ref}>
-      {children as ReactNode}
+      {children}
     </View>
   );
 });
@@ -154,7 +155,7 @@ function Arrow({ edge, center, width, height, fill, tint, edgeColor, edgeWidth }
   );
 }
 
-export const PopoverBubble = forwardRef<View, AnyProps>(function PopoverBubble(
+export const PopoverBubble = forwardRef<View, NativePopoverBubbleProps>(function PopoverBubble(
   { material, dark, cornerRadius, arrowEdge, arrowX, arrowWidth, arrowHeight, tint, edgeColor, edgeWidth, bubbleShadowOpacity, bubbleShadowRadius, bubbleShadowOffsetY, glass: _glass, style, onLayout, children, ...rest },
   ref,
 ) {
@@ -165,7 +166,7 @@ export const PopoverBubble = forwardRef<View, AnyProps>(function PopoverBubble(
     (event: LayoutChangeEvent) => {
       const { width, height } = event.nativeEvent.layout;
       setSize((current) => (current.width === width && current.height === height ? current : { width, height }));
-      if (typeof onLayout === "function") onLayout(event);
+      onLayout?.(event);
     },
     [onLayout],
   );
@@ -195,7 +196,7 @@ export const PopoverBubble = forwardRef<View, AnyProps>(function PopoverBubble(
   const center = Math.min(Math.max(finite(arrowX, 0), radius + half), size.width - radius - half);
   const cover = usePageCover(ref, measure, radius);
   return (
-    <View {...rest} ref={cover.ref} onLayout={cover.onLayout} pointerEvents="none" style={style as ViewStyle}>
+    <View {...rest} ref={cover.ref} onLayout={cover.onLayout} pointerEvents="none" style={style}>
       {size.width > 0 ? (
         <>
           {blur ? (
@@ -215,7 +216,7 @@ export const PopoverBubble = forwardRef<View, AnyProps>(function PopoverBubble(
           {showsArrow ? <Arrow edge={edge} center={center} width={half * 2} height={lift} fill={blur ? CLEAR : fill} tint={tintColor} edgeColor={edgeTint} edgeWidth={stroke} /> : null}
         </>
       ) : null}
-      {children as ReactNode}
+      {children}
     </View>
   );
 });

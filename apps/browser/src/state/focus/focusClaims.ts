@@ -59,4 +59,5 @@ export function cancelAbandonedFocus(
 export const commandBarFocus = "commandBar";
 export const heroBarFocus = (tabId: string) => `heroBar:${tabId}`;
 export const findFocus = (tabId: string) => `find:${tabId}`;
+export const historySearchFocus = (tabId: string) => `historySearch:${tabId}`;
 export const pageFocus = (tabId: string) => `page:${tabId}`;

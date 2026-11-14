@@ -2,7 +2,10 @@
 
 #include "NativeModules.h"
 
+#include <thread>
+
 #include "Events.h"
+#include "PageCapture.h"
 #include "WindowManager.h"
 
 namespace Ardia {
@@ -156,6 +159,24 @@ struct WindowsModule {
       auto report = WindowManager::Shared().DebugEdgeWatch();
       if (!report) return promise.Resolve(JSValue{nullptr});
       promise.Resolve(JSValue{std::move(*report)});
+    });
+  }
+
+  REACT_METHOD(capturePage)
+  void capturePage(std::string id, double x, double y, double width, double height, double scale, winrt::Microsoft::ReactNative::ReactPromise<std::string> promise) noexcept {
+    RunOnUI(m_context, [id, x, y, width, height, scale, promise]() noexcept {
+      auto target = PageCapture::TargetIn(WindowManager::Shared().Hwnd(id), x, y, width, height, scale);
+      if (!target) return promise.Resolve(std::string{});
+      try {
+        std::thread([target = *target, scale, promise]() noexcept {
+          bool com = SUCCEEDED(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
+          std::string data = PageCapture::Capture(target, scale);
+          if (com) CoUninitialize();
+          promise.Resolve(data);
+        }).detach();
+      } catch (...) {
+        promise.Resolve(std::string{});
+      }
     });
   }
 

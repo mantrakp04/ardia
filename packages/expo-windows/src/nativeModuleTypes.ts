@@ -31,6 +31,7 @@ export type AppWindowsOnWindows = {
   debugDragRegions(id: string): Promise<DragRegions | null>;
   debugSidebarEdgeWatch(): Promise<SidebarEdgeWatch | null>;
   debugWindowFade(id: string): Promise<WindowFade | null>;
+  capturePage(windowId: string, x: number, y: number, width: number, height: number, scale: number): Promise<string>;
 };
 
 export type AppWindowsModule = WindowsNative & WindowControlsNative & AppWindowsOnWindows;
@@ -57,11 +58,21 @@ export type SystemModule = SystemNative & { defaultBrowserState(): DefaultBrowse
 
 export type AppModule = AppNative & { windowsApiVersion?: number };
 
+export type IntroMusicModule = { play(muted: boolean): void; setMuted(muted: boolean): void; stop(fade: number): void; embeddedSeconds(): number };
+
+export type ExternalHandler = { name: string; path: string | null; icon: string | null };
+
+export type ExternalAppsModule = {
+  describe(scheme: string): Promise<ExternalHandler | null>;
+  open(url: string, name: string, path: string | null): Promise<boolean>;
+};
+
 export type WindowsHostModule = {
   getConstants(): { selfCheck?: boolean };
   secureRandomHex(byteCount: number): string;
   pointerState(): number;
   textComposing(): Promise<boolean>;
+  inputIdleSeconds(): number;
   launchArguments(): LaunchArguments;
 };
 

@@ -2,6 +2,7 @@ import { hostCall, onEngineTopic } from "./host";
 import { takerOfOpenedTab } from "./openedTabs";
 import { noteLoadAsked, openingPage, shapedPageEvent, type OpeningPage } from "./pageEvents";
 import { privateSessionOpened } from "./privateWindows";
+import type { ExternalAppRequest } from "@ardia/ardiacore";
 
 export type PageListener = (name: string, data: unknown) => void;
 export type PageRect = { x: number; y: number; width: number; height: number };
@@ -40,6 +41,34 @@ const closings = new Map<string, Promise<void>>();
 const pressListeners = new Set<(windowId: string) => void>();
 let listening = false;
 let lastAskedToFocus: Page | null = null;
+type ExternalAppAnswers = {
+  ask: (profile: string, page: string, data: unknown) => Promise<ExternalAppRequest | null>;
+  forget: (id: string) => void;
+  forgetPage: (page: string) => void;
+};
+
+let externalAppAnswers: ExternalAppAnswers | null = null;
+
+export function answerExternalAppsWith(answers: ExternalAppAnswers) {
+  externalAppAnswers = answers;
+}
+
+export function externalAppStillAsked(key: string, id: string): Promise<boolean> {
+  return callPage<unknown>(key, "externalAppAlive", { id }).then((alive) => alive === true);
+}
+
+function askExternalApp(page: Page, data: unknown) {
+  const answers = externalAppAnswers;
+  if (!answers) return;
+  quietly(
+    answers.ask(page.profile, page.key, data).then((request) => {
+      if (!request) return;
+      if (page.closed) return answers.forget(request.id);
+      for (const listener of [...page.listeners]) listener("externalApp", request);
+    }),
+  );
+}
+
 
 export function onPagePress(listener: (windowId: string) => void): () => void {
   pressListeners.add(listener);
@@ -71,6 +100,7 @@ function listen() {
     const page = pages.get(event.key);
     if (!page) return;
     if (event.name === "pagePress") for (const pressed of [...pressListeners]) pressed(page.windowId);
+    if (event.name === "externalApp") return askExternalApp(page, event.data);
     const data = placedPoint(page, event.name, shapedPageEvent(page.opening, event.name, event.data));
     for (const listener of [...page.listeners]) listener(event.name, data);
   });
@@ -210,6 +240,7 @@ function closePage(page: Page) {
   if (page.closed) return;
   page.closed = true;
   if (lastAskedToFocus === page) lastAskedToFocus = null;
+  externalAppAnswers?.forgetPage(page.key);
   if (pages.get(page.key) === page) pages.delete(page.key);
   const closing: Promise<void> = page.ready
     .then(() => hostCall("tab.close", { key: page.key }))

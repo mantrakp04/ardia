@@ -1,7 +1,8 @@
 import { forwardRef, type ReactNode } from "react";
+import type { DockSelectionProps } from "@ardia/shell";
 import { Image, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { Bands } from "./Bands";
-import { colorOrUndefined, finite, type AnyProps } from "./shared";
+import { colorOrUndefined, finite } from "./shared";
 
 const SHEEN_REACH = 0.6;
 const SOFT_LIGHT_RING = "rgba(255,255,255,0.4)";
@@ -22,7 +23,7 @@ function TemplateIcon({ image, emoji, size }: { image?: string; emoji?: string; 
   );
 }
 
-export const DockSelection = forwardRef<View, AnyProps>(function DockSelection(
+export const DockSelection = forwardRef<View, DockSelectionProps>(function DockSelection(
   { image, emoji, theme, fill, stroke, cornerRadius, strokeWidth, iconSize, dark, glass, colorRing, style, children, ...rest },
   ref,
 ) {
@@ -76,9 +77,9 @@ export const DockSelection = forwardRef<View, AnyProps>(function DockSelection(
     );
   }
   return (
-    <View {...rest} ref={ref} pointerEvents="none" style={style as ViewStyle}>
+    <View {...rest} ref={ref} pointerEvents="none" style={style}>
       {layers}
-      {children as ReactNode}
+      {children}
     </View>
   );
 });

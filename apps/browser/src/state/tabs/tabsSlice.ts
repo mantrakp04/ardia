@@ -96,7 +96,10 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
     const typed = beside && navigationOf(next.tabs[id]);
     if (typed) next = { ...next, tabs: { ...next.tabs, [id]: { ...next.tabs[id]!, engine: engineForUrl(next, typed.url) } } };
     if (id && options?.openerId) next = groupWithOpener(next, id, options.openerId, !!options.background);
-    else if (id && beside) next = joinedWithCurrent(next, [id], beside.openerId);
+    else if (id && beside) {
+      next = { ...next, tabs: { ...next.tabs, [id]: { ...next.tabs[id]!, linkOpenerId: undefined } } };
+      next = joinedWithCurrent(next, [id], beside.openerId);
+    }
     set(next);
     return id;
   },
