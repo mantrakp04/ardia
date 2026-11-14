@@ -26,7 +26,16 @@ class SyncModule : Module() {
 
     private val context: Context get() = appContext.reactContext ?: throw CodedException("ERR_NO_CONTEXT", "The app context is gone", null)
 
-    private val controller: SyncController get() = PhoneSync.controller(context)
+    private var watched: SyncController? = null
+
+    private val controller: SyncController
+        get() {
+            val launch = appContext.currentActivity?.intent
+            val demo = launch?.getBooleanExtra(PhoneSync.DEMO_EXTRA, false)
+            val sync = PhoneSync.controller(context, demo)
+            if (watched !== sync) watch(sync)
+            return sync
+        }
 
     override fun definition() = ModuleDefinition {
         Name("ArdiaSync")
@@ -34,26 +43,13 @@ class SyncModule : Module() {
         Events("onSyncEvent")
 
         OnCreate {
-            val sync = controller
-            val inbox = PhoneSync.inbox(context)
-            inbox.onChange = { count -> sendEvent("onSyncEvent", mapOf("name" to "sync.inbox", "count" to count)) }
-            val running = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-            scope = running
-            running.launch { sync.state.collect { sendEvent("onSyncEvent", mapOf("name" to "sync.status", "status" to SyncPayloads.status(it))) } }
-            running.launch {
-                combine(sync.snapshot, sync.state, sync.receivers) { snapshot, state, receivers -> SyncPayloads.view(snapshot, state.selectedProfileId, receivers) }
-                    .collect { sendEvent("onSyncEvent", mapOf("name" to "sync.view", "view" to it)) }
-            }
-            running.launch {
-                sync.incoming.collect { tabs ->
-                    if (tabs.isNotEmpty()) sendEvent("onSyncEvent", mapOf("name" to "sync.incoming", "tabs" to tabs.map(SyncPayloads::received)))
-                }
-            }
+            PhoneSync.inbox(context).onChange = { count -> sendEvent("onSyncEvent", mapOf("name" to "sync.inbox", "count" to count)) }
         }
 
         OnDestroy {
             scope?.cancel()
             scope = null
+            watched = null
             PhoneSync.inbox(context).onChange = null
         }
 
@@ -124,6 +120,23 @@ class SyncModule : Module() {
         AsyncFunction("inbox") { -> SyncPayloads.inbox(PhoneSync.inbox(context).entries()) }
 
         AsyncFunction("inboxApplied") { ids: List<Double> -> PhoneSync.inbox(context).applied(ids.map { it.toLong() }.toSet()) }
+    }
+
+    private fun watch(sync: SyncController) {
+        scope?.cancel()
+        watched = sync
+        val running = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+        scope = running
+        running.launch { sync.state.collect { sendEvent("onSyncEvent", mapOf("name" to "sync.status", "status" to SyncPayloads.status(it))) } }
+        running.launch {
+            combine(sync.snapshot, sync.state, sync.receivers) { snapshot, state, receivers -> SyncPayloads.view(snapshot, state.selectedProfileId, receivers) }
+                .collect { sendEvent("onSyncEvent", mapOf("name" to "sync.view", "view" to it)) }
+        }
+        running.launch {
+            sync.incoming.collect { tabs ->
+                if (tabs.isNotEmpty()) sendEvent("onSyncEvent", mapOf("name" to "sync.incoming", "tabs" to tabs.map(SyncPayloads::received)))
+            }
+        }
     }
 
     private fun pickFolder(promise: Promise, then: suspend (String?) -> Map<String, Any?>) {
