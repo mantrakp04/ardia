@@ -6,6 +6,8 @@ import { JAVASCRIPT_FROM_APPLE_EVENTS_REFUSED, runsJavaScript } from "../setting
 import { webviews } from "../../platform/webviews";
 import { errorText } from "../../lib/errors";
 
+const SCRIPT_STATE_DELAY_MS = 1000;
+
 function scriptState(s: BrowserState): ScriptState {
   return {
     windows: s.windowOrder.map((id) => {
@@ -44,7 +46,7 @@ export function startScripting() {
     timer ??= setTimeout(() => {
       timer = undefined;
       void push();
-    }, 100);
+    }, SCRIPT_STATE_DELAY_MS);
   });
   void push();
 

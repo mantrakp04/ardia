@@ -81,9 +81,14 @@ enum ServerWindowDrag {
   static func scheduleRefreshAll() {
     var seen = Set<ObjectIdentifier>()
     for region in regions.allObjects {
-      guard let window = region.window, seen.insert(ObjectIdentifier(window)).inserted else { continue }
+      guard let window = region.window, seen.insert(ObjectIdentifier(window)).inserted, pointerInBand(window) else { continue }
       scheduleRefresh(window)
     }
+  }
+
+  private static func pointerInBand(_ window: NSWindow) -> Bool {
+    let point = window.mouseLocationOutsideOfEventStream
+    return point.x >= 0 && point.x <= window.frame.width && point.y >= window.frame.height - band(window) && point.y <= window.frame.height
   }
 
   private static var mounting: MountWatcher?
