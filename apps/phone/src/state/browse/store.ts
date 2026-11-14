@@ -1,9 +1,10 @@
 import { create } from "zustand";
 import { history } from "../history/store";
 import { HISTORY_RETENTION_MS } from "../history/historySummary";
-import { settled,
+import {
   livePageIds,
   listenToPages,
+  settled,
   snapshotPage,
   storeNavigation,
   storeTone,
@@ -39,6 +40,7 @@ import {
 } from "../tabs/store";
 import { deckOrder, findTab, isPrivateOnScreen, isPrivateTab, selectedTab } from "../tabs/tabsState";
 import { setHidesFromRecents } from "../../platform/links";
+import { pasteText } from "../../platform/system";
 import { isSyncableUrl, pageStatePatch, type BrowserTab, type TabOrigin } from "../tabs/tabModels";
 
 export type Surface = "start" | "browsing" | "deck";
@@ -127,6 +129,12 @@ export function searchFor(query: string) {
 
 export function activateRow(row: TrayRow) {
   if (row.kind === "calc") return;
+  if (row.kind === "paste") {
+    void settled(() => pasteText(), "").then((text) => {
+      if (text.trim()) submitSearch(text.trim());
+    });
+    return;
+  }
   if (row.kind === "page" && row.tabId && findTab(currentTabs(), row.tabId)) {
     openTab(row.tabId);
     return;

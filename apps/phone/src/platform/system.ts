@@ -1,4 +1,4 @@
-import { getStringAsync, setStringAsync } from "expo-clipboard";
+import { getStringAsync, hasStringAsync, setStringAsync } from "expo-clipboard";
 import { impactAsync, ImpactFeedbackStyle, notificationAsync, NotificationFeedbackType } from "expo-haptics";
 import { getLocales } from "expo-localization";
 import { Linking, Share } from "react-native";
@@ -20,3 +20,5 @@ export const successHaptic = () => notificationAsync(NotificationFeedbackType.Su
 export const shareText = (text: string, title: string) => Share.share({ message: text, title });
 
 export const pasteText = () => getStringAsync();
+
+export const clipboardHasText = () => hasStringAsync();

@@ -5,6 +5,10 @@ import { currentTabs, useTabs } from "../tabs/store";
 import { idleMacTabs, macTabIndex, mergeSyncedHistory, syncedBookmarks } from "../sync/spaces";
 import { selectedProfile, syncData } from "../sync/store";
 import { idleRows, remoteSuggestions, setSearchEngine, setSources, setSyncedSearch, suggest, type SuggestContext, type TrayRow } from "./omnibox";
+import { withPasteRow, type PasteOffer } from "./pasteRow";
+import { copy } from "../../lib/platformCopy";
+import { clipboardHasText } from "../../platform/system";
+import { settled } from "../pages/store";
 import { buildSources, recentSearches, sourcesKey } from "./sources";
 
 export type SearchOrigin = "home" | "start" | "page";
@@ -35,6 +39,7 @@ let remote: { text: string; values: string[] } = { text: "", values: [] };
 let inFlight: AbortController | null = null;
 let fedSources = "";
 let context: SuggestContext = { currentUrl: null, currentTabId: null };
+let paste: PasteOffer | null = null;
 
 export function feedSources() {
   const key = sourcesKey(useTabs.getState().listing, history().revision(), syncData().revision);
@@ -48,7 +53,19 @@ export function feedSources() {
 function rowsFor(text: string, remoteValues: readonly string[]): TrayRow[] {
   const profile = selectedProfile();
   if (text.trim()) return suggest(text, remoteValues, context, macTabIndex(profile, syncData().view.devices)).rows;
-  return useTabs.getState().incognito ? [] : idleRows(recentSearches(history().summary()), idleMacTabs(profile, syncData().view.devices));
+  const idle = useTabs.getState().incognito ? [] : idleRows(recentSearches(history().summary()), idleMacTabs(profile, syncData().view.devices));
+  return withPasteRow(idle, text, paste);
+}
+
+function offerPaste(session: number) {
+  paste = null;
+  if (!copy().offersPasteAndGo) return;
+  void settled(() => clipboardHasText(), false).then((has) => {
+    const state = useSearch.getState();
+    if (!has || !state.open || state.session !== session) return;
+    paste = "text";
+    if (!state.text.trim()) useSearch.setState({ rows: rowsFor(state.text, []) });
+  });
 }
 
 export const refreshSearchRows = () => useSearch.setState((state) => ({ rows: rowsFor(state.text, []) }));
@@ -74,6 +91,7 @@ export function presentSearch(origin: SearchOrigin, text = "", incognitoOnCancel
     fieldVersion: 0,
     incognitoOnCancel,
   }));
+  offerPaste(useSearch.getState().session);
 }
 
 export function dismissSearch() {

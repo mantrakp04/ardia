@@ -23,6 +23,7 @@ export type PlatformCopy = {
   voicePermission: string;
   defaultBrowserInstructions: DefaultBrowserSteps | null;
   offersDefaultBrowserAlways: boolean;
+  offersPasteAndGo: boolean;
 };
 
 const ANDROID: PlatformCopy = {
@@ -46,6 +47,7 @@ const ANDROID: PlatformCopy = {
   voicePermission: "Allow Microphone for Ardia in Settings to search with your voice.",
   defaultBrowserInstructions: null,
   offersDefaultBrowserAlways: true,
+  offersPasteAndGo: true,
 };
 
 const IOS: PlatformCopy = {
@@ -74,6 +76,7 @@ const IOS: PlatformCopy = {
     action: "Open Ardia in Settings",
   },
   offersDefaultBrowserAlways: false,
+  offersPasteAndGo: false,
 };
 
 const TABLES: Record<CopyPlatform, PlatformCopy> = { android: ANDROID, ios: IOS };

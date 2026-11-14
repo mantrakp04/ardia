@@ -9,11 +9,16 @@ import {
   mobileSuggestRequest,
 } from "@ardia/core/src/mobile";
 import { dedupeByLanding, displayHost, landingKey } from "../../lib/url";
+import type { PasteOffer } from "./pasteRow";
 
 export type TrayRow =
   | { key: string; kind: "query"; title: string; url: string; query: string }
   | { key: string; kind: "page"; title: string; detail: string; url: string; favicon: string | null; tabId: string | null; switchesTab: boolean }
-  | { key: string; kind: "calc"; title: string; detail: string; url: string };
+  | { key: string; kind: "calc"; title: string; detail: string; url: string }
+  | { key: string; kind: "paste"; title: string; detail: string; url: string; offer: PasteOffer };
+
+export type { PasteOffer };
+
 
 export const SWITCH_TO_TAB = "Switch to Tab";
 
