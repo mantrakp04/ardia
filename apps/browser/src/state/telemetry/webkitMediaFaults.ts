@@ -2,6 +2,8 @@ export const MEDIA_FAULT_REASONS = [
   ...(["widevine", "playready", "fairplay", "other"] as const).flatMap((system) =>
     (["granted", "refused_not_supported", "refused_security", "refused_not_allowed", "refused_other"] as const).map((answer) => `eme_${system}_${answer}`),
   ),
+  ...(["widevine", "playready", "fairplay", "other"] as const).flatMap((system) => (["supported", "unsupported"] as const).map((answer) => `eme_${system}_legacy_${answer}`)),
+  ...(["unknown", "client", "service", "output", "hardware_change", "domain"] as const).map((code) => `eme_legacy_key_error_${code}`),
   "media_error_aborted",
   "media_error_network",
   "media_error_decode",

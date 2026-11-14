@@ -22,7 +22,7 @@ const faultKeys = (event) => Object.keys(event.properties).filter((key) => key.s
 
 test("every reason is a distinct key the telemetry client keeps", () => {
   assert.equal(new Set(faults.MEDIA_FAULT_REASONS).size, faults.MEDIA_FAULT_REASONS.length);
-  assert.equal(faults.MEDIA_FAULT_REASONS.length, 28);
+  assert.equal(faults.MEDIA_FAULT_REASONS.length, 42);
   for (const reason of faults.MEDIA_FAULT_REASONS) {
     const props = Object.fromEntries([`webkit_fault_${reason}`, "webkit_faults_muted", "webkit_faults_blocker_active"].map((key) => [key, 1]));
     assert.deepEqual(Object.keys(cleanProperties(props)), Object.keys(props), reason);

@@ -17,14 +17,15 @@ const listIn = (text, pattern) => {
 };
 const sites = listIn(faultsSwift, /static let sites = \[([^\]]*)\]/);
 const reasons = listIn(faultsSwift, /static let reasons: Set<String> = \[([^\]]*)\]/);
-const sourceOf = (name) => {
-  const start = pageScript.indexOf(`static let ${name} = #"""`);
+const rawString = (text, name) => {
+  const start = text.indexOf(`static let ${name} = #"""`);
   assert.ok(start >= 0, `${name} not found`);
-  const from = pageScript.indexOf('"""', start) + 3;
-  return pageScript.slice(from, pageScript.indexOf('"""#', from));
+  const from = text.indexOf('"""', start) + 3;
+  return text.slice(from, text.indexOf('"""#', from));
 };
-const bridge = sourceOf("mediaBridge").replace("\\#(WebKitMediaFaults.sitesJSON)", JSON.stringify(sites));
-const source = sourceOf("source").replace("\\#(WebKitMediaFaults.sitesJSON)", JSON.stringify(sites));
+const filled = (script) => script.replace("\\#(WebKitMediaFaults.sitesJSON)", JSON.stringify(sites)).replace("\\#(WebKitMediaFaults.pageScript)", rawString(faultsSwift, "pageScript"));
+const bridge = filled(rawString(pageScript, "mediaBridge"));
+const source = filled(rawString(pageScript, "source"));
 
 test("the streaming sites are the protected video sites the app opens in WebKit", () => {
   const listed = listIn(engines, /export const PROTECTED_VIDEO_SITES: readonly string\[\] = \[([^\]]*)\]/);
@@ -33,7 +34,7 @@ test("the streaming sites are the protected video sites the app opens in WebKit"
 });
 
 test("the reasons a page can report are a fixed set, each short enough to send", () => {
-  assert.equal(reasons.length, 28);
+  assert.equal(reasons.length, 42);
   assert.equal(new Set(reasons).size, reasons.length);
   assert.ok(reasons.every((reason) => /^[a-z_]{1,48}$/.test(reason)));
 });
@@ -77,6 +78,18 @@ class Navigator {
   requestMediaKeySystemAccess(name, configurations) { return this.answer(name, configurations); }
   answer() { return undefined; }
 }
+class WebKitMediaKeyError { constructor(code) { this._code = code; } get code() { return this._code; } }
+class WebKitMediaKeySession extends EventTarget { get error() { return this._error ?? null; } }
+class WebKitMediaKeys {
+  static isTypeSupported(name) { return WebKitMediaKeys.supported.includes(name); }
+  createSession() { return new WebKitMediaKeySession(); }
+}
+WebKitMediaKeys.supported = ["com.apple.fps"];
+globalThis.WebKitMediaKeyError = WebKitMediaKeyError;
+globalThis.WebKitMediaKeySession = WebKitMediaKeySession;
+globalThis.WebKitMediaKeys = WebKitMediaKeys;
+globalThis.originalIsTypeSupported = WebKitMediaKeys.isTypeSupported;
+globalThis.originalCreateSession = WebKitMediaKeys.prototype.createSession;
 globalThis.EventTarget = EventTarget;
 globalThis.Event = Event;
 globalThis.CustomEvent = CustomEvent;
@@ -209,6 +222,23 @@ test("an error on a media element the page played outside the document, like new
   assert.deepEqual(p.reported(), ["media_error_decode", "media_error_network"]);
 });
 
+test("Safari's prefixed key system answers (once per page each) and session key errors are reported, as Spotify's player uses them, and the page gets its own answers", () => {
+  const p = page();
+  p.run(`
+    globalThis.answers = ["com.apple.fps", "com.apple.fps.1_0", "com.widevine.alpha", "org.w3.clearkey", "com.apple.fps", "com.widevine.alpha"].map((name) => WebKitMediaKeys.isTypeSupported(name, "video/mp4"));
+    const session = new WebKitMediaKeys("com.apple.fps").createSession("video/mp4", new Uint8Array(1));
+    globalThis.isSession = session instanceof WebKitMediaKeySession;
+    for (const code of [4, 2, 9, null]) {
+      session._error = code === null ? null : new WebKitMediaKeyError(code);
+      session.dispatchEvent(new Event("webkitkeyerror"));
+    }
+  `);
+  assert.deepEqual(p.json("answers"), [true, false, false, false, true, false]);
+  assert.equal(p.json("isSession"), true);
+  assert.deepEqual(p.reported(), ["eme_fairplay_legacy_supported", "eme_fairplay_legacy_unsupported", "eme_widevine_legacy_unsupported", "eme_other_legacy_unsupported", "eme_legacy_key_error_output", "eme_legacy_key_error_client"]);
+  assert.ok(p.reported().every((reason) => reasons.includes(reason)));
+});
+
 test("a fault the page keeps raising is reported 20 times, not without end", async () => {
   const p = page();
   p.run("const video = new HTMLMediaElement(); video.answer = () => Promise.reject(new DOMException('', 'NotAllowedError')); for (let i = 0; i < 30; i++) video.play().catch(() => {});");
@@ -266,7 +296,7 @@ test("a page off the streaming sites gets no media fault listener or wrapper", (
   for (const [protocol, hostname] of [["https:", "example.com"], ["http:", sites[0]], ["https:", `not${sites[0]}`]]) {
     const p = page({ protocol, hostname });
     assert.equal(p.json("(document._listeners || []).filter((l) => l.type === 'ardia:media-fault' || l.type === 'error').length"), 0, `${protocol}//${hostname}`);
-    assert.equal(p.json("Navigator.prototype.requestMediaKeySystemAccess === originalAccess"), true);
+    assert.equal(p.json("Navigator.prototype.requestMediaKeySystemAccess === originalAccess && WebKitMediaKeys.isTypeSupported === originalIsTypeSupported && WebKitMediaKeys.prototype.createSession === originalCreateSession"), true);
     p.run(`document.dispatchEvent(new CustomEvent("ardia:media-fault", { detail: "media_error_decode" }));`);
     assert.deepEqual(p.reported(), [], `${protocol}//${hostname}`);
   }
