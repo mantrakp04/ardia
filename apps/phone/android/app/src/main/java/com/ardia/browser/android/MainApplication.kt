@@ -2,6 +2,9 @@ package com.ardia.browser.android
 
 import android.app.Application
 import android.content.res.Configuration
+import com.ardia.phone.PhoneSync
+import com.ardia.sync.SyncController
+import com.ardia.sync.SyncControllerOwner
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
@@ -14,7 +17,7 @@ import com.facebook.react.defaults.DefaultReactNativeHost
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
-class MainApplication : Application(), ReactApplication {
+class MainApplication : Application(), ReactApplication, SyncControllerOwner {
     override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
         this,
         object : DefaultReactNativeHost(this) {
@@ -27,6 +30,9 @@ class MainApplication : Application(), ReactApplication {
             override val isNewArchEnabled: Boolean = BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
         },
     )
+
+    override val syncController: SyncController
+        get() = PhoneSync.controller(this)
 
     override val reactHost: ReactHost
         get() = ReactNativeHostWrapper.createReactHost(applicationContext, reactNativeHost)
