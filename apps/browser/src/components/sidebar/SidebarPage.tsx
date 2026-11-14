@@ -8,7 +8,7 @@ import { ThemeScope } from "../window/ThemeScope";
 import { PageProfileContext, useSettings, useWindowId } from "../../state/browser/hooks";
 import { newTab } from "../../state/tabs/actions";
 import { useSidebarCells } from "../../state/sidebar/hooks";
-import { useAddressBarInSidebar } from "../../state/windows/layout";
+import { useSidebarField, useSidebarPart } from "../../state/sidebar/chrome";
 import { SIDEBAR_PLAYER_HEIGHT, SidebarPlayer, useSidebarPlayerTab } from "../media/SidebarPlayer";
 import { usePageStyle } from "../../state/windows/profilePager";
 import { useSharedTilesStyle } from "../../state/sidebar/sharedTiles";
@@ -45,7 +45,9 @@ type PageProps = {
 
 export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, width, current, resting, dockAbove, height, rows, geometry, onScrollView, onScrollY }: PageProps) {
   const windowId = useWindowId();
-  const topGap = listTopGap(useAddressBarInSidebar());
+  const topGap = listTopGap(useSidebarField() === "top");
+  const pinnedShown = useSidebarPart("pinned");
+  const newTabShown = useSidebarPart("newTab");
   const pageStyle = usePageStyle(windowId, slot, width);
   const sharedTiles = useSharedTilesStyle(windowId, slot, width, paging);
   const [lazy] = useState(() => switchOn("lazySidebarRows"));
@@ -58,7 +60,8 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
   const offScreen = beside && !current;
   const playerTab = useSidebarPlayerTab(windowId, profileId);
   const playerHeight = playerTab ? SIDEBAR_PLAYER_HEIGHT : 0;
-  const tiles = useSidebarCells(windowId, profileId, offScreen);
+  const cells = useSidebarCells(windowId, profileId, offScreen);
+  const tiles = pinnedShown ? cells : NONE;
   const innerWidth = width - layout.sidebarInset * 2;
   const dragging = useDragging() && current;
   const previewed = usePinnedCount(tiles);
@@ -126,7 +129,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
     report();
   };
   useEffect(report, [playerHeight, resting]);
-  const inlineNewTab = !docked;
+  const inlineNewTab = !docked && newTabShown;
 
   return (
     <Animated.View
@@ -190,7 +193,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
                         <SidebarPlayer tabId={playerTab} />
                       </View>
                     ) : null}
-                    {docked ? (
+                    {docked && newTabShown ? (
                       <View style={{ paddingHorizontal: layout.sidebarInset, paddingTop: layout.rowGap, paddingBottom: DOCKED_BOTTOM }}>
                         <NewTabRow windowId={windowId} />
                       </View>

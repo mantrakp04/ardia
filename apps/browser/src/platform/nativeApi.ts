@@ -1,7 +1,7 @@
 import { requireNativeModule, requireOptionalNativeModule } from "expo-modules-core";
 import { DEV_EVAL_RESULT, watchDevEval } from "../lib/devEval";
 
-export const NATIVE_API_VERSION = 61;
+export const NATIVE_API_VERSION = 62;
 
 const app = requireOptionalNativeModule<{ apiVersion?: unknown; windowsApiVersion?: unknown }>("ArdiaApp");
 const version = (value: unknown) => (typeof value === "number" ? value : 0);

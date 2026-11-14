@@ -15,9 +15,9 @@ import { closedByPress, openTileFolderMenu, toggleFolderPanel, useFolderPanel } 
 import { entryKey } from "../../state/sidebar/entryKey";
 
 const MOSAICS = {
-  tile: { cell: 9, gap: space.xxs, pad: space.xs, radius: radius.tile },
-  strip: { cell: 7, gap: space.xxs, pad: space.xxs, radius: concentric(radius.tile, space.xxs) },
-} as const;
+  tile: { cell: 9, gap: space.xxs, pad: space.xs, get radius() { return radius.tile; } },
+  strip: { cell: 7, gap: space.xxs, pad: space.xxs, get radius() { return concentric(radius.tile, space.xxs); } },
+};
 
 export const FolderTile = memo(function FolderTile({ folderId, width, sliding, x, y }: { folderId: string; width: number; sliding: boolean; x: number; y: number }) {
   const theme = useTheme();

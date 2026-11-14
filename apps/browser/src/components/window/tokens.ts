@@ -1,5 +1,5 @@
 import { curve, duration } from "../ui/motion";
-import { font, ink, radius, shadow, type ShadowLevel } from "../ui/tokens";
+import { font, ink, monoFace, radius, shadow, type ShadowLevel } from "../ui/tokens";
 
 const DARK = {
   statusFill: "rgba(40,38,39,0.96)",
@@ -31,7 +31,12 @@ export const windowColors = (dark: boolean): WindowColors => (dark ? DARK : LIGH
 
 export const SWIPE_CONFIRMED_WASH = "rgba(255,255,255,0.4)";
 
-export const DEV_ERROR = { background: "#1b1416", text: "#ff8a8a", ...font.body, fontFamily: "Menlo" } as const;
+export const DEV_ERROR = {
+  background: "#1b1416",
+  text: "#ff8a8a",
+  get fontSize() { return font.body.fontSize; },
+  get fontFamily() { return monoFace().fontFamily; },
+} as const;
 
 export const NATIVE_SKEW_PAD_TOP = 48;
 
@@ -74,7 +79,7 @@ export const ARC_PEEK_SPRING = { response: 0.18, damping: 0.8 } as const;
 export const ARC_PEEK_OUT_MS = 150;
 export const ARC_HIDE_MS = duration.fast;
 
-export const PEEK_RADIUS = radius.panel;
+export const peekRadius = () => radius.panel;
 
 export const WINDOW_BUTTONS = {
   closeHover: "#C42B1C",

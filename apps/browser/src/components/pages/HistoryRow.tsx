@@ -11,7 +11,6 @@ import { hostLabel, timeLabel } from "./PageLayout";
 import { historyRow, pagesColors, pageType } from "./tokens";
 
 const DAY_HEADER = { position: "absolute", left: 0, right: 0, height: historyRow.header, justifyContent: "flex-end", paddingBottom: space.m, paddingHorizontal: historyRow.headerInset } as const;
-const DAY_LABEL = pageType.dayHeader;
 const ROW_FRAME = { height: historyRow.height, paddingHorizontal: space.xl } as const;
 const TIME = { width: historyRow.timeWidth } as const;
 const LINK = { flexDirection: "row", alignItems: "center", gap: space.ml } as const;
@@ -20,9 +19,10 @@ const HOST = { flexShrink: 0, maxWidth: historyRow.hostMaxWidth } as const;
 const SEPARATOR = { position: "absolute", left: space.xl + space.l, right: space.xl + space.l, bottom: 0 } as const;
 
 export const DayHeader = memo(function DayHeader({ label, top }: { label: string; top: number }) {
+  useTheme();
   return (
     <View style={[DAY_HEADER, { top }]}>
-      <Text weight="semibold" tone="textSecondary" style={DAY_LABEL}>
+      <Text weight="semibold" tone="textSecondary" style={pageType.dayHeader}>
         {label}
       </Text>
     </View>

@@ -10,7 +10,7 @@ knows `agent-browser <args>` can type `ardia browse <args>`. It drives the runni
 over the ardia command's control connection (Settings > "Let the ardia command control
 Ardia"), through pydoll. Input is instant unless --humanize. Actions print what they changed
 (nodes with refs, URL, title, the POSTs they caused), a session with no tab uses the user's
-active tab, and text output stops at about 6,000 characters (narrow it with snapshot -i or -s <css>).
+active tab, and text output stops at about 12,000 characters (narrow it with snapshot -i or -s <css>).
 
 Core Commands:
   open [url]                 Open url in a new background tab of this session (later opens reuse it)
@@ -255,7 +255,7 @@ COMMANDS = {
             "pattern (* matches anything), in page order; --list only prints those links. URLs can also come one per line\n"
             "on stdin (--stdin or -), and /paths resolve against the session's tab. Every URL you name is read (up to 100);\n"
             "--links finds at most 20 unless --limit (100). A PDF prints its text, page by page.\n"
-            "Pages share an output cap of 3,000 characters a page (6,000 to 24,000), and a cut read is saved whole to a file it\n"
+            "Pages share an output cap of 6,000 characters a page (12,000 to 36,000), and a cut read is saved whole to a file it\n"
             "names; narrow it with -s or a tighter --links (--json and > file have all). --out <file> saves every page\n"
             "(JSON for a .json file, else text) and prints one line per page.\n"
             "--scroll reads a long or virtualized list on the session's tab (-s takes a selector or a ref): it scrolls the\n"

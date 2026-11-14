@@ -1,6 +1,7 @@
 import { PixelRatio, Text } from "react-native";
 import { Dot, hairline, ink, Symbol, weight } from "../ui";
 import { profileAccent } from "../ui/theme";
+import { typeFace } from "../ui/tokens";
 import type { Profile } from "../../state/browser/types";
 import { profileBadge, profileColors, profileSwitcher } from "./tokens";
 import { iconSymbol } from "../../lib/customIcon";
@@ -87,6 +88,7 @@ export function ProfileBadge({ profile, size = 26 }: { profile: Pick<Profile, "n
         <Text
           numberOfLines={1}
           style={{
+            ...typeFace(),
             width: size,
             textAlign: "center",
             fontSize: profile.icon ? size * 0.55 : size * profileBadge.initialScale,

@@ -5,6 +5,7 @@ import { toggleDownloadsOpen } from "../../state/windows/actions";
 import { useWindowUiOf } from "../../state/windows/hooks";
 import { SIDEBAR_FOOTER_DOWNLOADS } from "../sidebar/geometry";
 import { Button } from "../ui";
+import { perLook } from "../ui/tokens";
 import { anchorInside, type Rect } from "./downloadsPlacement";
 import { DOWNLOADS_BUTTON } from "./tokens";
 import { noteDownloadsPanelToggle } from "../../state/telemetry/downloadsPanelCounts";
@@ -24,7 +25,7 @@ export async function locateDownloadsButton(windowId: string, origin: Rect): Pro
   return null;
 }
 
-const DOWNLOADS_HIT = { width: SIDEBAR_FOOTER_DOWNLOADS.size, height: SIDEBAR_FOOTER_DOWNLOADS.size, plateX: 0, plateY: 0, box: SIDEBAR_FOOTER_DOWNLOADS.size, radius: DOWNLOADS_BUTTON.radius };
+const DOWNLOADS_HIT = perLook(() => ({ width: SIDEBAR_FOOTER_DOWNLOADS.size, height: SIDEBAR_FOOTER_DOWNLOADS.size, plateX: 0, plateY: 0, box: SIDEBAR_FOOTER_DOWNLOADS.size, radius: DOWNLOADS_BUTTON.radius }));
 
 export function DownloadsButton({ windowId }: { windowId: string }) {
   const open = useWindowUiOf(windowId, (ui) => !!ui?.downloadsOpen);
@@ -46,7 +47,7 @@ export function DownloadsButton({ windowId }: { windowId: string }) {
       <Button variant="icon"
         icon="arrow.down.circle"
         glyph={DOWNLOADS_BUTTON.icon}
-        hit={DOWNLOADS_HIT}
+        hit={DOWNLOADS_HIT()}
         active={open}
         tooltip={open ? undefined : withShortcut("Downloads", hint)}
         onPress={() => {

@@ -1,18 +1,20 @@
 import { curve, duration } from "../ui/motion";
-import { capsule, concentric, font, radius, space } from "../ui/tokens";
+import { capsule, concentric, font, perLook, radius, space } from "../ui/tokens";
 
 export const PANEL_TEXT_LEFT = 48;
 const PANEL_ICON_LEFT = 21;
 const FIELD_TEXT_INSET = 2.5;
 const ICON_SLOT = 18;
 
+const pulseRadius = perLook(() => ({ panel: radius.hero, hero: concentric(radius.hero, 0.5), sidebar: radius.panel }));
+
 export const BAR_TYPE = {
-  heroField: font.large,
-  floatingField: font.title,
-  panelField: font.body,
-  goLabel: font.title,
-  scope: font.title,
-  heroScope: font.title,
+  get heroField() { return font.large; },
+  get floatingField() { return font.title; },
+  get panelField() { return font.body; },
+  get goLabel() { return font.title; },
+  get scope() { return font.title; },
+  get heroScope() { return font.title; },
 } as const;
 
 export const BAR = {
@@ -61,7 +63,7 @@ export const GO_BUTTON = {
 export const SCOPE_CHIP = {
   height: 26,
   heroHeight: 28,
-  radius: radius.tile,
+  get radius() { return radius.tile; },
   left: 7,
   right: 9,
   gap: space.s,
@@ -76,7 +78,7 @@ export const SUGGESTION = {
   dropdownListBelow: space.s,
   height: 36,
   gapY: 2,
-  radius: radius.tile,
+  get radius() { return radius.tile; },
   padX: 13,
   gap: 11,
   icon: 13,
@@ -98,7 +100,7 @@ export const SCOPE_PULSE = {
   waitForColor: duration.base,
   luminance: { dark: [0.16, 0.6], light: [0.06, 0.3] },
   neutralBelowSaturation: 0.16,
-  radius: { panel: radius.hero, hero: concentric(radius.hero, 0.5), sidebar: radius.panel },
+  get radius() { return pulseRadius(); },
 } as const;
 
 export const SITE_BRAND_COLORS: Readonly<Record<string, string>> = {

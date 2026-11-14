@@ -15,7 +15,7 @@ import { useOnto } from "./model";
 import type { StripGroupEntry, StripMember } from "../../state/tabs/topStrip";
 import { dragGeometry, dropIndex, GROUP_MARGIN_LEFT, GROUP_MARGIN_RIGHT, groupLayout, holds, MEMBERS_INSET, memberInteractive, TAIL_EXPANDED, tabsOf, type DragGeometry } from "./stripGroups";
 import { OntoRing } from "./TabChip";
-import { CHIP_HAIRLINE, GAP, GROUP_CHIP_PAD, GROUP_DIVIDER_LENGTH, GROUP_SPRING, GROUP_TITLE_GAP, GROUP_TITLE_MAX, ITEM_HEIGHT, ITEM_TOP, MID, STRIP_COLORS, TAB_RADIUS, TOP_STRIP_HEIGHT } from "./tokens";
+import { CHIP_HAIRLINE, GAP, GROUP_CHIP_PAD, GROUP_DIVIDER_LENGTH, GROUP_SPRING, GROUP_TITLE_GAP, GROUP_TITLE_MAX, ITEM_HEIGHT, ITEM_TOP, MID, STRIP_COLORS, tabRadius, TOP_STRIP_HEIGHT } from "./tokens";
 import { useStripDrag } from "./useStripDrag";
 
 export function StripGroup({
@@ -113,7 +113,7 @@ export function StripGroup({
           top: ITEM_TOP,
           width: size,
           height: ITEM_HEIGHT,
-          borderRadius: TAB_RADIUS,
+          borderRadius: tabRadius(),
           borderWidth: CHIP_HAIRLINE,
           borderColor: bare ? ink.clear : theme.pinnedRestingStroke,
           backgroundColor: tint ? withAlpha(tint, hovered ? 0.24 : 0.18) : hovered ? tokens.groupHeaderHover : bare ? ink.clear : tokens.groupFill,
@@ -158,7 +158,7 @@ export function StripGroup({
             style={{ height: ITEM_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: GROUP_CHIP_PAD.left, paddingRight: GROUP_CHIP_PAD.right }}
           >
             <StripGroupIcon icon={group.icon} tint={tint} />
-            <Text numberOfLines={1} style={{ marginLeft: GROUP_TITLE_GAP, maxWidth: GROUP_TITLE_MAX, fontSize: font.small.fontSize, fontWeight: weight.semibold, color: tint ?? (shown >= 0 ? theme.textPrimary : theme.textTab) }}>
+            <Text numberOfLines={1} style={{ marginLeft: GROUP_TITLE_GAP, maxWidth: GROUP_TITLE_MAX, ...font.small, fontWeight: weight.semibold, color: tint ?? (shown >= 0 ? theme.textPrimary : theme.textTab) }}>
               {group.name || `${group.tabIds.length} ${group.tabIds.length === 1 ? "Tab" : "Tabs"}`}
             </Text>
           </Pressable>

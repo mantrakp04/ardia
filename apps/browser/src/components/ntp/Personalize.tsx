@@ -8,6 +8,7 @@ import { Box, capsule, Panel, proseLineHeight, shadow, space, Symbol, Text, useH
 import { PERSONALIZE_PANEL } from "./tokens";
 import { closePersonalizePanelOf, setPersonalizePanel as setOpen, usePersonalizePanel } from "../../state/pages/personalizePanel";
 import { buttonMotion, usePressScaleMotion } from "../ui/motion";
+import { perLook } from "../ui/tokens";
 
 const INSET = space.xl;
 const BUTTON = 30;
@@ -82,7 +83,7 @@ function PersonalizePanel({ windowId, onClose }: { windowId: string; onClose: ()
               <Text size="title" weight="semibold">
                 {PERSONALIZE_COPY.title}
               </Text>
-              <Text size="small" tone="textSecondary" style={SUBTITLE}>
+              <Text size="small" tone="textSecondary" style={SUBTITLE()}>
                 {PERSONALIZE_COPY.subtitle}
               </Text>
             </Box>
@@ -100,6 +101,6 @@ function PersonalizePanel({ windowId, onClose }: { windowId: string; onClose: ()
   );
 }
 
-const SUBTITLE = { lineHeight: proseLineHeight.small } as const;
+const SUBTITLE = perLook(() => ({ lineHeight: proseLineHeight.small }) as const);
 
 devRegister("acPersonalize", "open", setOpen);

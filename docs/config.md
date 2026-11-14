@@ -167,25 +167,100 @@ that theme. `ardia config check` reports the same problems.
 
 ## Themes
 
+A theme is `<config folder>/themes/NAME.json`; `config.json`'s `theme` picks one. It holds colour roles per
+appearance and four look blocks. Every key is optional, and a block left out is Ardia's own look.
+
 ```json
 {
   "$schema": "../theme.schema.json",
   "dark": { "accent": "#88C0D0", "panel": "#2E3440", "textPrimary": "#ECEFF4" },
-  "light": { "accent": "#5E81AC" }
+  "light": { "accent": "#5E81AC" },
+  "type": { "family": "Avenir Next", "scale": 1.05, "sizes": { "small": 13 }, "weights": { "medium": "600" } },
+  "metrics": { "rowHeight": 30, "rowGap": 2, "sidebarWidth": 240, "radius": { "row": 6, "panel": 10 } },
+  "layout": { "hide": ["navButtons", "profile"], "addressField": "bottom", "newTab": "top" },
+  "icons": { "plus": "plus.circle", "sidebar.left": "rectangle.lefthalf.inset.filled" }
 }
 ```
 
-- `dark` and `light` take any colour role of `colorRoles` (`apps/browser/src/components/ui/tokens.ts`) except
-  `dark` itself. Colours are `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(r,g,b)` or `rgba(r,g,b,a)` (r, g, b integers 0–255,
-  a 0–1). Number roles are finite: `grain` and the `…Opacity` roles 0–1, the `…Radius` roles 0–100.
-  `tabSelectedBorder` takes two colours. A role left out, or a bad one, uses Ardia's value. Keys other than `$schema`,
-  `dark` and `light`, and names that aren't roles, are reported (the schema has `additionalProperties: false`).
+### Colours
+
+- `dark` and `light` take any colour role of `colorRoles` (`apps/browser/src/components/ui/tokens.ts`). Colours are
+  `#RGB`, `#RRGGBB`, `#RRGGBBAA`, `rgb(r,g,b)` or `rgba(r,g,b,a)` (r, g, b integers 0–255, a 0–1). Number roles are
+  finite: `grain` and the `…Opacity` roles 0–1, the `…Radius` roles 0–100. `tabSelectedBorder` takes two colours.
 - The file's roles replace Ardia's in the base palettes, before anything else. Profile colours and custom profile
   themes keep adding what they add today (backdrop, tint, accent); incognito uses the dark palette, with the file's
   dark roles, plus its tint.
-- `theme: null`, no `theme` key, a missing theme file or no `config.json` means Ardia's own palette.
-- Picking a theme, or editing the active theme's file, restyles every window at once, no restart. The effective base
-  palette carries a revision, and every cache and snapshot built from roles depends on it.
+
+### type
+
+Fonts and text sizes in the interface. Web pages keep their own fonts.
+
+| Key | Values | Default | Affects |
+| --- | --- | --- | --- |
+| `family` | a font family name, 1–64 characters, no space at either end | the system font | every interface font: the Text component, every style of the type scale, the sidebar's tab and row titles, fields. A family macOS doesn't have falls back to the system font |
+| `mono` | a font family name | `"Menlo"` | codes, keys, logs and other monospaced text |
+| `scale` | 0.85–1.3 | 1 | multiplies every text size, after `sizes` |
+| `sizes.badge` | 7–14 | 9 | counts on badges |
+| `sizes.tiny` | 8–16 | 10 | the smallest labels |
+| `sizes.caption` | 8–18 | 11 | captions, section labels, URLs under titles |
+| `sizes.small` | 9–19 | 12 | sidebar tab titles, secondary text |
+| `sizes.body` | 10–21 | 13 | most text: menus, fields, folder and group names |
+| `sizes.title` | 11–24 | 15 | panel and dialog titles, the command bar's results |
+| `sizes.large` | 13–27 | 17 | large headings, the command bar's field |
+| `weights.regular`, `.medium`, `.semibold`, `.bold` | `"100"`–`"900"` in steps of 100, string or number | `"400"`, `"500"`, `"600"`, `"700"` | what each weight name draws with |
+
+The seven sizes are Ardia's text sizes everywhere in the chrome; line heights scale with them.
+
+### metrics
+
+Sizes and corner radii, in points.
+
+| Key | Values | Default | Affects |
+| --- | --- | --- | --- |
+| `rowHeight` | 24–56 | 34 | every sidebar row: tabs, folders, groups, live folders, New Tab, the sidebar address field. Drag targeting, list motion and scrolling to a tab follow it |
+| `rowGap` | 0–12 | 3 | the space between sidebar rows, with the same followers |
+| `pinnedHeight` | 28–72 | 41 | pinned tiles in the sidebar's top apps grid, and the grid's drop slots |
+| `sidebarWidth` | 160–400 | none: the width is yours | the sidebar takes this width when you switch to the theme or change the value, and a double-click on the sidebar edge returns to it |
+| `radius.row` | 0–24 | 10 | sidebar rows, the sidebar address field, top-strip tabs |
+| `radius.pinned` | 0–24 | 10 | pinned tiles |
+| `radius.tile` | 0–24 | 8 | list and menu rows, fields, cards, icon tiles |
+| `radius.control` | 0–12 | 4 | small controls: steppers, chips, keys |
+| `radius.toolbar` | 0–24 | 7 | toolbar button plates |
+| `radius.panel` | 0–28 | 12 | popovers, menus and panels |
+| `radius.sheet` | 0–32 | 16 | sheets, the tab switcher, search and other large panels |
+
+### layout
+
+| Key | Values | Default | Affects |
+| --- | --- | --- | --- |
+| `hide` | a list of parts (below) | `[]` | hides those parts of the sidebar |
+| `addressField` | `"top"` or `"bottom"` | `"top"` | where the sidebar address field sits, when the address bar is in the sidebar. At the bottom (or hidden), ⌘L and a click on the field open the command bar centred |
+| `newTab` | `"top"` or `"bottom"` | none: Settings › Tabs decides | the New Tab row at the top or bottom of the tab list; set, it wins over Settings › Tabs while the theme is active |
+
+The parts `hide` takes, all in the sidebar: `pinned` (the top apps grid, with its drop slots: tabs can't be dragged
+into a hidden grid), `newTab` (the New Tab row, inline or docked), `addressField` (the sidebar address field, when the
+address bar is in the sidebar), `navButtons` and `sidebarButton` (back, forward, reload and the Hide Tabs button in the
+sidebar header, when the address bar is in the sidebar; the toolbar's own buttons stay), `downloads` (the sidebar's
+downloads button) and `profile` (the profile name in the sidebar header and the profile dots at the bottom).
+
+### icons
+
+An object from an SF Symbol name to the one to draw instead, both lowercase letters, digits and dots
+(`"sidebar.left": "rectangle.lefthalf.inset.filled"`). Default `{}`. It replaces the symbol everywhere in the chrome
+and in Ardia's context menus. A name macOS doesn't have draws nothing.
+
+### How a theme applies
+
+- Each bad key or value is reported on its own, in the app's words (`metrics.rowHeight must be a number from 24 to
+  56`, `layout.hide has "toolbar", which isn't a part (pinned, newTab, …)`), and the valid rest still applies. A bad
+  key falls back to Ardia's value for that key only. Keys other than `$schema`, `dark`, `light`, `type`, `metrics`,
+  `layout` and `icons`, and names that aren't roles or look keys, are reported (the schema has
+  `additionalProperties: false`).
+- A file that doesn't parse keeps the last good version of that theme.
+- `theme: null`, no `theme` key, a missing theme file or no `config.json` means Ardia's own palette and look.
+- Saving the active theme's file, or switching themes, restyles every window at once: no restart, and no page
+  reloads. The effective base palette carries a revision, and every cache and snapshot built from roles or the look
+  depends on it.
 
 ## Schemas
 
@@ -193,8 +268,9 @@ The app writes `config.schema.json` and `theme.schema.json` (JSON Schema 2020-12
 every launch, and into the config folder whenever it exists, rewriting only when the content changed (temp file and
 rename, replacing a symlinked schema rather than writing through it). They are generated from the allowlisted
 `SETTING_SPECS` entries (each spec carries its schema; a test checks schema and validator agree on samples and
-defaults), the command catalog (the property names of `shortcuts`) and `colorRoles` (each role's `default` is
-Ardia's dark or light value), so they never drift. They help editors and the CLI; the app always validates with its
+defaults), the command catalog (the property names of `shortcuts`), `colorRoles` (each role's `default` is
+Ardia's dark or light value) and the look spec in `apps/browser/src/lib/themeLook.ts` (ranges, parts and defaults
+of `type`, `metrics`, `layout` and `icons`), so they never drift. They help editors and the CLI; the app always validates with its
 own code.
 
 They use only this subset, which `ardia` checks itself without a JSON Schema library (other keywords are ignored):
@@ -226,10 +302,13 @@ so. Exit codes: 0 done, 1 a check failed or the input is wrong.
 - `ardia config edit` opens `config.json` (created first if needed) in `$VISUAL`, `$EDITOR` (split like a shell
   word list), else `vi` (as git does), waits for the editor to exit, then runs `check`.
 - `ardia config check [--json]` checks `config.json` and the theme it names. Theme problems use the app's wording;
-  the theme schema supplies the role names and each role's kind (from its `default`). `--json` prints
+  the theme schema supplies the role names, each role's kind (from its `default`), the look blocks' keys, ranges,
+  parts and defaults. Without a schema, roles are checked by the kind of value given and the look blocks against
+  the ranges built into `ardia`. `--json` prints
   `{"ok", "files": [{"file", "problems": [{"key", "message"}]}], "warnings"}`.
-- `ardia theme new NAME [--from THEME]` writes `themes/NAME.json` with every role, from Ardia's defaults or from
-  another theme. It never overwrites.
+- `ardia theme new NAME [--from THEME]` writes `themes/NAME.json` with every role and every look key that has a
+  default (so no `type.family`, `metrics.sidebarWidth` or `layout.newTab`), from Ardia's defaults or from another
+  theme, whose values win key by key. The file passes `ardia theme check`. It never overwrites.
 - `ardia theme use NAME|none` sets `theme` in `config.json`, creating it first if needed.
 - `ardia theme list [--json]` lists the themes and marks the active one.
 - `ardia theme check [NAME|FILE] [--json]` checks a theme (default: the active one).

@@ -20,8 +20,8 @@ THIN_WAIT = 5.0
 THIN_POLL = 0.5
 CUT_MARK = 24
 MAX_STDIN = 1024 * 1024
-PAGE_SHARE = 3000
-PAGES_CAP_CEILING = 24000
+PAGE_SHARE = 6000
+PAGES_CAP_CEILING = 36000
 
 MAIN_LIST = r"""() => {
   let best = null, bestScore = 0;
@@ -68,7 +68,9 @@ EXTRACT = r"""(selector) => {
     const entry = performance.getEntriesByType("navigation")[0];
     status = entry && entry.responseStatus ? entry.responseStatus : null;
   } catch (e) {}
-  return { title: document.title || "", text, matched: roots.length, status };
+  let scope = "";
+  try { scope = ardiaBrowse.scope(); } catch (e) {}
+  return { title: document.title || "", text, matched: roots.length, status, scope };
 }"""
 
 SETTLE_PROBE = r"""() => {
@@ -309,6 +311,8 @@ def header(record: dict, index: int, total: int) -> str:
         facts.append(f"read {record['readAt']}")
     status = f" ({', '.join(facts)})" if facts else ""
     note = f"\n({record['note']})" if record.get("note") else ""
+    if record.get("scope"):
+        note += f"\n(scope: {record['scope']})"
     return f"=== {place}{record.get('title') or '(no title)'}{status}\n{url}{note}"
 
 
@@ -484,6 +488,12 @@ CHALLENGE = re.compile(r"just a moment|attention required|verify (that )?you are
 CHALLENGE_MAX_TEXT = 1500
 
 
+def command_metrics_flag(name: str) -> None:
+    from ardia_cli import command_metrics
+
+    command_metrics.flag(name, True)
+
+
 def read_at() -> str:
     from datetime import UTC, datetime
 
@@ -547,6 +557,9 @@ async def read_in(ctx, page, url: str, selector: str | None, timeout: float, opt
         return record
     record.update(finalUrl=page.url, title=got.get("title") or "", status=got.get("status"), readAt=read_at(),
                   text=readurl.post_process(got.get("text") or "", options))
+    if got.get("scope"):
+        record["scope"] = got["scope"]
+        command_metrics_flag("read_scope_shown")
     challenge = bot_check(record["title"], record["text"], record.get("status"))
     if challenge:
         record["note"] = challenge

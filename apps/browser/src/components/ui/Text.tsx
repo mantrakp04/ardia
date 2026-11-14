@@ -15,6 +15,8 @@ export type TextProps = Omit<NativeTextProps, "style"> & {
 export const Text = memo(function Text({ size = "body", weight, tone = "textPrimary", color, lines, style, ...rest }: TextProps) {
   const theme = useTheme();
   const ink = color ?? theme[tone];
-  const tokens = useMemo<TextStyle>(() => ({ ...typeScale[size], fontWeight: weight ? weights[weight] : undefined, color: ink }), [size, weight, ink]);
+  const face = typeScale[size];
+  const fontWeight = weight ? weights[weight] : undefined;
+  const tokens = useMemo<TextStyle>(() => ({ ...face, fontWeight, color: ink }), [face, fontWeight, ink]);
   return <NativeText {...rest} numberOfLines={lines ?? rest.numberOfLines} style={style ? [tokens, style] : tokens} />;
 });

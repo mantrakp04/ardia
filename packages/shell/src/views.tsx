@@ -34,7 +34,8 @@ export const Symbol = requireNativeViewManager<SymbolProps>("ArdiaSymbol");
 export type FadeLabelProps = ViewProps & {
   text: string;
   fontSize?: number;
-  weight?: "light" | "regular" | "medium" | "semibold" | "bold";
+  weight?: "ultraLight" | "thin" | "light" | "regular" | "medium" | "semibold" | "bold" | "heavy" | "black";
+  fontFamily?: string;
   color?: string;
   fadeWidth?: number;
 };

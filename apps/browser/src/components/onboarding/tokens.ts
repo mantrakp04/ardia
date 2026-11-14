@@ -1,6 +1,6 @@
 import { duration, period } from "../ui/motion";
 import type { Theme } from "../ui/theme";
-import { display, font, ink, lineHeight, proseLineHeight, radius, space, tracking } from "../ui/tokens";
+import { display, font, ink, lineHeight, perLook, proseLineHeight, radius, space, tracking } from "../ui/tokens";
 
 const dark = {
   background: "#000000",
@@ -93,7 +93,7 @@ export const receiptStamp = "#2F9E5B";
 
 export const tourRing = "#FFFFFFB3";
 
-export const onboardingCard = { radius: radius.hero, shadow: { color: ink.black, opacity: 0.28, radius: 40, offset: [0, 18] as [number, number] } } as const;
+export const onboardingCard = { get radius() { return radius.hero; }, shadow: { color: ink.black, opacity: 0.28, radius: 40, offset: [0, 18] as [number, number] } } as const;
 
 export const onboardingButton = { height: 36, primaryPad: space.xxl, secondaryPad: space.xl, pressScale: 0.98, circlePressScale: 0.96, disabledOpacity: 0.4 } as const;
 
@@ -112,22 +112,36 @@ export const onboardingMotion = {
 
 const COMPACT_TITLE_LINE = 28;
 
+const ONBOARDING_TYPE = perLook(
+  () =>
+    ({
+      tagline: { ...font.large, fontWeight: "300" },
+      stepTitle: { ...display.large, lineHeight: lineHeight.display, fontWeight: "300" },
+      stepTitleCompact: { ...display.title, lineHeight: COMPACT_TITLE_LINE, fontWeight: "300" },
+      stepSubtitle: { ...font.body, lineHeight: proseLineHeight.body },
+      postcardHello: { ...display.title, fontWeight: "300", fontStyle: "italic" },
+      galleryCaption: { ...font.tiny, lineHeight: lineHeight.tiny, fontWeight: "500" },
+      receiptSmall: { ...font.badge, letterSpacing: tracking.caps },
+      receiptStamp: { ...font.tiny, fontWeight: "700", letterSpacing: tracking.wide },
+      coachCount: { ...font.tiny, fontWeight: "600", letterSpacing: tracking.caps },
+      coachTitle: { ...font.title, fontWeight: "600" },
+    }) as const,
+);
+
 export const onboardingType = {
   wordmark: { ...display.wordmark, fontWeight: "200" },
-  tagline: { ...font.large, fontWeight: "300" },
-  stepTitle: { ...display.large, lineHeight: lineHeight.display, fontWeight: "300" },
-  stepTitleCompact: { ...display.title, lineHeight: COMPACT_TITLE_LINE, fontWeight: "300" },
-  stepSubtitle: { ...font.body, lineHeight: proseLineHeight.body },
-  bodyCompact: font.small,
-  postcardHello: { ...display.title, fontWeight: "300", fontStyle: "italic" },
-  galleryCaption: { ...font.tiny, lineHeight: lineHeight.tiny, fontWeight: "500" },
-  receiptSmall: { ...font.badge, letterSpacing: tracking.caps },
-  receiptStamp: { ...font.tiny, fontWeight: "700", letterSpacing: tracking.wide },
-  coachCount: { ...font.tiny, fontWeight: "600", letterSpacing: tracking.caps },
-  coachTitle: { ...font.title, fontWeight: "600" },
+  get tagline() { return ONBOARDING_TYPE().tagline; },
+  get stepTitle() { return ONBOARDING_TYPE().stepTitle; },
+  get stepTitleCompact() { return ONBOARDING_TYPE().stepTitleCompact; },
+  get stepSubtitle() { return ONBOARDING_TYPE().stepSubtitle; },
+  get bodyCompact() { return font.small; },
+  get postcardHello() { return ONBOARDING_TYPE().postcardHello; },
+  get galleryCaption() { return ONBOARDING_TYPE().galleryCaption; },
+  get receiptSmall() { return ONBOARDING_TYPE().receiptSmall; },
+  get receiptStamp() { return ONBOARDING_TYPE().receiptStamp; },
+  get coachCount() { return ONBOARDING_TYPE().coachCount; },
+  get coachTitle() { return ONBOARDING_TYPE().coachTitle; },
 } as const;
-
-export const MONO = "Menlo";
 
 export const CONTENT_WIDTH = 368;
 

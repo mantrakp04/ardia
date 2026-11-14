@@ -23,13 +23,13 @@ export const splitColors = (dark: boolean): SplitColors => (dark ? DARK : LIGHT)
 
 export const ZONE_ACCENT_ALPHA = { dark: 0.16, light: 0.12 } as const;
 
-export const EMPTY_STATE_RADIUS = radius.sheet;
+export const emptyStateRadius = () => radius.sheet;
 export const EMPTY_STATE_WIDTH = 420;
 export const SPLIT_ROW_HEIGHT = 36;
-export const SPLIT_ROW_RADIUS = radius.chrome;
-export const ZONE_RADIUS = radius.hero;
+export const splitRowRadius = () => radius.chrome;
+export const zoneRadius = () => radius.hero;
 export const ZONE_DASH_INSET = 9.5;
-export const ZONE_DASH_RADIUS = concentric(radius.hero, ZONE_DASH_INSET);
+export const zoneDashRadius = () => concentric(radius.hero, ZONE_DASH_INSET);
 
 export const FOCUS_RING = { width: 2, gap: 1 } as const;
 
