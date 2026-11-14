@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "ardia/win/hooks.h"
 #include "ardia/win/main.h"
 #include "ardia/win/page_links.h"
 #include "ardia/win/private_sessions.h"
@@ -200,11 +201,27 @@ Host* Host::Get() {
   return host.get();
 }
 
+namespace {
+
+HWND PromptWindow() {
+  HWND front = ::GetForegroundWindow();
+  DWORD process = 0;
+  if (front && ::GetWindowThreadProcessId(front, &process) &&
+      process == ::GetCurrentProcessId()) {
+    HWND root = ::GetAncestor(front, GA_ROOTOWNER);
+    return root ? root : front;
+  }
+  return Host::Get()->VisibleParent();
+}
+
+}
+
 void Host::Start() {
   if (started_) {
     return;
   }
   started_ = true;
+  g_ardia_win_prompt_window = &PromptWindow;
   browsers_observation_.Observe(GlobalBrowserCollection::GetInstance());
 }
 
@@ -917,6 +934,15 @@ std::string Host::PageKeyFor(ui::Event* event) const {
     }
   }
   return std::string();
+}
+
+HWND Host::VisibleParent() const {
+  for (HWND parent : parents_) {
+    if (::IsWindowVisible(parent)) {
+      return parent;
+    }
+  }
+  return nullptr;
 }
 
 bool Host::Shows(const std::string& key) const {

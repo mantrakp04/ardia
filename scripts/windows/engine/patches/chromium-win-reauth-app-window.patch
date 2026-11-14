@@ -1,0 +1,239 @@
+--- a/chrome/browser/device_reauth/win/authenticator_win.cc
++++ b/chrome/browser/device_reauth/win/authenticator_win.cc
+@@ -11,6 +11,8 @@
+ #include <windows.security.credentials.ui.h>
+ #include <wrl/client.h>
+ 
++#include <memory>
++#include <optional>
+ #include <string>
+ #include <utility>
+ 
+@@ -22,6 +24,7 @@
+ #include "base/task/sequenced_task_runner.h"
+ #include "base/task/single_thread_task_runner.h"
+ #include "base/task/thread_pool.h"
++#include "base/time/time.h"
+ #include "base/threading/scoped_thread_priority.h"
+ #include "base/win/core_winrt_util.h"
+ #include "base/win/hstring_reference.h"
+@@ -39,9 +42,59 @@
+ #include "components/prefs/pref_service.h"
+ #include "ui/aura/window.h"
+ #include "ui/views/win/hwnd_util.h"
++#include "ardia/win/hooks.h"  // nogncheck
+ 
++HWND (*g_ardia_win_prompt_window)() = nullptr;
++
+ namespace {
+ 
++// Ardia: the app's own timeout for an export is two minutes; a confirmation
++// that arrives after this counts as refused, so nothing is written once the
++// app has given up.
++constexpr base::TimeDelta kArdiaConfirmationDeadline = base::Seconds(110);
++
++HWND ArdiaPromptWindow() {
++  return g_ardia_win_prompt_window ? g_ardia_win_prompt_window() : nullptr;
++}
++
++void CloseArdiaPrompts(HWND parent) {
++  HWND prompt = nullptr;
++  while ((prompt = ::FindWindowExW(nullptr, prompt,
++                                   L"Credential Dialog Xaml Host", nullptr))) {
++    if (::GetWindow(prompt, GW_OWNER) == parent) {
++      ::PostMessageW(prompt, WM_CLOSE, 0, 0);
++    }
++  }
++}
++
++using ArdiaAnswer = std::shared_ptr<base::OnceCallback<void(bool)>>;
++
++base::OnceCallback<void(bool)> ArdiaWithDeadline(
++    base::OnceCallback<void(bool)> done) {
++  ArdiaAnswer answer =
++      std::make_shared<base::OnceCallback<void(bool)>>(std::move(done));
++  HWND parent = ArdiaPromptWindow();
++  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
++      FROM_HERE,
++      base::BindOnce(
++          [](ArdiaAnswer answer, HWND parent) {
++            if (!*answer) {
++              return;
++            }
++            std::move(*answer).Run(false);
++            CloseArdiaPrompts(parent);
++          },
++          answer, parent),
++      kArdiaConfirmationDeadline);
++  return base::BindOnce(
++      [](ArdiaAnswer answer, bool authenticated) {
++        if (*answer) {
++          std::move(*answer).Run(authenticated);
++        }
++      },
++      answer);
++}
++
+ // Enum specifying possible states of Windows Hello authentication. These
+ // values are persisted to logs. Entries should not be renumbered and numeric
+ // values should never be reused.
+@@ -176,6 +229,25 @@
+ 
+ void AuthenticateWithLegacyApi(const std::u16string& message,
+                                base::OnceCallback<void(bool)> result_callback) {
++  // Ardia: the password prompt waits on a pool thread, parented to the app
++  // window, so the UI thread keeps answering and quitting doesn't wait on it.
++  if (HWND parent = ArdiaPromptWindow()) {
++    if (std::optional<bool> answer =
++            password_manager_util_win::AuthenticationAnswerWithoutPrompt(
++                g_browser_process->local_state())) {
++      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++          FROM_HERE, base::BindOnce(std::move(result_callback), *answer));
++      return;
++    }
++    base::ThreadPool::PostTaskAndReplyWithResult(
++        FROM_HERE,
++        {base::MayBlock(), base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN},
++        base::BindOnce(&password_manager_util_win::PromptForWindowsCredentials,
++                       parent, message,
++                       password_manager_util_win::CredentialPromptCaption()),
++        std::move(result_callback));
++    return;
++  }
+   BrowserWindowInterface* browser =
+       GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
+   if (!browser) {
+@@ -299,17 +371,18 @@
+   }
+   ComPtr<IAsyncOperation<UserConsentVerificationResult>> async_op;
+ 
+-  BrowserWindowInterface* browser =
+-      GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
+-  if (!browser) {
+-    RecordWindowsHelloAuthenticationResult(
+-        AuthenticationResultStatusWin::kFailedToFindBrowser);
+-    AuthenticateWithLegacyApi(message, std::move(callback));
+-    return;
++  HWND hwnd = ArdiaPromptWindow();
++  if (!hwnd) {
++    BrowserWindowInterface* browser =
++        GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
++    if (!browser) {
++      RecordWindowsHelloAuthenticationResult(
++          AuthenticationResultStatusWin::kFailedToFindBrowser);
++      AuthenticateWithLegacyApi(message, std::move(callback));
++      return;
++    }
++    hwnd = views::HWNDForNativeWindow(browser->GetWindow()->GetNativeWindow());
+   }
+-
+-  HWND hwnd =
+-      views::HWNDForNativeWindow(browser->GetWindow()->GetNativeWindow());
+   if (!hwnd) {
+     RecordWindowsHelloAuthenticationResult(
+         AuthenticationResultStatusWin::kFailedToFindHWNDForNativeWindow);
+@@ -357,9 +430,13 @@
+ void AuthenticatorWin::AuthenticateUser(
+     const std::u16string& message,
+     base::OnceCallback<void(bool)> result_callback) {
++  if (ArdiaPromptWindow()) {
++    result_callback = ArdiaWithDeadline(std::move(result_callback));
++  }
+   RecordAuthenticationState(AuthenticationStateWin::kStarted);
+ 
+-  if (base::win::GetVersion() >= base::win::Version::WIN11) {
++  if (base::win::GetVersion() >= base::win::Version::WIN11 ||
++      ArdiaPromptWindow()) {
+     PerformInteropWindowsHelloAuthenticationAsync(
+         std::move(result_callback)
+             .Then(base::BindOnce(RecordAuthenticationState,
+--- a/chrome/browser/password_manager/password_manager_util_win.cc
++++ b/chrome/browser/password_manager/password_manager_util_win.cc
+@@ -302,10 +302,7 @@
+ 
+ }  // namespace
+ 
+-bool AuthenticateUser(gfx::NativeWindow window,
+-                      const std::u16string& password_prompt,
+-                      PrefService* local_state) {
+-  bool retval = false;
++std::optional<bool> AuthenticationAnswerWithoutPrompt(PrefService* local_state) {
+   WCHAR cur_username[CREDUI_MAX_USERNAME_LENGTH + 1] = {};
+   DWORD cur_username_length = std::size(cur_username);
+ 
+@@ -321,16 +318,25 @@
+   if (!DeviceAuthenticationPresent(cur_username, local_state)) {
+     return true;
+   }
++  return std::nullopt;
++}
+ 
++std::u16string CredentialPromptCaption() {
++  return l10n_util::GetStringUTF16(IDS_PRODUCT_NAME);
++}
++
++bool PromptForWindowsCredentials(HWND parent,
++                                 const std::u16string& password_prompt,
++                                 const std::u16string& caption) {
++  bool retval = false;
+   // Build the strings to display in the credential UI.  If these strings are
+   // left empty on domain joined machines, CredUIPromptForWindowsCredentials()
+   // fails to run.
+-  std::u16string product_name = l10n_util::GetStringUTF16(IDS_PRODUCT_NAME);
+   CREDUI_INFO cui;
+   cui.cbSize = sizeof(cui);
+-  cui.hwndParent = window->GetHost()->GetAcceleratedWidget();
++  cui.hwndParent = parent;
+   cui.pszMessageText = base::as_wcstr(password_prompt);
+-  cui.pszCaptionText = base::as_wcstr(product_name);
++  cui.pszCaptionText = base::as_wcstr(caption);
+   cui.hbmBanner = nullptr;
+ 
+   // Never consider the current scope as hung. The hang watching deadline (if
+@@ -375,6 +381,18 @@
+   } while (!retval && tries < kMaxPasswordRetries);
+ 
+   return retval;
++}
++
++bool AuthenticateUser(gfx::NativeWindow window,
++                      const std::u16string& password_prompt,
++                      PrefService* local_state) {
++  if (std::optional<bool> answer =
++          AuthenticationAnswerWithoutPrompt(local_state)) {
++    return *answer;
++  }
++  return PromptForWindowsCredentials(
++      window->GetHost()->GetAcceleratedWidget(), password_prompt,
++      CredentialPromptCaption());
+ }
+ 
+ bool CanAuthenticateWithScreenLock(PrefService* local_state) {
+--- a/chrome/browser/password_manager/password_manager_util_win.h
++++ b/chrome/browser/password_manager/password_manager_util_win.h
+@@ -5,6 +5,10 @@
+ #ifndef CHROME_BROWSER_PASSWORD_MANAGER_PASSWORD_MANAGER_UTIL_WIN_H_
+ #define CHROME_BROWSER_PASSWORD_MANAGER_PASSWORD_MANAGER_UTIL_WIN_H_
+ 
++#include <optional>
++#include <string>
++
++#include "base/win/windows_types.h"
+ #include "ui/gfx/native_ui_types.h"
+ 
+ class PrefService;
+@@ -17,6 +21,14 @@
+ bool AuthenticateUser(gfx::NativeWindow window,
+                       const std::u16string& password_prompt,
+                       PrefService* local_state);
++
++// Ardia: AuthenticateUser in two parts, so that the prompt can wait on another
++// thread. The answer without a prompt reads prefs and runs on the UI thread.
++std::optional<bool> AuthenticationAnswerWithoutPrompt(PrefService* local_state);
++std::u16string CredentialPromptCaption();
++bool PromptForWindowsCredentials(HWND parent,
++                                 const std::u16string& password_prompt,
++                                 const std::u16string& caption);
+ 
+ // Returns true if we can authenticate with screen lock, false otherwise. If we
+ // can not retrieve a username for the device, we will treat that as being
