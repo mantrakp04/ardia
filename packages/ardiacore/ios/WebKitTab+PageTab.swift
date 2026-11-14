@@ -3,6 +3,7 @@ import AppKit
 extension WebKitTab: PageTab {
   static let unsupported = "unsupported"
 
+  var sidebarProfile: String { get { "" } set {} }
   var standalone: Bool { get { false } set {} }
   var temporary: Bool { get { false } set {} }
   var temporarySource: String? { get { nil } set {} }

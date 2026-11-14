@@ -16,6 +16,7 @@ import type { AdoptId } from "../browser/types";
 import { linkGate, type LinkGateResult, type LinkRouteChoice, type LinkSourceInfo } from "./linkGate";
 import { externalLinkOpen, type ExternalLinkOpen } from "./externalLinkOpen";
 import { noteExternalLink } from "../telemetry/usage";
+import { openAtPlacement } from "../airTraffic/openAt";
 import { noteLittleArdiaEscapeClose, type EscapePressedIn } from "../telemetry/littleArdiaEscapes";
 
 const store = () => useBrowser.getState();
@@ -58,6 +59,10 @@ function openRoutedUrl(url: string, route: LinkRouteChoice, pointer?: [number, n
     noteExternalLink("tab", store().settings.openLinksInLittleArdia);
     store().newTab(route.windowId, { url, profileId, gated: true });
     return focus(route.windowId);
+  }
+  if (route.groupKey) {
+    noteExternalLink("tab", store().settings.openLinksInLittleArdia);
+    return openAtPlacement({ profileId, open: "tab", groupKey: route.groupKey }, { url, how: "foreground", gated: true });
   }
   const open = decideExternal([url], route.open);
   if (open === "littleArdia") return void openLittleArdia(url, profileId, undefined, pointer);

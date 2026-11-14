@@ -10,8 +10,8 @@ export const airTrafficRows = {
       rows: {
         rules: {
           title: "Link rules",
-          description: "Checked from the top. The first rule that fits a link decides where it opens.",
-          keywords: [...LINK_WORDS, "work profile", "rule", "add rule"],
+          description: "Checked from the top. The first rule that fits a link decides where it opens. A rule for any app can also take links you click and addresses you type in Ardia.",
+          keywords: [...LINK_WORDS, "work profile", "rule", "add rule", "tab group", "group", "clicks", "clicked links", "typed", "address bar"],
         },
       },
     },

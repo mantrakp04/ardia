@@ -3,9 +3,9 @@ import { View } from "react-native";
 import { addAirTrafficRule, removeAirTrafficRule, updateAirTrafficRule, type RuleDraft } from "../../../state/airTraffic/store";
 import { patternProblem, siteHost, type AirTrafficRule, type LinkCondition, type OpenAs, type SourceApp } from "../../../state/airTraffic/rules";
 import { pickableApps, sourceAppKey } from "../../../state/airTraffic/sourceApps";
-import { useRecentSourceApps, useRoutableProfiles, type RoutableProfile } from "../../../state/airTraffic/hooks";
+import { useRecentSourceApps, useRoutableProfiles, useRouteGroups, type RoutableProfile } from "../../../state/airTraffic/hooks";
 import { closeSettingsSheet } from "../../../state/settings/sheet";
-import { Button, DialogActions, DialogTitle, PopUp, Sheet, space, Text, TextField, type Option } from "../../ui";
+import { Button, Checkbox, DialogActions, DialogTitle, PopUp, Sheet, space, Text, TextField, type Option } from "../../ui";
 
 export const OPEN_LABELS: Record<OpenAs, string> = { tab: "New tab", window: "New window", littleArdia: "Little Ardia" };
 export const OPEN_OPTIONS: Option<OpenAs>[] = [
@@ -20,6 +20,21 @@ const OTHER = "other";
 
 export const conditionLabel = (when: LinkCondition) => (when.kind === "any" ? "any link" : when.kind === "site" ? when.host : when.pattern);
 export const fromLabel = (from: SourceApp | null) => (from ? `From ${from.name}` : "Any app");
+
+const NO_GROUP = "";
+export const CLOSED_GROUP = "A closed tab group";
+export const INSIDE_LABEL = "Also for links I click and addresses I type in Ardia";
+
+export function GroupPicker({ profileId, value, onChange }: { profileId: string; value: string; onChange: (groupKey: string) => void }) {
+  const groups = useRouteGroups(profileId);
+  const known = !value || groups.some((g) => g.key === value);
+  const options: Option<string>[] = [
+    { value: NO_GROUP, title: "None" },
+    ...(known ? [] : [{ value, title: CLOSED_GROUP }]),
+    ...groups.map((g, i) => ({ value: g.key, title: g.name, separatorBefore: i === 0 })),
+  ];
+  return <PopUp value={value} options={options} onChange={onChange} minWidth={180} accessibilityLabel="Tab group" />;
+}
 
 export function profileOptions(profiles: RoutableProfile[], usedLast = USED_LAST): Option<string>[] {
   return [{ value: USED_LAST_VALUE, title: usedLast }, ...profiles.map((p, i) => ({ value: p.id, title: p.name, separatorBefore: i === 0 }))];
@@ -59,6 +74,10 @@ export function RuleSheet({ rule }: { rule?: AirTrafficRule }) {
   const [text, setText] = useState(rule?.when.kind === "site" ? rule.when.host : rule?.when.kind === "pattern" ? rule.when.pattern : "");
   const [profileId, setProfileId] = useState(rule ? (rule.profileId ?? USED_LAST_VALUE) : (profiles[0]?.id ?? USED_LAST_VALUE));
   const [open, setOpen] = useState<OpenAs>(rule?.open ?? "tab");
+  const [groupKey, setGroupKey] = useState(rule?.groupKey ?? NO_GROUP);
+  const [inside, setInside] = useState(rule?.inside ?? false);
+  const anyApp = !typing && from === null;
+  const grouped = !!profileId && open === "tab";
   const [error, setError] = useState<string | null>(null);
 
   const pickApp = (app: SourceApp | null | "other") => {
@@ -78,7 +97,7 @@ export function RuleSheet({ rule }: { rule?: AirTrafficRule }) {
       if (problem) return setError(`That pattern doesn't work: ${problem}.`);
       when = { kind: "pattern", pattern: text.trim() };
     }
-    const draft: RuleDraft = { enabled: rule?.enabled ?? true, from: app, when, profileId: profileId || null, open };
+    const draft: RuleDraft = { enabled: rule?.enabled ?? true, from: app, when, profileId: profileId || null, open, groupKey: (grouped && groupKey) || undefined, inside: inside && !app };
     if (rule) updateAirTrafficRule(rule.id, draft);
     else if (!addAirTrafficRule(draft)) return setError("That's the most rules Ardia keeps. Remove one first.");
     closeSettingsSheet();
@@ -86,7 +105,7 @@ export function RuleSheet({ rule }: { rule?: AirTrafficRule }) {
 
   return (
     <Sheet onClose={closeSettingsSheet}>
-      <DialogTitle subtitle="Links from other apps that fit this rule open where you choose.">{rule ? "Edit Rule" : "Add Rule"}</DialogTitle>
+      <DialogTitle subtitle="Links that fit this rule open where you choose.">{rule ? "Edit Rule" : "Add Rule"}</DialogTitle>
       <Line label="From">
         <AppPicker value={typing ? null : from} onChange={pickApp} other />
       </Line>
@@ -104,11 +123,21 @@ export function RuleSheet({ rule }: { rule?: AirTrafficRule }) {
         </View>
       ) : null}
       <Line label="Open in">
-        <PopUp value={profileId} options={profileOptions(profiles)} onChange={setProfileId} minWidth={180} />
+        <PopUp value={profileId} options={profileOptions(profiles)} onChange={(p) => (setProfileId(p), setGroupKey(NO_GROUP))} minWidth={180} />
       </Line>
       <Line label="As">
         <PopUp value={open} options={OPEN_OPTIONS} onChange={setOpen} minWidth={180} />
       </Line>
+      {grouped ? (
+        <Line label="Group">
+          <GroupPicker profileId={profileId} value={groupKey} onChange={setGroupKey} />
+        </Line>
+      ) : null}
+      {anyApp ? (
+        <View style={FIELD_BELOW}>
+          <Checkbox value={inside} onChange={setInside} label={INSIDE_LABEL} />
+        </View>
+      ) : null}
       {error ? (
         <Text size="caption" tone="destructive" style={ERROR}>
           {error}

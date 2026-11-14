@@ -22,6 +22,7 @@ import { useToolbarRow } from "../toolbar/useToolbarRow";
 import "../dev/devExpose";
 import { PeekOverlay } from "../peek/PeekOverlay";
 import { dismissPeek, startPeeks } from "../../state/peek/actions";
+import { startPageRoutes } from "../../state/airTraffic/pageRoutes";
 import { usePaneLayout } from "./usePaneLayout";
 import { cardChrome } from "./paneChrome";
 import { TabPane } from "./TabPane";
@@ -54,6 +55,7 @@ export function ContentCard() {
   useEffect(startMedia, []);
   useEffect(startSelectionTools, []);
   useEffect(startPeeks, []);
+  useEffect(startPageRoutes, []);
   const peekId = usePeeks((p) => p[windowId]?.tabId);
   const peekFullscreen = !!peekId && fullscreenTab === peekId;
   useEffect(() => {

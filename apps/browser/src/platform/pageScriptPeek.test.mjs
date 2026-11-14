@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { matchesUrl, parseMatchPattern } from "../lib/matchPattern.ts";
 
 const script = readFileSync(new URL("../../../../packages/ardiacore/ios/page_script.js", import.meta.url), "utf8");
 const start = script.indexOf("  let peekKey = null;\n");
@@ -66,10 +67,16 @@ function environment({ top = true, page = "https://page.example", selection = nu
     get href() {
       return new URL(this.attrs.href, BASE).href;
     }
+    get target() {
+      return this.attrs.target ?? "";
+    }
   }
   class HTMLAreaElement extends HTMLElement {
     get href() {
       return new URL(this.attrs.href, BASE).href;
+    }
+    get target() {
+      return this.attrs.target ?? "";
     }
   }
   class Event {
@@ -99,10 +106,15 @@ function environment({ top = true, page = "https://page.example", selection = nu
       this.propagationStopped = true;
     }
   }
-  class MouseEvent extends Event {
+  class UIEvent extends Event {
+    get detail() {
+      return this.init.detail;
+    }
+  }
+  class MouseEvent extends UIEvent {
     constructor(type, init = {}) {
       super(type, init);
-      this.init = { x: 10, y: 10, button: 0, alt: false, shift: false, meta: false, ctrl: false, stamp: 0, ...init };
+      this.init = { x: 10, y: 10, button: 0, alt: false, shift: false, meta: false, ctrl: false, stamp: 0, detail: 1, ...init };
     }
     get clientX() {
       return this.init.x;
@@ -176,6 +188,8 @@ function environment({ top = true, page = "https://page.example", selection = nu
   const handlers = Object.create(null);
   const env = {
     apply: Reflect.apply,
+    isArray: Array.isArray,
+    isTop: top,
     dateNow: () => clock,
     send: (kind, data) => sent.push({ kind, ...data }),
     guard: (fn) =>
@@ -192,6 +206,7 @@ function environment({ top = true, page = "https://page.example", selection = nu
     Navigator,
     UserActivation,
     navigator,
+    UIEvent,
     MouseEvent,
     Node,
     Element,
@@ -204,12 +219,18 @@ function environment({ top = true, page = "https://page.example", selection = nu
     URL,
     Selection,
     isTop: top,
-    location: { origin: new URL(page).origin, hostname: new URL(page).hostname, protocol: new URL(page).protocol },
+    location: { href: new URL(page).href, origin: new URL(page).origin, hostname: new URL(page).hostname, protocol: new URL(page).protocol },
   };
   new Function(...Object.keys(env), source)(...Object.values(env));
+  const dispatch = (e) => {
+    for (const fn of listeners[e.type] ?? []) {
+      if (e.stopped) break;
+      fn(e);
+    }
+  };
   const fire = (type, path, init = {}, page) => {
     const e = new MouseEvent(type, { path: [...path, document, window], ...init });
-    for (const fn of listeners[type] ?? []) fn(e);
+    dispatch(e);
     page?.(e);
     if (e.propagationStopped) return e;
     const after = bubbling[type] ?? [];
@@ -223,9 +244,7 @@ function environment({ top = true, page = "https://page.example", selection = nu
     fire("mouseup", release, { ...keys, x: 10 + move });
     return fire("click", release, { ...keys, x: 10 + move }, page);
   };
-  const transition = (type, init) => {
-    for (const fn of listeners[type] ?? []) fn(new PageTransitionEvent(type, init));
-  };
+  const transition = (type, init) => dispatch(new PageTransitionEvent(type, init));
   const flush = () => timers.splice(0).forEach((fn) => fn());
   return {
     document,
@@ -687,4 +706,173 @@ test("the target is read once click handlers have run: one they add counts, one 
   env.gesture([blank], {}, { page: () => blank.setAttribute("target", "_self") });
   env.flush();
   assert.deepEqual(newTabLinks(env), ["https://page.example/made-blank"]);
+});
+
+const routes = (env) => env.sent.filter((m) => m.kind === "route");
+const spec = (pattern) => parseMatchPattern(pattern);
+const route = (pattern, over = {}) => ({ spec: pattern === "any" ? "any" : spec(pattern), profile: "work", open: "tab", group: null, ...over });
+const WORK = route("*://*.work.example/*");
+const routing = (env, list = [WORK]) => env.handlers.routeConfig({ routes: list, self: "personal" });
+
+test("a click on a link another profile's route matches is routed instead of navigating; keyboard, ⌃, ⌥ and same-profile clicks are left to Chrome", () => {
+  const env = environment();
+  routing(env, [WORK, route("https://page.example/here*", { profile: "personal" })]);
+  const a = env.link("https://Work.example/issues/1");
+  const click = env.gesture([a], {});
+  assert.deepEqual(routes(env), [{ kind: "route", url: "https://work.example/issues/1", how: "foreground", opens: "page", keyed: false, origin: "https://page.example" }]);
+  assert.ok(click.defaultPrevented);
+  env.gesture([a], { meta: true });
+  env.gesture([a], { shift: true });
+  env.gesture([a], { meta: true, shift: true });
+  assert.deepEqual(routes(env).slice(1).map((r) => [r.how, r.opens, r.keyed]), [["background", "tab", true], ["window", "page", true], ["foreground", "tab", true]]);
+  const before = routes(env).length;
+  assert.ok(!env.gesture([a], { detail: 0 }).defaultPrevented);
+  assert.ok(!env.gesture([a], { ctrl: true }).defaultPrevented);
+  assert.ok(!env.gesture([a], { alt: true }).defaultPrevented);
+  assert.ok(!env.gesture([env.link("https://page.example/here/?q=1")], {}).defaultPrevented);
+  assert.ok(!env.gesture([env.link("https://elsewhere.example/")], {}).defaultPrevented);
+  assert.equal(routes(env).length, before);
+});
+
+const PARITY = [
+  ["*://*.work.example/*", ["https://work.example/", "http://a.b.work.example/x?y=1", "https://evilwork.example/", "https://work.example.evil.test/", "ftp://work.example/x", "https://WORK.example./a"]],
+  ["https://*.example.com/docs/*", ["https://www.example.com/docs/a", "https://example.com/docs/", "https://www.example.com/blog/a", "http://www.example.com/docs/a", "https://www.example.com/docs"]],
+  ["https://example.com/a%20b*", ["https://example.com/a%20b", "https://example.com/a b/c", "https://example.com/ab"]],
+  ["https://example.com:8443/*", ["https://example.com:8443/x", "https://example.com/x", "https://example.com:443/x"]],
+  ["http://*/*", ["http://anything.example/", "https://anything.example/", "http://127.0.0.1/x"]],
+  ["*://*.example.org/*", ["http://127.0.0.1/", "https://sub.example.org:8080/p", "https://example.org/"]],
+  ["http://127.0.0.1/*", ["http://127.0.0.1/x", "http://127.0.0.2/x"]],
+  ["https://[::1]/*", ["https://[::1]/a", "https://[::2]/a"]],
+  ["https://xn--bcher-kva.example/*", ["https://bücher.example/x", "https://bucher.example/x"]],
+  ["https://example.com/*?q=*", ["https://example.com/search?q=1", "https://example.com/search"]],
+  ["<all_urls>", ["https://any.example/", "http://other.example/x"]],
+  ["any", ["https://any.example/", "http://other.example/x"]],
+];
+
+test("the page script matches a route exactly as lib/matchPattern matches a rule", () => {
+  for (const [pattern, urls] of PARITY) {
+    for (const given of urls) {
+      const env = environment();
+      routing(env, [route(pattern)]);
+      const link = env.link(given);
+      const href = new URL(given, "https://page.example/dir/").href;
+      const expected = pattern === "any" || matchesUrl(spec(pattern), href);
+      assert.equal(env.gesture([link], {}).defaultPrevented, expected, `${pattern} ${href}`);
+    }
+  }
+});
+
+test("a route to the page's own profile routes only where it sends the link somewhere else", () => {
+  const own = (over) => route("*://*.work.example/*", { profile: "personal", ...over });
+  const cases = [
+    [own(), {}, false],
+    [own({ profile: null }), {}, false],
+    [own({ open: "window" }), {}, true],
+    [own({ open: "littleArdia", profile: null }), {}, true],
+    [own({ group: "g1" }), {}, true],
+    [own({ open: "littleArdia" }), { meta: true }, false],
+    [own({ open: "window" }), { shift: true }, false],
+    [own({ group: "g1" }), { meta: true }, true],
+  ];
+  for (const [given, keys, expected] of cases) {
+    const env = environment();
+    routing(env, [given]);
+    assert.equal(env.gesture([env.link("https://work.example/a")], keys).defaultPrevented, expected, JSON.stringify([given, keys]));
+  }
+  const there = environment({ page: "https://work.example/inbox" });
+  routing(there, [own({ open: "window" }), WORK]);
+  assert.ok(!there.gesture([there.link("https://work.example/next")], {}).defaultPrevented);
+  assert.ok(!there.gesture([there.link("https://work.example/next")], {}).defaultPrevented, "the first matching route decides, a later one doesn't");
+  const grouped = environment({ page: "https://work.example/inbox" });
+  routing(grouped, [own({ group: "g1" })]);
+  assert.ok(!grouped.gesture([grouped.link("https://work.example/next")], {}).defaultPrevented);
+});
+
+test("without the page's own profile (a private window) or without routes, nothing routes", () => {
+  const env = environment();
+  env.handlers.routeConfig({ routes: [WORK], self: "" });
+  assert.ok(!env.gesture([env.link("https://work.example/a")], {}).defaultPrevented);
+  routing(env, []);
+  assert.ok(!env.gesture([env.link("https://work.example/a")], {}).defaultPrevented);
+  env.handlers.routeConfig({ routes: "nonsense", self: "personal" });
+  assert.ok(!env.gesture([env.link("https://work.example/a")], {}).defaultPrevented);
+  assert.equal(routes(env).length, 0);
+});
+
+test("a routed click says whether the link opens a tab; overlong URLs, named targets and frame links stay Chrome's", () => {
+  const env = environment();
+  routing(env);
+  env.gesture([env.link("https://work.example/a", { target: "_blank" })], {});
+  env.gesture([env.link("https://work.example/b", { target: "_top" })], {});
+  env.gesture([env.link("https://work.example/c", { target: "_self" })], {});
+  assert.deepEqual(routes(env).map((r) => r.opens), ["tab", "page", "page"]);
+  assert.ok(!env.gesture([env.link("https://work.example/d", { target: "sidebar" })], {}).defaultPrevented);
+  assert.ok(!env.gesture([env.link(`https://work.example/${"x".repeat(9000)}`)], {}).defaultPrevented);
+  assert.equal(routes(env).length, 3);
+  const frame = environment({ top: false });
+  routing(frame);
+  assert.ok(frame.gesture([frame.link("https://work.example/e", { target: "_blank" })], {}).defaultPrevented);
+  assert.ok(frame.gesture([frame.link("https://work.example/f", { target: "_top" })], {}).defaultPrevented);
+  assert.ok(!frame.gesture([frame.link("https://work.example/g")], {}).defaultPrevented);
+  assert.deepEqual(routes(frame).map((r) => r.opens), ["tab", "page"]);
+  assert.ok(frame.gesture([frame.link("https://work.example/h")], { meta: true }).defaultPrevented);
+  assert.ok(frame.gesture([frame.link("https://work.example/i", { target: "results" })], { meta: true, shift: true }).defaultPrevented);
+  assert.ok(frame.gesture([frame.link("https://work.example/j")], { shift: true }).defaultPrevented);
+  assert.deepEqual(routes(frame).slice(2).map((r) => [r.how, r.opens]), [["background", "tab"], ["foreground", "tab"], ["window", "page"]]);
+  env.gesture([env.link("https://work.example/k", { target: "_blank" })], { shift: true });
+  assert.deepEqual(routes(env).at(-1), { kind: "route", url: "https://work.example/k", how: "window", opens: "page", keyed: true, origin: "https://page.example" });
+});
+
+test("a routed click takes the page's <base target>: _blank opens a tab, a named frame stays Chrome's", () => {
+  const env = environment();
+  routing(env);
+  env.document.base = env.element("base", { target: "_blank" });
+  env.gesture([env.link("https://work.example/based")], {});
+  env.gesture([env.link("https://work.example/own", { target: "_self" })], {});
+  assert.deepEqual(routes(env).map((r) => [r.url, r.opens]), [["https://work.example/based", "tab"], ["https://work.example/own", "page"]]);
+  env.document.base = env.element("base", { target: "results" });
+  assert.ok(!env.gesture([env.link("https://work.example/framed")], {}).defaultPrevented);
+  assert.equal(routes(env).length, 2);
+});
+
+test("a route waits for the page's own click handlers: a click they cancel stays theirs, a link they rewrite routes by its new address", () => {
+  const env = environment();
+  routing(env);
+  const a = env.link("https://work.example/menu");
+  const handled = env.gesture([a], {}, { page: (e) => e.preventDefault() });
+  assert.ok(handled.defaultPrevented);
+  assert.deepEqual(routes(env), []);
+  const b = env.link("https://page.example/out");
+  const rewritten = env.gesture([b], {}, { page: () => b.setAttribute("href", "https://work.example/landing") });
+  assert.ok(rewritten.defaultPrevented);
+  assert.deepEqual(routes(env).map((r) => r.url), ["https://work.example/landing"]);
+});
+
+test("a routed click native refuses follows the link the click cancelled, once and only for the URL it sent", () => {
+  const env = environment();
+  routing(env);
+  const a = env.link("https://work.example/slow");
+  env.gesture([a], {});
+  env.handlers.routeRefused({ url: "https://work.example/other" });
+  assert.equal(env.clicked.length, 0);
+  env.handlers.routeRefused({ url: "https://work.example/slow" });
+  env.handlers.routeRefused({ url: "https://work.example/slow" });
+  assert.deepEqual(env.clicked, [a]);
+  for (const keys of [{ meta: true }, { shift: true }, { meta: true, shift: true }]) {
+    env.gesture([env.link("https://work.example/keys")], keys);
+    env.handlers.routeRefused({ url: "https://work.example/keys" });
+  }
+  assert.deepEqual(env.clicked, [a]);
+});
+
+test("a route wins over links to other sites: the click is routed, not peeked", () => {
+  const env = environment();
+  env.handlers.peekConfig(siteConfig());
+  routing(env, [route("*://other.example/*")]);
+  const click = env.gesture([env.link("https://other.example/story")], {});
+  assert.equal(peeks(env).length, 0);
+  assert.deepEqual(routes(env).map((r) => [r.url, r.how]), [["https://other.example/story", "foreground"]]);
+  assert.ok(click.defaultPrevented);
+  env.gesture([env.link("https://elsewhere.example/")], {});
+  assert.deepEqual(peeks(env).map((p) => p.url), ["https://elsewhere.example/"]);
 });
