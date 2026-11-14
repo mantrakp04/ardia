@@ -25,9 +25,9 @@ It uses the tab the user is looking at; to start on another site, `open <url>` f
   `read <url> <url> …`, or every link here whose URL matches: `read --links /p/ -s table.specs` (`--list`: just the
   URLs). They load in your background tabs with the user's logins; `--http` is a plain fetch.
 - A long or scroll-loaded list (`1–40 of 200`): `read -s <list> --scroll` (`--match <text>`).
-- Find a control with `find role button --name Save` or `snapshot -i -s <sel>`, not a snapshot piped to grep or head.
-- To read pages, not `snapshot --full`, `get html`, `curl`, `eval "fetch(…)"` or a shell loop. Capped: narrow
-  with `-s`.
+- Find a control with `find role button --name Save` or `snapshot -i -s <sel>`, not a snapshot piped to grep.
+- To read pages, not `snapshot --full`, `get html`, `curl`, `eval "fetch(…)"` or a shell loop. Capped output
+  names a file with all of it; or narrow: `-s`.
 
 ## Act
 
@@ -100,5 +100,5 @@ EOF
 - `--port N` anywhere on the line (or `ARDIA_PORT`). Write `ardia browse` out in each command. Exit 2: Ardia
   isn't reachable; its message says what to ask the user.
 - `ardia browse <command> --help`. `references/troubleshooting.md`: input that doesn't land, background tabs,
-  refused commands, sessions, exit codes. `automation.md`: tabs and groups (`ardia tabs`; `--usage`: pid, CPU, memory), events, hooks. `userscripts.md`, `config.md`, `daily-reports.md`.
+  refused commands, sessions, exit codes. `automation.md`: tabs and groups (`ardia tabs --usage`), events, hooks. `userscripts.md`, `config.md`, `daily-reports.md`.
 - Output doesn't match this file: `ardia skills install --target <your agent>`.
