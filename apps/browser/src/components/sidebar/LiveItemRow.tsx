@@ -143,7 +143,7 @@ function PositionChip({ position }: { position: number }) {
   const m = useSidebarScale();
   return (
     <View style={{ marginLeft: m.space.xs }}>
-      <Badge text={position} tone="chip" size="m" />
+      <Badge text={position} tone="chip" size="m" scale={m.scale} />
     </View>
   );
 }

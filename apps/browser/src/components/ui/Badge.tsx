@@ -28,6 +28,7 @@ export function Badge({
   text,
   tone = "neutral",
   size = "m",
+  scale = 1,
   outline,
   ring,
   fill,
@@ -37,6 +38,7 @@ export function Badge({
   text: string | number;
   tone?: BadgeTone;
   size?: "s" | "m";
+  scale?: number;
   outline?: boolean;
   ring?: string;
   fill?: string;
@@ -46,12 +48,13 @@ export function Badge({
   const theme = useTheme();
   const look = badgeLook(theme, tone);
   const metrics = BADGE_SIZE[size];
+  const px = (value: number) => Math.round(value * scale * 2) / 2;
   const ink = color ?? (outline ? look.fill : look.ink);
   const shape: ViewStyle = {
-    height: metrics.height,
-    minWidth: metrics.height,
-    borderRadius: capsule(metrics.height),
-    paddingHorizontal: space.xs,
+    height: px(metrics.height),
+    minWidth: px(metrics.height),
+    borderRadius: capsule(px(metrics.height)),
+    paddingHorizontal: px(space.xs),
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: outline ? undefined : (fill ?? look.fill),
@@ -60,7 +63,7 @@ export function Badge({
   };
   return (
     <View pointerEvents="none" style={style ? [shape, style] : shape}>
-      <Text numberOfLines={1} style={{ ...metrics.type, lineHeight: metrics.line, fontWeight: metrics.weight, color: ink, ...tabularNums }}>
+      <Text numberOfLines={1} style={{ ...metrics.type, fontSize: px(metrics.type.fontSize), lineHeight: px(metrics.line), fontWeight: metrics.weight, color: ink, ...tabularNums }}>
         {text}
       </Text>
     </View>

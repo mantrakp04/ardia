@@ -158,7 +158,7 @@ function FolderHeader({ folderId, windowId, collapsed }: { folderId: string; win
                 ) : collapsed ? (
                   <View style={{ flexDirection: "row", alignItems: "center", marginRight: m.space.xxs, gap: m.space.xs }}>
                     {unread ? <Dot size={m.px(UNREAD_DOT)} color={theme.accent} /> : null}
-                    <Badge text={count} size="m" />
+                    <Badge text={count} size="m" scale={m.scale} />
                   </View>
                 ) : null}
               </HoverSlot>

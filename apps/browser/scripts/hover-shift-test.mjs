@@ -3,9 +3,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { launch, reporter, session, sleep } from "../../../scripts/lib/instance.mjs";
 
-const [appArg, port] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const [appArg, port] = args.filter((a) => !a.startsWith("--"));
+const sidebarScale = Number(args.find((a) => a.startsWith("--scale="))?.slice(8) ?? 100);
+if (![80, 90, 100, 120].includes(sidebarScale)) throw new Error("--scale must be 80, 90, 100 or 120");
 if (!appArg) {
-  console.error("usage: node hover-shift-test.mjs <Debug Ardia.app> [cdpPort]");
+  console.error("usage: node hover-shift-test.mjs <Debug Ardia.app> [cdpPort] [--scale=100]");
   process.exit(2);
 }
 const scratch = mkdtempSync(join(tmpdir(), "ac-hover-shift-"));
@@ -26,7 +29,7 @@ let app;
 try {
   app = await launch(resolve(appArg), {
     data, port,
-    session: session({ profiles: ["Personal", "Work"], windows: [{ id: "w1", tabIds: ids, activeTabIds: { default: "t2" } }], tabs: ids.map(tab) }),
+    session: session({ settings: { sidebarScale }, profiles: ["Personal", "Work"], windows: [{ id: "w1", tabIds: ids, activeTabIds: { default: "t2" } }], tabs: ids.map(tab) }),
     ready: "return !!ac.hoverShift",
   });
   const ac = (body) => app.eval(body, { timeout: 120000 });

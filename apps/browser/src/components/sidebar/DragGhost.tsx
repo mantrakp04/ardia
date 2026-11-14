@@ -60,7 +60,7 @@ export function DragGhost({ ghost }: { ghost: Ghost }) {
         ) : null}
       </Panel>
       {count > 1 && !folderTile ? (
-        <Badge text={count} tone="accent" size="m" style={COUNT_BADGE} />
+        <Badge text={count} tone="accent" size="m" scale={m.scale} style={COUNT_BADGE} />
       ) : null}
     </Animated.View>
   );

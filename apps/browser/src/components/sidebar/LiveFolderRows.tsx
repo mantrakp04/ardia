@@ -115,7 +115,7 @@ export function StackRow({ folderId, windowId, stack }: { folderId: string; wind
               hover={<Button variant="icon" icon="xmark" box={m.rowButton.box} glyph={m.rowButton.glyph} weight="semibold" onPress={hide} tooltip="Hide Stack Until Refresh" />}
               style={{ marginRight: m.space.xs }}
             >
-              <Badge text={stack.items.length} size="m" />
+              <Badge text={stack.items.length} size="m" scale={m.scale} />
             </HoverSlot>
             <Animated.View style={{ width: m.px(ROW_SYMBOL.chevronBox), height: m.px(ROW_SYMBOL.chevronBox), transform: [{ rotate: chevronRotation }] }}>
               <Symbol name="chevron.down" size={m.px(ROW_SYMBOL.chevron)} weight="semibold" color={theme.textSecondary} style={{ width: m.px(ROW_SYMBOL.chevronBox), height: m.px(ROW_SYMBOL.chevronBox) }} />
