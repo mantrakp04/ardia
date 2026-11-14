@@ -116,8 +116,11 @@ python3 -I harness/bench.py stop
     runs, and all of them stop at the end.
   - Two runs never use the same `(task, offset)` at once, since they'd share its server and resets. Several runs of
     one task can run at once on different lanes, so concurrency is capped by `--max-lanes` and memory, not by tasks.
-  - Before a plan starts, each task's server is probed at +1000. One that doesn't bind the offset ports (it ignores
-    `BENCH_PORT_OFFSET`) is pinned: all its runs share the +0 server, one at a time.
+  - Before a plan starts, each task's server is probed at the first lane's offset (+1000). One that doesn't bind
+    the offset ports (it ignores `BENCH_PORT_OFFSET`) is pinned: all its runs share the +0 server, one at a time.
+  - `"lane_base": N` in the plan numbers its lanes from `N`, so two plans can run at once without sharing task
+    servers, ports or lane dirs: with 10, the first lane is `lane10` on +11000. Give the second plan its own
+    `BENCH_HOME` too, since `state/servers.json` isn't shared safely between processes.
   - The plan refuses to start when an offset task port would hit a harness port for any lane (Ardia `port + k`,
     OpenCode CDP `9571 + k` and relay `19990 + k`, Browser Use CDP `9671 + k`) or land in the ephemeral range
     (49152 and up). `--dry-run` prints that check first.
@@ -128,6 +131,8 @@ python3 -I harness/bench.py stop
     - At 75% nothing new opens until memory is back under 70%.
     - Above 80%, a lane that finishes doesn't start its next run until memory is back under 75%.
     - A running run is never killed.
+    - With `"normal_pressure_only": true` in the plan, nothing new starts next to a running run unless macOS memory
+      pressure (`kern.memorystatus_vm_pressure_level`) is 1.
     - Extra lanes that sit idle for 2 minutes are quit.
   - Contenders progress together: a contender may be at most 15% of its runs ahead of the slowest one, and at most
     one round ahead (`pace_slack`, `max_round_lead` in the plan). That way no contender gets all its runs at quiet
@@ -146,7 +151,7 @@ python3 -I harness/bench.py stop
   - A plan resumes: finished runs are skipped, and runs that hit a harness error are retried.
 - **A plan file** has `name`, `repeats`, `tasks` (`"all"` or a list of ids; `"all"` is every task in the registry, so
   `full.json`, `opencode.json` and `browseruse.json` now include `bulk`), `contenders`, `results`, and optionally
-  `max_lanes`, `pace_slack`, `max_round_lead` and the Ardia keys (`app`, `port`, `cli`, `ardia_test`). A task the
+  `max_lanes`, `lane_base`, `normal_pressure_only`, `pace_slack`, `max_round_lead` and the Ardia keys (`app`, `port`, `cli`, `ardia_test`). A task the
   registry doesn't have stops the plan, dry run included, with the list of known ids.
   - `plans/realism.json` re-runs `expenses`, `kanban` and `bulk` three times for all eight contenders (Ardia, OpenCode
     Browse and Browser Use with Claude Code and Codex, and the two Aside agents) on up to 24 lanes (memory gating still
@@ -200,6 +205,38 @@ Each run does the following, in order:
 8. Quits Chrome and the relay.
 
 One run: `python3 -I harness/bench.py run calendar claude try-1 --side opencode --results …`.
+
+## Betterwright side
+
+Contenders with `"kind": "betterwright"` (`plans/betterwright.json`) run the same agents, models, effort, prompt,
+deadline, checks and token accounting. The browser is [Betterwright](https://www.npmjs.com/package/betterwright)'s
+headless BetterChromium, driven with Playwright JavaScript through `betterwright run`.
+
+Everything lives in `BENCH_BETTERWRIGHT_HOME` (default `~/ardia-scratch/betterwright`):
+
+- `bun/`: Bun 1.4 or newer and `BUN_INSTALL=… bun install -g betterwright` (the contender's `bin` key points at
+  another `bun/bin`).
+- `chromium/`: the BetterChromium that `betterwright setup` downloads. Setup always writes to `~/.betterwright`, so
+  move `~/.betterwright/chromium` here; runs find it through `BETTERWRIGHT_CHROMIUM_ROOT` (`chromium_root`).
+- `lanes/lane<k>/`: wiped before every run. It holds `home/` (that lane's `BETTERWRIGHT_HOME`: its own daemon,
+  profile and artifacts), `bin/` and the Codex `HOME`.
+
+Each run does the following, in order:
+
+1. Starts the task server and resets the task.
+2. Starts the lane's session daemon by opening `start_url` in session `lane<k>` with the harness's own
+   `betterwright run`. Betterwright's defaults stay: headless, ad blocking on, loopback allowed.
+3. Writes `betterwright skill --claude` to `.claude/skills/browser/SKILL.md` (Claude) or
+   `.agents/skills/browser/SKILL.md` (Codex) in a fresh workdir. `betterwright skill --install` is never run, since
+   it writes into the real home.
+4. Starts the agent with the lane's `bin/` first on `PATH`. Its `betterwright` passes every call through, except
+   that it refuses `--headed` and `--headed-invisible`, which would put a window on the owner's screen. The prompt's
+   last line is ``Use `betterwright run --session lane<k>` to reach this browser.``
+5. Records the same fields as an Ardia run, plus `betterwright_calls`, `shell_commands`,
+   `failed_betterwright_calls` (results with `"ok": false`) and `headed_refused`.
+6. Closes every session, which stops the daemon and the browser.
+
+One run: `python3 -I harness/bench.py run calendar claude try-1 --side betterwright --results …`.
 
 Scratch lives in `BENCH_HOME` (default `~/ardia-scratch/bench-proper`): `app/`, `cli/`, `devbin/`, `data-ardia/`,
 `work/`, `state/`, `logs/` and `results/`, plus `app-lane<k>/`, `data-ardia-lane<k>/` and `codex-home-lane<k>/`
