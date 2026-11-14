@@ -206,7 +206,8 @@ COMMANDS = {
     "screenshot": "ardia browse screenshot [sel] [path] [--full] [--annotate] [--screenshot-format png|jpeg] [--screenshot-quality n]\n\n"
                   "--annotate takes an interactive snapshot and draws the numbered labels onto the image (nothing is added\n"
                   "to the page). Without a path it saves under $TMPDIR/ardia-browse/screenshots.",
-    "eval": "ardia browse eval <js> | -b <base64> | --stdin\n\nRuns in the page's main world (the one place, with init scripts and the React hook, that does).",
+    "eval": "ardia browse eval <js> | -b <base64> | --stdin [--out <file>]\n\nRuns in the page's main world (the one place, with init scripts and the React hook, that does).\n"
+            "--out <file> saves the whole value (JSON, or the text as is) and prints a short summary instead.",
     "get": "ardia browse get text|html|value|attr <name>|title|url|count|box|styles <sel>\n\ncdp-url works only with --port or --ws: the real URL carries Ardia's token.",
     "find": "ardia browse find <role|text|label|placeholder|alt|title|testid|first|last|nth> <value> [action] [text] [--name n] [--exact|--partial]\n\n"
             "Actions: click (default), fill, type, check, uncheck, select, hover, focus, dblclick, text. The found element\n"
@@ -245,7 +246,7 @@ COMMANDS = {
              "Plain notes per site (host[:port]) for your own agent, in <data dir>/Notes/<site>.md (0600, 8 KB each).\n"
              "Without a site it's the session tab's (--tab <id> for another tab's). - reads stdin. snapshot prints a\n"
              "site's notes first, and so does an action that lands on another site.",
-    "read": "ardia browse read [url...] [--links <pattern>] [-s <selector>] [--stdin] [--limit n] [--timeout ms] [--http] [--list]\n"
+    "read": "ardia browse read [url...] [--links <pattern>] [-s <selector>] [--stdin] [--limit n] [--timeout ms] [--http] [--list] [--out <file>]\n"
             "ardia browse read -s <list> --scroll [--limit rows] [--match <text>] [--timeout ms]\n\n"
             "Reads each page in a background tab of this session's own (four at a time, through your logins, after its\n"
             "scripts ran) and prints its title, URL and text: the page's <main>, else its body, or what -s matches.\n"
@@ -255,7 +256,8 @@ COMMANDS = {
             "on stdin (--stdin or -), and /paths resolve against the session's tab. Every URL you name is read (up to 100);\n"
             "--links finds at most 20 unless --limit (100). A PDF prints its text, page by page.\n"
             "Pages share an output cap of 3,000 characters a page (6,000 to 24,000), and a cut read is saved whole to a file it\n"
-            "names; narrow it with -s or a tighter --links (--json and > file have all).\n"
+            "names; narrow it with -s or a tighter --links (--json and > file have all). --out <file> saves every page\n"
+            "(JSON for a .json file, else text) and prints one line per page.\n"
             "--scroll reads a long or virtualized list on the session's tab (-s takes a selector or a ref): it scrolls the\n"
             "list's own scroll box until it stops growing and prints each row once, one per line, in list order, then puts\n"
             "the scroll back. --match keeps rows containing the text (any case); --limit stops after that many rows (1,000;\n"
@@ -263,7 +265,9 @@ COMMANDS = {
             "--http fetches outside the browser instead (no logins, no page scripts; faster on public docs), and so do\n"
             "--llms index|full, --require-md, --raw, --outline and --filter, which also work on the session's tab's URL.\n"
             "Exit 1 when any page failed (its block says why).",
-    "script": "ardia browse script [file.js] [--timeout 90s]   (or the script on stdin)\n\n"
+    "script": "ardia browse script [file.js] [--timeout 90s] [--out <file>]   (or the script on stdin)\n\n"
+              "--out <file> saves the whole returned value (JSON, or a string as is) and prints a summary and the log;\n"
+              "build deliverables from that file instead of copying printed output.\n\n"
               "Runs a short JavaScript program that drives pages, so a loop over many pages is one call. It runs in a\n"
               "blank background page of its own, outside the page it drives (no document or window: DOM code goes in\n"
               "page.evaluate), and every page action is one of ardia browse's commands on this session (the same tab,\n"

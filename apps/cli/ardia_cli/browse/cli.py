@@ -399,8 +399,16 @@ def script_source(args: list[str], cwd: str) -> str:
 
 
 def main(argv: list[str]) -> int:
+    from ardia_cli.browse import outfile
+
     try:
-        code = run(argv)
+        try:
+            _, rest = split_globals(argv)
+            argv, out_path = outfile.take_out(argv, rest[0] if rest else None)
+        except Usage as error:
+            sys.stderr.write(f"✗ {error.message}\n")
+            return 1
+        code = outfile.run_saving(run, argv, rest[0], out_path) if out_path else run(argv)
         sys.stdout.flush()
         return code
     except BrokenPipeError:

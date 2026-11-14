@@ -23,11 +23,11 @@ It uses the tab the user is looking at; to start on another site, `open <url>` f
 
 - This page's text: `ardia browse read`, or `read -s <sel>`. Other pages, any number, in one call:
   `read <url> <url> …`, or every link here whose URL matches: `read --links /p/ -s table.specs` (`--list`: just the
-  URLs). They load in your background tabs with the user's logins; `--http` is a plain fetch.
+  URLs). They load in your background tabs with the user's logins; `--http` is a plain fetch, best for a
+  site's public JSON API.
 - A long or scroll-loaded list (`1–40 of 200`): `read -s <list> --scroll` (`--match <text>`).
 - Find a control with `find role button --name Save` or `snapshot -i -s <sel>`, not a snapshot piped to grep.
-- To read pages, not `snapshot --full`, `get html`, `curl`, `eval "fetch(…)"` or a shell loop. Capped output
-  names a file with all of it; or narrow: `-s`.
+- To read pages, not `snapshot --full`, `get html`, `curl`, `eval "fetch(…)"` or a shell loop.
 
 ## Act
 
@@ -67,13 +67,14 @@ EOF
 ```
 
 - `page.goto/click/fill/select/press/text(sel)/links(pat)/snapshot('-i')`, `read(urls)`, `browse('cmd', …)`.
-  The script runs outside the page (no `document`): DOM code goes in `page.evaluate((x) => …, x)`. Return only
-  what you need. Recipes: `references/script.md`.
+  The script runs outside the page (no `document`): DOM code goes in `page.evaluate((x) => …, x)`. Recipes:
+  `references/script.md`.
+- Data to save or process: `script --out rows.json` (also `read`, `eval`) saves all of it and prints a summary.
+  Build files from it, never by retyping output.
 - Click with `page.click(sel)` (i-th match: `` `li >> nth=${i}` ``), not `el.click()` in `page.evaluate`: that
   sends no pointer events; many controls miss it.
-- Before editing dozens of records, look for the site's public API (a Developers or API docs link, a key in
-  settings). If it documents one for the job, `curl` it with a key the site already shows you. The app's internal
-  `/api` calls don't count (often session-bound or signed): script the UI. Creating a key changes the account: ask.
+- Before editing dozens of records, look for the site's documented public API and `curl` it with a key the site
+  shows you; internal `/api` calls don't count (script the UI). Creating a key changes the account: ask.
 
 ## Memory
 

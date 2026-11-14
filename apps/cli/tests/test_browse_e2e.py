@@ -671,6 +671,30 @@ class BrowseEndToEnd(unittest.TestCase):
         long.stdout.close()
         long.stderr.close()
 
+    def test_out_saves_the_whole_result_and_prints_a_summary(self):
+        session = "out"
+        self.browse("open", self.url("many.html"), session=session)
+        target = self.data / "out" / "rows.json"
+        said = self.browse("script", "--out", str(target), session=session,
+                           stdin="log('walking'); return await page.evaluate(() => Array.from({ length: 900 }, (_, i) => ({ i, name: 'row ' + i })));").stdout
+        rows = json.loads(target.read_text())
+        self.assertEqual(len(rows), 900)
+        self.assertIn(f"Saved to {target}", said)
+        self.assertIn("a list of 900 items", said)
+        self.assertIn("walking", said)
+        self.assertLess(len(said), 800)
+        value = self.data / "out" / "title.txt"
+        self.assertIn("text starting", self.browse("eval", "document.title", "--out", str(value), session=session).stdout)
+        self.assertEqual(value.read_text(), self.browse("get", "title", session=session).stdout.strip())
+        pages = self.data / "out" / "pages.json"
+        said = self.browse("read", self.url("late.html"), self.url("picker.html"), "--out", str(pages), session=session).stdout
+        self.assertIn("2 pages", said)
+        self.assertIn("Result card 12", json.loads(pages.read_text())[0]["text"])
+        failed = self.browse("script", "--out", str(self.data / "out" / "never.json"), session=session, stdin="throw new Error('nope')", check=False)
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertIn("nope", failed.stderr)
+        self.assertFalse((self.data / "out" / "never.json").exists())
+
     def test_read_reads_every_named_url_past_the_link_limit(self):
         urls = [self.url(f"picker.html?n={number}") for number in range(25)]
         pages = json.loads(self.browse("read", *urls, "--http", "--json", session="many-urls").stdout)["data"]["pages"]

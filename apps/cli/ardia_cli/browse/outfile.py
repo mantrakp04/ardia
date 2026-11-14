@@ -1,0 +1,97 @@
+import io
+import json
+import sys
+from contextlib import redirect_stdout
+from pathlib import Path
+
+from ardia_cli.browse.errors import Usage
+
+TAKES_OUT = ("script", "eval", "read")
+PREVIEW = 300
+LOG_LINES = 20
+
+
+def take_out(argv: list[str], command: str | None) -> tuple[list[str], str | None]:
+    if command not in TAKES_OUT or command not in argv:
+        return argv, None
+    start = argv.index(command) + 1
+    for index in range(start, len(argv)):
+        token = argv[index]
+        if token == "--":
+            break
+        if token.startswith("--out="):
+            return argv[:index] + argv[index + 1:], checked(token.split("=", 1)[1])
+        if token == "--out":
+            if index + 1 >= len(argv):
+                raise Usage(f"--out takes a file path: {command} … --out data.json")
+            return argv[:index] + argv[index + 2:], checked(argv[index + 1])
+    return argv, None
+
+
+def checked(path: str) -> str:
+    if not path or path.startswith("-"):
+        raise Usage("--out takes a file path, like --out data.json")
+    return path
+
+
+def run_saving(run, argv: list[str], command: str, path: str) -> int:
+    from ardia_cli import telemetry
+
+    captured = io.StringIO()
+    with redirect_stdout(captured):
+        code = run(["--json", *argv])
+    try:
+        payload = json.loads(captured.getvalue())
+    except ValueError:
+        sys.stdout.write(captured.getvalue())
+        return code
+    if not isinstance(payload, dict) or not payload.get("success"):
+        message = payload.get("error") if isinstance(payload, dict) else None
+        sys.stderr.write(f"✗ {message or 'the command failed'}\n")
+        return code or 1
+    data = payload.get("data") or {}
+    text, summary = content(command, data, Path(path))
+    target = save(path, text)
+    telemetry.note_count("saved_to_file", True)
+    sys.stdout.write(f"✓ Saved to {target} ({len(text):,} characters): {summary}\n")
+    logs = [str(line) for line in (data.get("logs") or [])][-LOG_LINES:]
+    if logs:
+        sys.stdout.write("logged:\n" + "\n".join(logs) + "\n")
+    return code
+
+
+def save(path: str, text: str) -> Path:
+    from ardia_cli.redact import redact
+
+    target = Path(path).expanduser()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(f".{target.name}.part")
+    temporary.write_text(redact(text), encoding="utf-8")
+    temporary.replace(target)
+    return target
+
+
+def content(command: str, data: dict, path: Path) -> tuple[str, str]:
+    if command == "read":
+        pages = data.get("pages") or []
+        failed = sum(1 for page in pages if page.get("error"))
+        listed = "; ".join(f"{(page.get('title') or '(no title)')[:50]} ({len(page.get('text') or ''):,})" for page in pages[:8])
+        summary = f"{len(pages)} page{'s' if len(pages) != 1 else ''}{f', {failed} failed' if failed else ''}: {listed}{'; …' if len(pages) > 8 else ''}"
+        if path.suffix.lower() == ".json":
+            return json.dumps(pages, ensure_ascii=False, indent=2), summary
+        blocks = [f"=== {page.get('title') or '(no title)'}\n{page.get('finalUrl') or page.get('url') or ''}\n\n{page.get('text') or page.get('error') or ''}"
+                  for page in pages]
+        return "\n\n".join(blocks) + "\n", summary
+    value = data.get("value") if command == "script" else data.get("result")
+    if isinstance(value, str):
+        return value, f"text starting {json.dumps(value[:PREVIEW], ensure_ascii=False)}"
+    text = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
+    if isinstance(value, list):
+        first = json.dumps(value[0], ensure_ascii=False)[:PREVIEW] if value else ""
+        return text, f"a list of {len(value)} item{'s' if len(value) != 1 else ''}" + (f"; the first is {first}" if first else "")
+    if isinstance(value, dict):
+        keys = list(value)
+        return text, f"an object with {len(keys)} key{'s' if len(keys) != 1 else ''}: {', '.join(map(str, keys[:20]))}{', …' if len(keys) > 20 else ''}"
+    if value is None:
+        return text, "nothing (the result was undefined or null)"
+    return text, f"the value {text.strip()[:PREVIEW]}"
