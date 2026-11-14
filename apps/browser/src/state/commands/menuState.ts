@@ -115,9 +115,12 @@ export function menuState(s: BrowserState): MenuState {
     titles.openFile = "Open in Ardia";
   }
 
+  const listed = (profileId: string | undefined) => !w || w.kind === "private" || (profileId && s.profiles[profileId] ? profileId : s.settings.defaultProfileId) === w.profileId;
   const closed = [
-    ...s.closedTabs.filter((c) => !c.tab.profileId.startsWith("incognito:")).map((c) => ({ id: c.id, title: c.tab.title || tabLabel(c.tab), at: c.closedAt })),
-    ...s.closedWindows.map((c) => ({ id: c.id, title: c.tabs.length ? (c.tabs.length === 1 ? "Window (1 Tab)" : `Window (${c.tabs.length} Tabs)`) : "Window (Pinned Tabs)", at: c.closedAt })),
+    ...s.closedTabs
+      .filter((c) => !c.tab.profileId.startsWith("incognito:") && listed(c.tab.profileId))
+      .map((c) => ({ id: c.id, title: c.tab.title || tabLabel(c.tab), at: c.closedAt })),
+    ...s.closedWindows.filter((c) => listed(c.window.profileId)).map((c) => ({ id: c.id, title: c.tabs.length ? (c.tabs.length === 1 ? "Window (1 Tab)" : `Window (${c.tabs.length} Tabs)`) : "Window (Pinned Tabs)", at: c.closedAt })),
   ]
     .sort((a, b) => b.at - a.at)
     .slice(0, 10)
