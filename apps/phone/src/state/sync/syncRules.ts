@@ -124,6 +124,12 @@ export function profileOf(view: SyncedView, id: string | null): SyncedProfile | 
   return view.profiles.find((p) => p.syncId === id) ?? view.profiles.find((p) => p.isDefault) ?? view.profiles[0] ?? null;
 }
 
+export function shownProfile(view: SyncedView, status: Pick<SyncStatus, "isEnabled" | "selectedProfileId">): SyncedProfile | null {
+  if (!status.isEnabled) return null;
+  const shown = view.shownProfileId ? view.profiles.find((p) => p.syncId === view.shownProfileId) : undefined;
+  return shown ?? profileOf(view, status.selectedProfileId ?? view.selectedProfileId);
+}
+
 export function sendReceivers(view: SyncedView, profileId: string | null): SyncedDevice[] {
   const profile = view.profiles.find((p) => p.syncId === profileId);
   if (!profile) return [];

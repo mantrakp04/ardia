@@ -14,6 +14,7 @@ import {
   receivedSender,
   receivedToast,
   sendReceivers,
+  shownProfile,
   syncBanner,
   inboxNotice,
   scanJudge,
@@ -198,4 +199,13 @@ test("a scanned code is used when it is a valid phrase, rejected once otherwise,
   assert.deepEqual(judge("https://ardia.dev"), { kind: "repeat" });
   assert.deepEqual(judge(` ${phrase} `), { kind: "accept", phrase });
   assert.deepEqual(judge(` ${phrase} `), { kind: "repeat" });
+});
+
+test("the switcher marks the profile the view shows, even before the user has picked one", () => {
+  const unpicked = view({ selectedProfileId: null, shownProfileId: "personal" });
+  assert.equal(shownProfile(unpicked, status({ selectedProfileId: null }))?.syncId, "personal");
+  assert.equal(shownProfile(view({ shownProfileId: "work" }), status({ selectedProfileId: null }))?.syncId, "work");
+  assert.equal(shownProfile(view({ shownProfileId: "gone", selectedProfileId: null }), status({ selectedProfileId: null }))?.syncId, "personal");
+  assert.equal(shownProfile(view({ shownProfileId: undefined }), status({ selectedProfileId: "work" }))?.syncId, "work");
+  assert.equal(shownProfile(view({ shownProfileId: "work" }), status({ isEnabled: false })), null);
 });

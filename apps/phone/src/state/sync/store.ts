@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { sync, type SyncedView, type SyncEvent, type SyncStatus } from "../../platform/sync";
 import { settled } from "../pages/store";
 import { setTabProfile } from "../tabs/store";
-import { profileOf } from "./syncRules";
+import { shownProfile } from "./syncRules";
 
 export const OFF_STATUS: SyncStatus = {
   phase: "off",
@@ -37,13 +37,12 @@ const inboxListeners = new Set<() => void>();
 
 export function selectedProfileId(): string | null {
   const { status, view } = syncData();
-  if (!status.isEnabled) return null;
-  return profileOf(view, status.selectedProfileId ?? view.selectedProfileId)?.syncId ?? null;
+  return shownProfile(view, status)?.syncId ?? null;
 }
 
 export const selectedProfile = () => {
   const { status, view } = syncData();
-  return status.isEnabled ? profileOf(view, status.selectedProfileId ?? view.selectedProfileId) : null;
+  return shownProfile(view, status);
 };
 
 function publish(patch: Partial<SyncData>) {

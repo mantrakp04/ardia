@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { acknowledgeSyncReset, changeSyncFolder, setDeviceName, stopSyncing, syncNow } from "../../state/sync/actions";
 import { useSyncStatus, useSyncView } from "../../state/sync/hooks";
-import { connectMessage, deviceIcon, inboxNotice, deviceSeen, isSyncConnected, isSyncOff, orderedDevices, sendReceivers, syncHeroSubtitle } from "../../state/sync/syncRules";
+import { connectMessage, deviceIcon, inboxNotice, shownProfile, deviceSeen, isSyncConnected, isSyncOff, orderedDevices, sendReceivers, syncHeroSubtitle } from "../../state/sync/syncRules";
 import { popSettings, pushSettings } from "../../state/settings/nav";
 import { capsule, ConfirmDialog, font, settingsLayout, settingsTint, space, Symbol, useTheme, type Confirmation, type SymbolName } from "../ui";
 import { ButtonRow, Divider, Group, IconTile, NavRow, SettingsPage, ValueRow } from "../settings/SettingsKit";
@@ -99,7 +99,7 @@ export function SyncPage() {
   const hero = syncHeroSubtitle(status);
   const notice = inboxNotice(status);
   const devices = orderedDevices(view.devices);
-  const noReceivers = sendReceivers(view, status.selectedProfileId ?? view.selectedProfileId).length === 0;
+  const noReceivers = sendReceivers(view, shownProfile(view, status)?.syncId ?? null).length === 0;
   const now = Date.now();
   const chooseFolder = async () => setFolderError(connectMessage(await changeSyncFolder()));
   const runSyncNow = async () => {

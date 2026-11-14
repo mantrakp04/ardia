@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { PinnedTile, SyncedProfile } from "../../platform/sync";
@@ -26,10 +26,13 @@ export function SpacesView() {
   const insets = useSafeAreaInsets();
   const status = useSyncStatus();
   const view = useSyncView();
-  const selected = useSelectedProfile();
-  const [chosen, setChosen] = useState<string | null>(selected?.syncId ?? null);
+  const shown = useSelectedProfile();
+  const [chosen, setChosen] = useState<string | null>(null);
   const [menu, setMenu] = useState<RowMenu | null>(null);
-  const profile = view.profiles.find((p) => p.syncId === chosen) ?? selected ?? view.profiles[0] ?? null;
+  const profile = (chosen ? view.profiles.find((p) => p.syncId === chosen) : undefined) ?? shown ?? view.profiles[0] ?? null;
+  useEffect(() => {
+    if (chosen && shown?.syncId === chosen) setChosen(null);
+  }, [chosen, shown?.syncId]);
   const banner = syncBanner(status);
   const choose = (id: string) => {
     setChosen(id);

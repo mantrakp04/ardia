@@ -140,8 +140,7 @@ export function matchMyMac(on: boolean, current: ColorChoice) {
 
 export function sendTargetsFor(tab: BrowserTab | null): SyncedDevice[] {
   if (!tab || tab.isPrivate || !syncData().status.isEnabled || !isSyncableUrl(tab.url)) return [];
-  const { view, status } = syncData();
-  return sendReceivers(view, tab.profileSyncId ?? selectedProfileId() ?? status.selectedProfileId);
+  return sendReceivers(syncData().view, tab.profileSyncId ?? selectedProfileId());
 }
 
 export async function sendTab(tab: BrowserTab, device: SyncedDevice) {
