@@ -135,6 +135,10 @@ jobs:
             !${{ runner.temp }}/tour-engine/data
           if-no-files-found: ignore
           retention-days: 14
+      - name: Remove the test marker
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: Get-ChildItem -LiteralPath "${{ runner.temp }}/Ardia", "apps/browser/windows/x64/Release" -Recurse -File -Force -Filter "Ardia.test-build" -ErrorAction SilentlyContinue | Remove-Item -Force
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
@@ -247,6 +251,10 @@ jobs:
             !${{ runner.temp }}/launch-engine/*-data
           if-no-files-found: ignore
           retention-days: 14
+      - name: Remove the test marker
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: Get-ChildItem -LiteralPath "${{ runner.temp }}/Ardia", "apps/browser/windows/ARM64/Release" -Recurse -File -Force -Filter "Ardia.test-build" -ErrorAction SilentlyContinue | Remove-Item -Force
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
