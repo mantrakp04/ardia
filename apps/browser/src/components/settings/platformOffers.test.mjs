@@ -47,7 +47,7 @@ console.log(JSON.stringify({
   calendarLink,
   syncTypes: DATA_TYPES.map((t) => t.id),
   syncsPasswords: SYNCED_KINDS.includes("passwords") || typeSyncedFor(defaultTypes(), "passwords", true),
-  macWords: shownCopy.filter(([, text]) => /macOS|Touch ID|Keychain|this Mac|View ›|Apple silicon/.test(text)).map(([id]) => id),
+  macWords: shownCopy.filter(([, text]) => /macOS|Touch ID|Keychain|this Mac|Apple silicon|[⌘⌥⇧⌃]|(File|Edit|View|History|Window) › /.test(text)).map(([id]) => id),
 }));
 `;
 
