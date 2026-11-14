@@ -26,17 +26,21 @@ type Page = {
   mounts: number;
   parked: boolean;
   closed: boolean;
+  focusAsked: number;
 };
 
-type OpenedTab = { adopt?: unknown; url?: unknown; foreground?: unknown; window?: unknown; opener?: unknown; profile?: unknown };
+type OpenedTab = { adopt?: unknown; url?: unknown; foreground?: unknown; window?: unknown; opener?: unknown; profile?: unknown; fromClick?: unknown; point?: unknown };
+type Point = { x: number; y: number };
 type TabEvent = { key?: unknown; name?: unknown; data?: unknown };
 
 const SAME_LOAD_MS = 2000;
+const FOCUS_WAITS_FOR_SHOW_MS = 1500;
 
 const pages = new Map<string, Page>();
 const closings = new Map<string, Promise<void>>();
 const pressListeners = new Set<(windowId: string) => void>();
 let listening = false;
+let lastAskedToFocus: Page | null = null;
 type ExternalAppAnswers = {
   ask: (profile: string, page: string, data: unknown) => Promise<ExternalAppRequest | null>;
   forget: (id: string) => void;
@@ -74,6 +78,20 @@ export function onPagePress(listener: (windowId: string) => void): () => void {
 
 const quietly = (work: Promise<unknown>) => void work.catch(() => {});
 
+const isPoint = (value: unknown): value is Point =>
+  typeof value === "object" && value !== null && Number.isFinite((value as Point).x) && Number.isFinite((value as Point).y);
+
+function inWindow(page: Page | undefined, point: unknown): Point | undefined {
+  const shown = page?.show;
+  if (!shown?.visible || typeof shown.x !== "number" || typeof shown.y !== "number" || !isPoint(point)) return undefined;
+  return { x: shown.x + point.x, y: shown.y + point.y };
+}
+
+function placedPoint(page: Page, name: string, data: unknown): unknown {
+  if (name !== "openWindow" || typeof data !== "object" || data === null || !("point" in data)) return data;
+  return { ...data, point: inWindow(page, (data as { point?: unknown }).point) };
+}
+
 function listen() {
   if (listening) return;
   listening = true;
@@ -83,19 +101,22 @@ function listen() {
     if (!page) return;
     if (event.name === "pagePress") for (const pressed of [...pressListeners]) pressed(page.windowId);
     if (event.name === "externalApp") return askExternalApp(page, event.data);
-    const data = shapedPageEvent(page.opening, event.name, event.data);
+    const data = placedPoint(page, event.name, shapedPageEvent(page.opening, event.name, event.data));
     for (const listener of [...page.listeners]) listener(event.name, data);
   });
   onEngineTopic("tab.opened", (opened: OpenedTab) => {
     if (typeof opened.adopt !== "string") return;
+    const opener = typeof opened.opener === "string" ? pages.get(opened.opener) : undefined;
+    const fromClick = opened.fromClick === true;
     const request = {
       url: typeof opened.url === "string" ? opened.url : "",
       disposition: opened.window === true ? "window" : opened.foreground === true ? "foreground" : "background",
       adoptId: opened.adopt,
       userGesture: true,
       profile: typeof opened.profile === "string" ? opened.profile : undefined,
+      fromClick,
+      point: fromClick ? inWindow(opener, opened.point) : undefined,
     };
-    const opener = typeof opened.opener === "string" ? pages.get(opened.opener) : undefined;
     const listening = [...pages.values()].filter((page) => page.listeners.size && !page.closed);
     const taker = opener?.listeners.size ? opener : takerOfOpenedTab(listening, request.profile);
     if (!taker) {
@@ -150,11 +171,17 @@ function sendShow(page: Page): Promise<unknown> | undefined {
   return hostCall("tab.show", args, page.windowId);
 }
 
+const focusWaits = (page: Page) => lastAskedToFocus === page && page.focusAsked > 0 && Date.now() - page.focusAsked < FOCUS_WAITS_FOR_SHOW_MS;
+
 function askShow(page: Page, args: ShowArgs) {
   page.show = args;
   quietly(
     page.ready.then((opened) => {
-      if (opened && page.show === args) return sendShow(page);
+      if (!opened || page.show !== args) return;
+      const sent = sendShow(page);
+      if (!args.visible || !focusWaits(page)) return sent;
+      page.focusAsked = 0;
+      return Promise.resolve(sent).then(() => (page.closed ? undefined : hostCall("tab.call", { key: page.key, method: "focus" })));
     }),
   );
 }
@@ -178,6 +205,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
       mounts: 0,
       parked: false,
       closed: false,
+      focusAsked: 0,
     };
     page.ready = begin(page, from);
     pages.set(key, page);
@@ -211,6 +239,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
 function closePage(page: Page) {
   if (page.closed) return;
   page.closed = true;
+  if (lastAskedToFocus === page) lastAskedToFocus = null;
   externalAppAnswers?.forgetPage(page.key);
   if (pages.get(page.key) === page) pages.delete(page.key);
   const closing: Promise<void> = page.ready
@@ -253,6 +282,11 @@ export function callPage<Result = unknown>(key: string, method: string, args: Re
   if (!page || page.closed) return Promise.resolve(null);
   if (method === "loadUrl" && args.url === page.started.url && Date.now() - page.started.at < SAME_LOAD_MS) return Promise.resolve(null);
   if (method === "loadUrl") noteLoadAsked(page.opening, args.url);
+  if (method === "focus") {
+    lastAskedToFocus = page;
+    page.focusAsked = page.show?.visible ? 0 : Date.now();
+    if (page.focusAsked) return Promise.resolve(null);
+  }
   const ready = REOPENING_METHODS.has(method) ? readyOrReopened(page, args.url) : page.ready;
   return ready.then((opened) => (opened && !page.closed ? hostCall<Result>("tab.call", { key, method, ...args }) : null));
 }

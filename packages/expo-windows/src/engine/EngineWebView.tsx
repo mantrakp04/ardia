@@ -5,14 +5,14 @@ import type { AppWindowsModule } from "../nativeModuleTypes";
 import { followMotion } from "../animation/motion";
 import { noteMissing } from "../missing";
 import { requireNativeModule } from "../modules";
-import { coversIn, onCoversChange, pageRadiusIn } from "./covers";
+import { coversIn, hiddenByFullScreen, holesFor, onCoversChange, pageRadiusIn, setFullScreenPage } from "./covers";
 import { callPage, mountPage, showPage, type PageRect, type PageShape } from "./pages";
 import { CoverAncestry } from "./usePageCover";
 import { WindowIdContext } from "./windowId";
 
 type PageEventsOnWindows = { onPageEvent?: (event: Pick<NativeSyntheticEvent<PageEvent>, "nativeEvent">) => void };
 
-type Props = Pick<NativeProps, "url" | "profile" | "adoptId" | "tabId" | "visible" | "style"> & Partial<Pick<NativeProps, "pageEvents">> & PageEventsOnWindows;
+type Props = Pick<NativeProps, "url" | "profile" | "adoptId" | "tabId" | "visible" | "style"> & Partial<Pick<NativeProps, "temporary">> & Partial<Pick<NativeProps, "pageEvents">> & PageEventsOnWindows;
 
 
 const ARGUMENTS: Record<string, string[]> = {
@@ -86,8 +86,6 @@ const setWindowFullScreen = (windowId: string, on: boolean) =>
 
 let unnamed = 0;
 
-const overlaps = (a: PageRect, b: PageRect) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
-
 export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(props, ref) {
   const windowId = useContext(WindowIdContext);
   const above = useRef(useContext(CoverAncestry));
@@ -101,7 +99,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
   const fullScreen = useRef(false);
 
   const place = useCallback(() => {
-    const wanted = latest.current.visible !== false;
+    const wanted = latest.current.visible !== false && !hiddenByFullScreen(windowId, key);
     if (!wanted) {
       if (shown.current.visible) {
         shown.current = { visible: false, placed: "", shows: shown.current.shows + 1 };
@@ -110,16 +108,14 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
       return;
     }
     view.current?.measureInWindow((x, y, width, height) => {
-      if (latest.current.visible === false || !(width > 0) || !(height > 0)) return;
+      if (latest.current.visible === false || hiddenByFullScreen(windowId, key) || !(width > 0) || !(height > 0)) return;
       const page = { x, y, width, height };
       const shape: PageShape = fullScreen.current
         ? { ...page, radius: 0, holes: [] }
         : {
             ...page,
             radius: pageRadiusIn(windowId),
-            holes: coversIn(windowId, above.current)
-              .filter((cover) => overlaps(cover, page))
-              .map((hole) => [hole.x, hole.y, hole.width, hole.height, hole.radius]),
+            holes: holesFor(page, coversIn(windowId, above.current), latest.current.temporary === true),
           };
       const placed = JSON.stringify(shape);
       if (shown.current.visible && shown.current.placed === placed) return;
@@ -140,6 +136,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
         const on = !!(data as { fullscreen?: unknown } | null)?.fullscreen;
         if (on !== fullScreen.current) {
           fullScreen.current = on;
+          setFullScreenPage(windowId, key, on && latest.current.visible !== false);
           void setWindowFullScreen(windowId, on).then(() => {
             if (on && fullScreen.current) void callPage(key, "focus");
           });
@@ -154,11 +151,16 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
       shown.current = { visible: false, placed: "", shows: shown.current.shows + 1 };
       if (fullScreen.current) {
         fullScreen.current = false;
+        setFullScreenPage(windowId, key, false);
         void setWindowFullScreen(windowId, false);
       }
       unmount();
     };
   }, [key, windowId, place]);
+
+  useEffect(() => {
+    if (fullScreen.current) setFullScreenPage(windowId, key, visible);
+  }, [windowId, key, visible]);
 
   useEffect(() => {
     const timers = SETTLE_MS.map((delay) => setTimeout(place, delay));

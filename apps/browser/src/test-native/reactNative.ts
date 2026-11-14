@@ -7,8 +7,18 @@ export const TurboModuleRegistry = {
   getEnforcing: (name: string) => turboModules[name],
 };
 
+const deviceListeners = new Map<string, Set<(payload: unknown) => void>>();
+
 export const DeviceEventEmitter = {
-  addListener: () => ({ remove: () => {} }),
+  addListener: (name: string, listener: (payload: unknown) => void) => {
+    let named = deviceListeners.get(name);
+    if (!named) deviceListeners.set(name, (named = new Set()));
+    named.add(listener);
+    return { remove: () => void named.delete(listener) };
+  },
+  emit: (name: string, payload: unknown) => {
+    for (const listener of [...(deviceListeners.get(name) ?? [])]) listener(payload);
+  },
 };
 
 export const NativeModules: Record<string, unknown> = {

@@ -11,6 +11,15 @@ registerHooks({ resolve(specifier, context, next) {
   return resolved.url.endsWith("/lib/platformFeatures.ts") ? { ...resolved, url: resolved.url.replace(/platformFeatures\\.ts$/, "platformFeatures.windows.ts") } : resolved;
 } });`;
 
+const WINDOWS_FEATURES = new URL("../../lib/platformFeatures.windows.ts", import.meta.url).href;
+
+const WITHOUT_EXPORTS = `import { registerHooks } from "node:module";
+const features = "import { PLATFORM_FEATURES as windows } from '${WINDOWS_FEATURES}'; export const PLATFORM_FEATURES = { ...windows, exportsBookmarksAndPasswords: false };";
+registerHooks({ resolve(specifier, context, next) {
+  const resolved = next(specifier, context);
+  return resolved.url.endsWith("/lib/platformFeatures.ts") ? { ...resolved, url: "data:text/javascript," + encodeURIComponent(features) } : resolved;
+} });`;
+
 const ENTRY_POINTS = `
 const { useBrowser } = await import("./src/state/browser/store.ts");
 const { UNAVAILABLE_COMMANDS } = await import("./src/state/commands/commandCatalog.ts");
@@ -33,31 +42,37 @@ console.log(JSON.stringify({
 }));
 `;
 
-function entryPoints(onWindows) {
-  const hooks = onWindows ? ["--import", `data:text/javascript,${encodeURIComponent(ON_WINDOWS)}`] : [];
+function entryPoints(hook) {
+  const hooks = hook ? ["--import", `data:text/javascript,${encodeURIComponent(hook)}`] : [];
   const run = spawnSync(process.execPath, ["--no-warnings", "--import", "./src/test-loader.mjs", ...hooks, "--input-type=module", "-e", ENTRY_POINTS], { cwd: APP, encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   return JSON.parse(run.stdout.trim().split("\n").at(-1));
 }
 
-test("on Windows no menu, bar action, command, shortcut or Settings row offers either export", () => {
-  assert.deepEqual(entryPoints(true), {
+const EVERY_ENTRY_POINT = {
+  unavailable: false,
+  bar: true,
+  organize: ["bookmark", "folder", "import", "export"],
+  unshown: [],
+  cli: true,
+  menuDisabled: false,
+};
+
+test("on Windows every export entry point is offered, now that the password export confirms over the app window", () => {
+  assert.deepEqual(entryPoints(ON_WINDOWS), EVERY_ENTRY_POINT);
+});
+
+test("on the Mac every export entry point stays", () => {
+  assert.deepEqual(entryPoints(null), EVERY_ENTRY_POINT);
+});
+
+test("a platform without exports offers no menu, bar action, command, shortcut or Settings row for either", () => {
+  assert.deepEqual(entryPoints(WITHOUT_EXPORTS), {
     unavailable: true,
     bar: false,
     organize: ["bookmark", "folder", "import"],
     unshown: ["general.exportBookmarks", "passwords.exportPasswords"],
     cli: false,
     menuDisabled: true,
-  });
-});
-
-test("on the Mac every export entry point stays", () => {
-  assert.deepEqual(entryPoints(false), {
-    unavailable: false,
-    bar: true,
-    organize: ["bookmark", "folder", "import", "export"],
-    unshown: [],
-    cli: true,
-    menuDisabled: false,
   });
 });

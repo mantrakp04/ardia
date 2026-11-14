@@ -9,7 +9,9 @@
 #include <utility>
 #include <vector>
 
+#include "ardia/win/hooks.h"
 #include "ardia/win/main.h"
+#include "ardia/win/page_links.h"
 #include "ardia/win/private_sessions.h"
 #include "ardia/win/profiles.h"
 #include "ardia/win/tab_calls.h"
@@ -21,6 +23,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/time/time.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -46,6 +49,7 @@
 #include "ui/base/window_open_disposition.h"
 #include "ui/events/event.h"
 #include "ui/events/types/event_type.h"
+#include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/rect.h"
 #include "url/gurl.h"
 
@@ -55,6 +59,8 @@ namespace {
 
 constexpr int kParkedAt = -32000;
 constexpr char kOfferedPrefix[] = "ardiacore:";
+constexpr int kOpenRequestTries = 20;
+constexpr base::TimeDelta kOpenRequestWait = base::Milliseconds(25);
 constexpr UINT_PTR kParentSubclass = 0xA2D1A;
 
 base::DictValue Ok() {
@@ -195,11 +201,27 @@ Host* Host::Get() {
   return host.get();
 }
 
+namespace {
+
+HWND PromptWindow() {
+  HWND front = ::GetForegroundWindow();
+  DWORD process = 0;
+  if (front && ::GetWindowThreadProcessId(front, &process) &&
+      process == ::GetCurrentProcessId()) {
+    HWND root = ::GetAncestor(front, GA_ROOTOWNER);
+    return root ? root : front;
+  }
+  return Host::Get()->VisibleParent();
+}
+
+}
+
 void Host::Start() {
   if (started_) {
     return;
   }
   started_ = true;
+  g_ardia_win_prompt_window = &PromptWindow;
   browsers_observation_.Observe(GlobalBrowserCollection::GetInstance());
 }
 
@@ -237,6 +259,14 @@ void Host::Call(const std::string& verb,
     result = ListTabs();
   } else if (verb == "host.info") {
     result = Info();
+  } else if (verb == "peek.config") {
+    PageLinks::Configure(args);
+    result = PageLinks::Config();
+  } else if (verb == "tab.links") {
+    content::WebContents* contents = Find(Text(args, "key"));
+    PageLinks* links = contents ? PageLinks::FromWebContents(contents) : nullptr;
+    result = Ok();
+    result.Set("scriptFrames", links ? links->ScriptFrames() : 0);
   } else if (verb == "profile.release") {
     PrivateSessions::Get()->Release(Text(args, "profile"));
     result = Ok();
@@ -332,6 +362,28 @@ void Host::ParentDestroying(HWND parent) {
       SetOwner(window, nullptr);
     }
     hosted.parent = nullptr;
+  }
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE,
+      base::BindOnce(&Host::CloseSparePages, weak_factory_.GetWeakPtr()));
+}
+
+void Host::CloseSparePages() {
+  std::vector<base::WeakPtr<BrowserWindowInterface>> spare;
+  for (const auto& entry : hosted_) {
+    const HWND parent = entry.second.parent;
+    if ((!parent || !::IsWindow(parent)) &&
+        entry.first->GetTabStripModel()->empty()) {
+      spare.push_back(entry.first->GetWeakPtr());
+    }
+  }
+  for (const base::WeakPtr<BrowserWindowInterface>& weak : spare) {
+    if (!weak) {
+      continue;
+    }
+    Browser* browser = static_cast<Browser*>(weak.get());
+    hosted_.erase(browser);
+    browser->GetWindow()->Close();
   }
 }
 
@@ -435,25 +487,32 @@ base::DictValue Host::ShowTab(const base::DictValue& args, HWND parent) {
   if (found == hosted_.end()) {
     return Error("the tab is not in a hosted window");
   }
-  Hosted& hosted = found->second;
   if (!args.FindBool("visible").value_or(true)) {
-    if (hosted.shown == key) {
-      Hide(browser, hosted);
+    if (found->second.shown == key) {
+      Hide(browser, found->second);
     }
     return Ok();
   }
   if (!::IsWindow(parent)) {
     return Error("no window");
   }
+  if (!Fits(found->second, parent, key)) {
+    Browser* page = FreePageFor(
+        parent, Profile::FromBrowserContext(contents->GetBrowserContext()),
+        browser);
+    if (!page || !MoveTab(contents, browser, page)) {
+      return Error("no page window for the tab");
+    }
+    browser = page;
+    found = hosted_.find(browser);
+    if (found == hosted_.end()) {
+      return Error("the page window went away");
+    }
+  }
+  Hosted& hosted = found->second;
   HWND window = WindowOf(browser);
   if (!window) {
     return Error("the browser has no window");
-  }
-  for (auto& entry : hosted_) {
-    if (entry.first != browser && entry.second.parent == parent &&
-        !entry.second.shown.empty()) {
-      Hide(entry.first, entry.second);
-    }
   }
   TabStripModel* model = browser->GetTabStripModel();
   int index = model->GetIndexOfWebContents(contents);
@@ -599,6 +658,7 @@ base::DictValue Host::Info() {
                                   ->user_data_dir()
                                   .value()));
   result.Set("privateSessions", PrivateSessions::Get()->LiveSessions());
+  result.Set("pageWindows", static_cast<int>(hosted_.size()));
   return result;
 }
 
@@ -667,11 +727,38 @@ content::WebContents* Host::FindOffered(const std::string& adopt) const {
 }
 
 Browser* Host::BrowserFor(HWND parent, Profile* profile) {
+  if (Browser* free = FreePageFor(parent, profile, nullptr)) {
+    return free;
+  }
   for (auto& entry : hosted_) {
     if (entry.second.parent == parent && entry.second.profile == profile) {
       return entry.first;
     }
   }
+  return NewPage(parent, profile);
+}
+
+Browser* Host::FreePageFor(HWND parent,
+                           Profile* profile,
+                           const Browser* except) {
+  for (auto& entry : hosted_) {
+    if (entry.first != except && entry.second.parent == parent &&
+        entry.second.profile == profile && entry.second.shown.empty()) {
+      return entry.first;
+    }
+  }
+  return except ? NewPage(parent, profile) : nullptr;
+}
+
+bool Host::Fits(const Hosted& hosted, HWND parent,
+                const std::string& key) const {
+  const bool free = hosted.shown.empty() || hosted.shown == key;
+  const bool here = hosted.parent == parent || !hosted.parent ||
+                    !::IsWindow(hosted.parent);
+  return free && here;
+}
+
+Browser* Host::NewPage(HWND parent, Profile* profile) {
   Browser* browser = nullptr;
   {
     base::AutoReset<bool> creating(&creating_browser_, true);
@@ -717,17 +804,28 @@ Browser* Host::OwnerOf(const TabStripModel* model) const {
 bool Host::PlaceTab(content::WebContents* contents, HWND parent) {
   Profile* profile =
       Profile::FromBrowserContext(contents->GetBrowserContext());
+  Browser* from = BrowserOf(contents);
+  if (!from) {
+    return false;
+  }
+  auto current = hosted_.find(from);
+  if (current != hosted_.end() && current->second.parent == parent &&
+      current->second.profile == profile) {
+    return true;
+  }
   Browser* target = BrowserFor(parent, profile);
   if (!target) {
     return false;
   }
-  Browser* from = BrowserOf(contents);
   if (from == target) {
     return true;
   }
-  if (!from) {
-    return false;
-  }
+  return MoveTab(contents, from, target);
+}
+
+bool Host::MoveTab(content::WebContents* contents,
+                   Browser* from,
+                   Browser* target) {
   TabStripModel* source = from->GetTabStripModel();
   int index = source->GetIndexOfWebContents(contents);
   if (index == TabStripModel::kNoTab) {
@@ -821,23 +919,49 @@ void Host::WatchParent(HWND parent) {
   ::SetWindowSubclass(parent, &ParentProcedure, kParentSubclass, 0);
 }
 
-void Host::FocusFor(ui::Event* event) {
+std::string Host::PageKeyFor(ui::Event* event) const {
   aura::Window* target = static_cast<aura::Window*>(event->target());
   if (!target || !target->GetHost()) {
-    return;
+    return std::string();
   }
   HWND window = target->GetHost()->GetAcceleratedWidget();
   if (!window) {
-    return;
+    return std::string();
   }
   for (const auto& entry : hosted_) {
-    if (entry.second.shown.empty() || WindowOf(entry.first) != window) {
-      continue;
+    if (!entry.second.shown.empty() && WindowOf(entry.first) == window) {
+      return entry.second.shown;
     }
-    if (content::WebContents* contents = Find(entry.second.shown)) {
-      if (TabState* state = TabState::FromWebContents(contents)) {
-        state->Send("pagePress", base::DictValue());
-      }
+  }
+  return std::string();
+}
+
+HWND Host::VisibleParent() const {
+  for (HWND parent : parents_) {
+    if (::IsWindowVisible(parent)) {
+      return parent;
+    }
+  }
+  return nullptr;
+}
+
+bool Host::Shows(const std::string& key) const {
+  for (const auto& entry : hosted_) {
+    if (entry.second.shown == key) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void Host::FocusFor(ui::Event* event) {
+  const std::string key = PageKeyFor(event);
+  if (key.empty()) {
+    return;
+  }
+  if (content::WebContents* contents = Find(key)) {
+    if (TabState* state = TabState::FromWebContents(contents)) {
+      state->Send("pagePress", base::DictValue());
     }
   }
 }
@@ -874,6 +998,49 @@ void Host::NoteOpened(Browser* browser,
     parent = found->second.parent;
   }
   payload.Set("parent", base::NumberToString(reinterpret_cast<uintptr_t>(parent)));
+  payload.Set("fromClick", false);
+  if (!foreground || foreign || opener_key.empty() ||
+      !OpenRequest::FromWebContents(contents)) {
+    Emit("tab.opened", std::move(payload));
+    return;
+  }
+  EmitOpened(std::move(payload), contents->GetWeakPtr(), opener_key, 0);
+}
+
+void Host::EmitOpened(base::DictValue payload,
+                      base::WeakPtr<content::WebContents> contents,
+                      std::string opener_key,
+                      int tries) {
+  if (!contents) {
+    return;
+  }
+  OpenRequest* request = OpenRequest::FromWebContents(contents.get());
+  content::WebContents* opener = Find(opener_key);
+  PageLinks* links = opener ? PageLinks::FromWebContents(opener) : nullptr;
+  const bool linked = request && request->clicked() && links &&
+                      links->TakeNewTabLink(
+                          {request->url(), contents->GetVisibleURL()});
+  if (request && !linked && tries < kOpenRequestTries &&
+      (!request->started() || request->clicked())) {
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE,
+        base::BindOnce(&Host::EmitOpened, weak_factory_.GetWeakPtr(),
+                       std::move(payload), contents, std::move(opener_key),
+                       tries + 1),
+        kOpenRequestWait);
+    return;
+  }
+  if (linked) {
+    payload.Set("fromClick", true);
+    payload.Set("url", request->url().spec());
+    if (std::optional<gfx::PointF> point =
+            PageLinks::RecentClickPoint(opener_key)) {
+      base::DictValue at;
+      at.Set("x", point->x());
+      at.Set("y", point->y());
+      payload.Set("point", std::move(at));
+    }
+  }
   Emit("tab.opened", std::move(payload));
 }
 
@@ -906,6 +1073,14 @@ void Host::OnTabStripModelChanged(TabStripModel* tab_strip_model,
     return;
   }
   if (change.type() == TabStripModelChange::kRemoved) {
+    auto orphan = hosted_.find(browser);
+    if (orphan != hosted_.end() &&
+        (!orphan->second.parent || !::IsWindow(orphan->second.parent)) &&
+        tab_strip_model->empty()) {
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE,
+          base::BindOnce(&Host::CloseSparePages, weak_factory_.GetWeakPtr()));
+    }
     for (const auto& removed : change.GetRemove()->contents) {
       if (removed.remove_reason != TabRemovedReason::kDeleted) {
         continue;
@@ -952,6 +1127,10 @@ void Host::OnBrowserClosed(BrowserWindowInterface* browser) {
 void Host::OnMouseEvent(ui::MouseEvent* event) {
   if (event->type() == ui::EventType::kMousePressed) {
     FocusFor(event);
+  }
+  if (event->type() == ui::EventType::kMousePressed ||
+      event->type() == ui::EventType::kMouseReleased) {
+    PageLinks::NoteMouse(*event, PageKeyFor(event));
   }
 }
 

@@ -1,9 +1,11 @@
 #include "ardia/win/tab_state.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "ardia/win/api.h"
 #include "ardia/win/host.h"
+#include "ardia/win/page_links.h"
 #include "ardia/win/tab_events.h"
 #include "base/functional/bind.h"
 #include "base/process/kill.h"
@@ -12,10 +14,16 @@
 #include "base/task/single_thread_task_runner.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/sessions/content/session_tab_helper.h"
+#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
+#include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
+#include "third_party/blink/public/common/input/web_input_event.h"
+#include "third_party/blink/public/common/input/web_keyboard_event.h"
+#include "third_party/blink/public/mojom/input/input_event_result.mojom-shared.h"
+#include "ui/events/keycodes/keyboard_codes.h"
 #include "net/base/net_errors.h"
 #include "net/http/http_response_headers.h"
 #include "third_party/skia/include/core/SkColor.h"
@@ -26,7 +34,9 @@ TabState::TabState(content::WebContents* contents)
     : content::WebContentsObserver(contents),
       content::WebContentsUserData<TabState>(*contents) {}
 
-TabState::~TabState() = default;
+TabState::~TabState() {
+  StopWatchingKeys();
+}
 
 TabState* TabState::Bind(content::WebContents* contents, std::string key) {
   TabState::CreateForWebContents(contents);
@@ -38,6 +48,8 @@ TabState* TabState::Bind(content::WebContents* contents, std::string key) {
       state->favicon_observation_.Observe(driver);
     }
   }
+  PageLinks::Watch(contents);
+  state->WatchKeys();
   return state;
 }
 
@@ -146,6 +158,11 @@ void TabState::DidStartNavigation(content::NavigationHandle* handle) {
 }
 
 void TabState::DidFinishNavigation(content::NavigationHandle* handle) {
+  if (handle->HasCommitted() && !handle->IsSameDocument()) {
+    if (PageLinks* links = PageLinks::FromWebContents(web_contents())) {
+      links->FrameCommitted(handle->GetRenderFrameHost());
+    }
+  }
   if (!handle->IsInPrimaryMainFrame()) {
     return;
   }
@@ -171,6 +188,21 @@ void TabState::DidFinishNavigation(content::NavigationHandle* handle) {
   left_by_download_ = handle->IsDownload() &&
                       CommittedPageURL(web_contents()).is_empty();
   NoteNavigation();
+}
+
+void TabState::DidOpenRequestedURL(
+    content::WebContents* new_contents,
+    content::RenderFrameHost* source_render_frame_host,
+    const GURL& url,
+    const content::Referrer& referrer,
+    WindowOpenDisposition disposition,
+    ui::PageTransition transition,
+    bool started_from_context_menu,
+    bool renderer_initiated) {
+  if (new_contents && new_contents != web_contents() && renderer_initiated &&
+      !tabs::TabInterface::MaybeGetFromContents(new_contents)) {
+    OpenRequest::Note(new_contents);
+  }
 }
 
 void TabState::DidStartLoading() {
@@ -226,7 +258,81 @@ void TabState::PrimaryMainFrameRenderProcessGone(
   Send("crashed", std::move(data));
 }
 
+void TabState::WatchKeys() {
+  if (!web_contents()) {
+    return;
+  }
+  web_contents()->GetPrimaryMainFrame()->ForEachRenderFrameHost(
+      [this](content::RenderFrameHost* frame) { WatchKeysOf(frame); });
+}
+
+void TabState::WatchKeysOf(content::RenderFrameHost* frame) {
+  content::RenderWidgetHost* widget =
+      frame ? frame->GetRenderWidgetHost() : nullptr;
+  if (!widget || std::ranges::find(keys_widgets_, widget) !=
+                     keys_widgets_.end()) {
+    return;
+  }
+  keys_widgets_.push_back(widget);
+  widget->AddInputEventObserver(this);
+  widget->AddObserver(this);
+}
+
+void TabState::StopWatchingKeys() {
+  std::vector<raw_ptr<content::RenderWidgetHost>> widgets =
+      std::move(keys_widgets_);
+  keys_widgets_.clear();
+  for (content::RenderWidgetHost* widget : widgets) {
+    widget->RemoveInputEventObserver(this);
+    widget->RemoveObserver(this);
+  }
+}
+
+void TabState::RenderFrameCreated(content::RenderFrameHost* frame) {
+  if (!key_.empty()) {
+    WatchKeysOf(frame);
+  }
+}
+
+void TabState::RenderFrameHostChanged(content::RenderFrameHost* old_host,
+                                      content::RenderFrameHost* new_host) {
+  if (!key_.empty()) {
+    WatchKeysOf(new_host);
+  }
+}
+
+void TabState::RenderWidgetHostDestroyed(
+    content::RenderWidgetHost* widget_host) {
+  auto found = std::ranges::find(keys_widgets_, widget_host);
+  if (found == keys_widgets_.end()) {
+    return;
+  }
+  keys_widgets_.erase(found);
+  widget_host->RemoveInputEventObserver(this);
+  widget_host->RemoveObserver(this);
+}
+
+void TabState::OnInputEventAck(const content::RenderWidgetHost& widget,
+                               blink::mojom::InputEventResultSource source,
+                               blink::mojom::InputEventResultState state,
+                               const blink::WebInputEvent& event) {
+  if (event.GetType() != blink::WebInputEvent::Type::kRawKeyDown ||
+      (event.GetModifiers() & blink::WebInputEvent::kKeyModifiers) ||
+      static_cast<const blink::WebKeyboardEvent&>(event).windows_key_code !=
+          ui::VKEY_ESCAPE) {
+    return;
+  }
+  if (state != blink::mojom::InputEventResultState::kNotConsumed &&
+      state != blink::mojom::InputEventResultState::kNoConsumerExists) {
+    return;
+  }
+  base::DictValue data;
+  data.Set("command", "escape");
+  Send("command", std::move(data));
+}
+
 void TabState::WebContentsDestroyed() {
+  StopWatchingKeys();
   favicon_observation_.Reset();
   Host::Get()->TabDestroyed(this);
 }

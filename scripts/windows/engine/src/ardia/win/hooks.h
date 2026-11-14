@@ -3,6 +3,8 @@
 
 #include <memory>
 
+#include "base/win/windows_types.h"
+
 namespace base {
 class CommandLine;
 class FilePath;
@@ -20,6 +22,8 @@ extern std::unique_ptr<BrowserFrameView> (*g_ardia_win_frame_view)(
     BrowserView* browser_view);
 
 extern void (*g_ardia_win_add_main_parts)(ChromeBrowserMainParts* main_parts);
+
+extern HWND (*g_ardia_win_prompt_window)();
 
 extern bool (*g_ardia_win_relaunched)(const base::CommandLine& command_line,
                                       const base::FilePath& cur_dir);

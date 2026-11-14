@@ -124,6 +124,20 @@ test("releasing a profile asks the host to end that private session and answers 
   assert.deepEqual(engine.missed, []);
 });
 
+test("the Peek keys go to the engine host, which hands them to every page's link script", async () => {
+  const engine = fakeEngine();
+  const webView = calling(engine, "webView");
+  assert.equal(await webView("setPeekModifier", { modifier: "alt" }), null);
+  assert.equal(await webView("setSplitLinkModifier", { modifier: "altShift" }), null);
+  assert.equal(await webView("setPeekOtherSiteTabs", { tabIds: ["t1", "t2"] }), null);
+  assert.deepEqual(engine.hosted, [
+    { verb: "peek.config", args: { peek: "alt" } },
+    { verb: "peek.config", args: { split: "altShift" } },
+    { verb: "peek.config", args: { otherSitePages: ["t1", "t2"] } },
+  ]);
+  await assert.rejects(webView("setPeekModifier", { modifier: "ctrl" }), /isn't one of the values/);
+});
+
 test("a private window's release waits while another private window of its profile is open, then both go together", async () => {
   const engine = fakeEngine();
   const release = (profile) => calling(engine, "profiles")("release", {}, profile);

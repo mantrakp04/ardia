@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { turboModules } from "../test-native/reactNative.ts";
+import { DeviceEventEmitter, turboModules } from "../test-native/reactNative.ts";
 
 const calls = [];
 let refuseCreates = 0;
@@ -27,6 +27,7 @@ turboModules.ArdiaEngineHost = {
 const { mountPage, callPage, releasePage, showPage } = await import("../../../../packages/expo-windows/src/engine/pages.ts");
 const { holdPrivateSession, privateWindowShown, releaseProfile } = await import("../../../../packages/expo-windows/src/engine/privateWindows.ts");
 
+const emitTopic = (topic, payload) => DeviceEventEmitter.emit("ArdiaEngineHost:event", { topic, json: JSON.stringify(payload) });
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 const creates = (key) => calls.filter((call) => call.verb === "tab.create" && call.args.key === key).length;
 const shows = (key) => calls.filter((call) => call.verb === "tab.show" && call.args.key === key);
@@ -127,6 +128,32 @@ test("a show asked while the retry is in flight goes once", async () => {
   assert.equal(shows("show-in-flight").length, 1);
   unmount();
   restore();
+});
+
+test("a page's Peek and a tab it opened from a click reach the page with their points placed in the window", async () => {
+  const events = [];
+  const unmount = mountPage("peek-source", { url: "https://p.example/", windowId: "w" }, (name, data) => events.push([name, data]));
+  await settle();
+  showPage("peek-source", true, { x: 100, y: 50, width: 800, height: 600, radius: 0, holes: [] });
+  await settle();
+  emitTopic("tab", { key: "peek-source", name: "openWindow", data: { url: "https://q.example/", disposition: "peek", userGesture: true, site: false, point: { x: 10, y: 20 } } });
+  const opened = (adopt, fromClick) =>
+    emitTopic("tab.opened", { adopt, url: "https://r.example/", foreground: true, window: false, opener: "peek-source", profile: "", fromClick, point: { x: 30, y: 40 } });
+  opened("ardiacore:7", true);
+  opened("ardiacore:8", false);
+  const asked = events.filter(([name]) => name === "openWindow").map(([, data]) => data);
+  assert.deepEqual(asked[0], { url: "https://q.example/", disposition: "peek", userGesture: true, site: false, point: { x: 110, y: 70 } });
+  assert.equal(asked[1].adoptId, "ardiacore:7");
+  assert.equal(asked[1].disposition, "foreground");
+  assert.equal(asked[1].fromClick, true);
+  assert.deepEqual(asked[1].point, { x: 130, y: 90 });
+  assert.equal(asked[2].fromClick, false, "a tab the page opened without a click is a plain new tab");
+  assert.equal(asked[2].point, undefined);
+  showPage("peek-source", false, null);
+  await settle();
+  emitTopic("tab", { key: "peek-source", name: "openWindow", data: { url: "https://q.example/", disposition: "peek", point: { x: 10, y: 20 } } });
+  assert.equal(events.at(-1)[1].point, undefined, "a hidden page has no place in the window to point from");
+  unmount();
 });
 
 test("a retry that is refused again reports a load error and stops, and a closed page is never reopened", async () => {
@@ -239,6 +266,18 @@ test("a page that unmounts and mounts again in one tick under the same key close
   await settle();
 });
 
+test("while a page of a window is full screen, the window's other pages count as hidden, and they come back when it leaves", async () => {
+  const { setFullScreenPage, hiddenByFullScreen } = await import("../../../../packages/expo-windows/src/engine/covers.ts");
+  setFullScreenPage("fs-window", "right", true);
+  assert.equal(hiddenByFullScreen("fs-window", "left"), true);
+  assert.equal(hiddenByFullScreen("fs-window", "right"), false);
+  assert.equal(hiddenByFullScreen("other-window", "left"), false);
+  setFullScreenPage("fs-window", "left", false);
+  assert.equal(hiddenByFullScreen("fs-window", "left"), true, "a page that wasn't full screen can't end another's");
+  setFullScreenPage("fs-window", "right", false);
+  assert.equal(hiddenByFullScreen("fs-window", "left"), false);
+});
+
 test("a private window whose hidden tab was refused gets it once a private page of its session opens, and not after the window went", async () => {
   const restore = quietWarnings();
   const before = calls.length;
@@ -269,4 +308,40 @@ test("a private window whose hidden tab was refused gets it once a private page 
   unmount();
   unmountOther();
   restore();
+});
+
+test("a page asked for the keyboard before it shows takes it once it shows, unless another page was asked since", async () => {
+  const focuses = (key) => calls.filter((call) => call.verb === "tab.call" && call.args.key === key && call.args.method === "focus").length;
+  const shape = { x: 0, y: 0, width: 10, height: 10, radius: 0, holes: [] };
+  const unmountEarly = mountPage("focus-early", { url: "https://a.example/", windowId: "wf" }, () => {});
+  const unmountOther = mountPage("focus-other", { url: "https://b.example/", windowId: "wf" }, () => {});
+  const unmountLost = mountPage("focus-lost", { url: "https://c.example/", windowId: "wf" }, () => {});
+  await settle();
+  await callPage("focus-early", "focus");
+  assert.equal(focuses("focus-early"), 0, "the host ignores focus for a page window that isn't showing");
+  showPage("focus-early", true, shape);
+  await settle();
+  await settle();
+  assert.equal(focuses("focus-early"), 1);
+  const shown = calls.findIndex((call) => call.verb === "tab.show" && call.args.key === "focus-early");
+  const focused = calls.findIndex((call) => call.verb === "tab.call" && call.args.key === "focus-early" && call.args.method === "focus");
+  assert.ok(shown >= 0 && shown < focused, "the focus goes after the show");
+  showPage("focus-early", true, { ...shape, width: 20 });
+  await settle();
+  await settle();
+  assert.equal(focuses("focus-early"), 1, "a later move doesn't take the keyboard again");
+  await callPage("focus-early", "focus");
+  assert.equal(focuses("focus-early"), 2, "a showing page is focused at once");
+  await callPage("focus-lost", "focus");
+  showPage("focus-other", true, shape);
+  await settle();
+  await callPage("focus-other", "focus");
+  showPage("focus-lost", true, shape);
+  await settle();
+  await settle();
+  assert.equal(focuses("focus-lost"), 0, "the keyboard went to another page meanwhile");
+  unmountEarly();
+  unmountOther();
+  unmountLost();
+  await settle();
 });

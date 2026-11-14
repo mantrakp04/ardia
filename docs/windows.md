@@ -44,7 +44,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | --- | --- | --- |
 | New tab, close, reopen closed tab | Works | |
 | New window | Works | |
-| Private window | Differs: its session lasts until Ardia quits | #1453 |
+| Private window | Works: its session ends with its last private window | #1453 |
 | Quit and relaunch with the session restored | Works | |
 | Engine memory trimmed after tabs close, once input is idle | Works: input idle time from `GetLastInputInfo` (`ArdiaWindowsHost.inputIdleSeconds`) | #1544 |
 | Little Ardia (Ctrl+Alt+N) | Works, app-drawn chrome | |
@@ -54,7 +54,8 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Tab, pinned tab, sidebar and New Tab row menus | Works | |
 | Tabs in the sidebar or across the top, auto-hide tabs | Works | |
 | Open in WebKit (tab menu), Engines pane, Opens in | Does nothing (no WebKit on Windows); hidden | #1522 |
-| Split View | Not offered | #1490 |
+| Split View | Works (each visible page has its own page window; seen in the VM at 125%). Two gaps until #1658: Focus Next Split Pane into an empty pane types into the other pane, and a page that is full screen when its tab is switched away comes back full screen and needs a click before Escape reaches it | #1490, #1658 |
+| Peek | Works as on the Mac: the Peek key on a link, or a plain click to another site on a tab that peeks those; Escape closes it from either page | #1531 |
 | Pop-up windows from pages | Broken: a bare Chromium window with the Windows title bar | #1518 |
 | Main, Settings and Little Ardia window chrome | Works, no system title bar | |
 
@@ -91,7 +92,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Chrome Web Store install | Differs: Chromium's Add extension dialog; installs, icon in the toolbar | stand-ins `extensions.resolveInstallPrompt` |
 | ardia://extensions | Works | |
 | Ad, tracker and cookie-banner blocking | Not offered; hidden | #1425 |
-| Bookmark and password export | Not offered; hidden | stand-ins table |
+| Bookmark and password export | Works; the password export confirms over the app window | #1551 |
 
 **Settings**
 
@@ -102,7 +103,7 @@ behind `PLATFORM_FEATURES` until what they need exists.
 | Appearance: light and dark | Works | |
 | Keyboard Shortcuts pane | Works, Windows keys | |
 | "…" menu (12 items, Windows keys) | Works, except Check for Updates | #1517 |
-| Sync | Not offered ("isn't available in this build"); hidden | #1521 |
+| Sync | Works with the Mac's vault through any folder the user picks (OneDrive's `Ardia Sync` by default); a Mac and a PC exchanged pinned tabs and bookmarks both ways in the VM on 2026-11-13. Passwords don't sync on Windows yet: the engine refuses to list logins (below). Share… in the Recovery Kit menu is not offered | #1575, #1425 |
 | Calendar | Does nothing (Connect answered with macOS copy); hidden | #1521 |
 | Trackpad gestures, video upscaling, reorder haptics, thin scroll bars | Does nothing; hidden (thin scroll bars need the engine: #1425) | #1522, #1520 |
 | The ardia command, Widevine | Not offered (each says so) | |
@@ -316,7 +317,7 @@ is plain Chromium.
   hands it the API in `EngineApi.h`: `hostCall(verb, json, window)`, `engineCall(name, profile, json)` and one event
   sink. Chromium's message loop offers each message to the app first, except messages for Chromium's own windows.
 - Every normal browser window Chromium has is hosted: page only, with no frame, tab strip, toolbar, rounded page frame
-  or shortcuts of its own (the `chromium-win-hosted-*` patches). The app keeps one per app window and profile. Each is
+  or shortcuts of its own (the `chromium-win-hosted-*` patches), and each shows one page: its active tab. Each is
   a borderless top-level window owned by the app's window, placed over the page's view: it stays above its owner, hides
   and minimizes with it, and follows it when it moves. It cannot be a child window: with the Windows App SDK in a
   window, no mouse message for a child of it reaches the UI thread (`ARDIA_INPUT_TRACE=<file>` logs what does). A window
@@ -378,13 +379,29 @@ is plain Chromium.
   launch nobody asked for).
 - A page that goes full screen takes its window full screen (`setPageFullScreen`, which puts the window back as it
   was when the page leaves), and nothing is cut out of the page while it is.
-- Split View is off on Windows (`PLATFORM_FEATURES.splitView`): the engine keeps one hosted Chromium window per app
-  window and profile and shows one tab in it, so a second pane had no page. Nothing makes a split (the splits slice
-  refuses, and a split that comes from the session, an import or a reopened window drops to its panes, which stay as
-  ordinary tabs), and its menu items, toolbar and hover buttons, shortcuts, command bar actions, ⌥ clicks and drop
-  zones are not offered; a link meant for a pane opens as a tab. The engine needs one hosted window per visible page:
-  `tab.show` placing a tab in its own borderless window owned by the app window, several shown at once, each with its
-  own bounds, corner radius and holes, and hiding only what the UI hides.
+- Every page the app shows at once has its own page window, so Split View's panes and a Peek over a page show
+  together. `tab.show` makes no assumption about the window's other pages: it hides a page only when the UI says so
+  (`visible: false`, sent when a page is parked, unmounted or hidden). A tab whose page window already shows another
+  visible page, or belongs to another app window, moves to a free page window of that app window and profile, or to a
+  new one; so an app window keeps as many page windows as it ever showed pages at once, plus one while a tab switch
+  shows the new page before hiding the old. Each is placed, scaled and shaped on its own (bounds, corner radius,
+  holes); pages do not overlap, because the UI cuts a hole in a page where another surface, such as the Peek card,
+  sits over it. Owned windows, they minimize and move with the app window, and a press in any of them is that page's
+  `pagePress`.
+- Peek opens as on the Mac. The engine host keeps a DevTools session of its own on each page and puts the Peek part of
+  ArdiaCore's page script into an isolated world of every web frame (`page_links.cc`): the page can't see the script
+  or its binding. A click on a link with the Peek key (`webView.setPeekModifier`), the Split key
+  (`setSplitLinkModifier`), or a plain click to another site on a tab that peeks those (`setPeekOtherSiteTabs`), is
+  cancelled and reported; the host checks it against the last real left mouse-up over that page and sends the Mac's
+  `openWindow` (`peek` or `split`), or falls back as the Mac does. A tab the page opens itself carries `fromClick` only
+  when the link script saw the user's own plain click on a `target=_blank` link to that address in the last two
+  seconds, so a script's `window.open()` or `anchor.click()` never becomes a Peek, even during a user activation
+  (ArdiaCore's page script also counts a `window.open()` during an activation; Windows doesn't).
+  Cross-site iframes run in their own process and their own DevTools target, so links in them don't peek yet.
+  The Peek card's background is a surface painted beneath the Peek's page, so a Peek's page (`temporary`) keeps a
+  cover that encloses it whole; anything over part of it still cuts it. Escape closes a Peek from either page, as on
+  the Mac: the host reports an Escape keydown the page didn't use as the `command` event `escape`, from any frame
+  of the page (it watches every frame widget, so a cross-site iframe counts).
 - A tab restored from the last session, or duplicated, loads its address: the Windows engine keeps no saved page
   state yet, so only tabs the engine itself offered are adopted.
 - The Windows engine opens every tab on a real `about:blank` and names it as the committed page, where the Mac's tab
@@ -470,7 +487,6 @@ is plain Chromium.
 | Verb | Needs | What and why |
 | --- | --- | --- |
 | `autofill.settings`, `autofill.setSettings` | Engine | The Mac reads and writes the profile's `autofill.profile_enabled` and `autofill.credit_card_enabled` prefs; no `ac_*` call touches prefs. Today Settings › Autofill shows both toggles on and disabled. |
-| `bookmarks.exportHtml`, `passwords.export` (the engine's answer) | Engine | The app side is done and hidden: `PLATFORM_FEATURES.exportsBookmarksAndPasswords` is false on Windows, so Settings' two export rows, Bookmarks › Export Bookmarks…, the command, its bar action, shortcut and CLI entry are not offered. In the VM (engine `windows-engine-20261113-1`) the save panel opens and answers, but `ac_bookmarks_export_html` and `ac_passwords_export` never answer and write no file, and the password export shows no Windows confirmation, while other engine calls (`ac_passwords_add`) answer at once. Needs a look at `WhenLoaded`/`WriteBookmarks` and `Reauthenticate` in a Windows engine with logging; once both answer, turn the flag on. |
 | `autofill.showSuggestions` | Engine | Shows Chromium's autofill popup in a tab: a `tab.call` method. |
 | `contentBlocker.state`, `setEnabled`, `setListEnabled`, `isAllowed`, `setAllowed` | Engine | The Mac's blocker is uBlock Origin loaded as a component extension (`loadComponentExtension`, not an `ac_*` call) and driven through its hidden pages. Windows needs that load in the engine and the extension in the Windows package. Today Settings › Privacy shows no blocker. |
 | `contentBlocker.devFailNextMessage`, `devDelayNextLoad` | Default | Mac test hooks. |
@@ -492,7 +508,7 @@ is plain Chromium.
 | `search.setEngineName` | Default | Names the search engine in the app's own page context menu; Windows shows Chromium's menu, which names Chromium's default engine. Needed again once the app draws that menu. |
 | `tabs.routeLinkTabs`, `stripCommand`, `strips`, `reportCommits` | Default | The Mac's Chromium tab strip; Windows hosts pages only, so the empty answers are right. |
 | `tabs.dev*` (10 verbs) | Default | Mac test hooks. |
-| `webView.setDisplayMediaPicker`, `setPeekModifier`, `setSplitLinkModifier`, `setPeekOtherSiteTabs`, `setSelectionPopover`, `setCommandScrollZoom`, `setLittleArdiaOpensNewTabLinks`, `setAutoPictureInPicture` | Engine | Settings for the page script and the Mac's page input hooks, which Windows doesn't have yet. |
+| `webView.setDisplayMediaPicker`, `setSelectionPopover`, `setCommandScrollZoom`, `setLittleArdiaOpensNewTabLinks`, `setAutoPictureInPicture` | Engine | Settings for the page script and the Mac's page input hooks, which Windows doesn't have yet. |
 | `webView.setVideoUpscaling`, `setVideoUpscalingTestConditions`, `videoUpscalingState` | Native and engine | The Mac upscales with MetalFX; Windows needs a Direct3D path. |
 | `windows.list`, `windows.dev` | Default | The Mac's Chromium window hosts. |
 
@@ -558,13 +574,16 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
   `ac_bookmarks_export_html` or `ac_passwords_export`, which asks Windows to confirm it is you before it writes
   (`reauthFailed` otherwise). A background instance answers the panel from `file-chooser.txt` and logs that a file was
   chosen, never which.
-  In the VM (build 157, engine `windows-engine-20261113-1`) the panel opens and answers, and the app hands the path to
-  the engine, but neither engine call answers: no file is written, no reply comes within a minute, and the password
-  export shows no Windows confirmation. Saving a password through the engine (`ac_passwords_add`) answers at once, so
-  this is in the two calls (row in the table above). Until they answer, both exports are hidden on Windows
-  (`PLATFORM_FEATURES.exportsBookmarksAndPasswords`). If either has not answered after `EXPORT_ANSWER_MS` (two
-  minutes, enough for a large profile), it fails the way the Mac's does: the bookmark export reports "Couldn't
-  export" and the password export answers `writeFailed`.
+  Windows confirms the password export with Windows Hello, or with the Windows Security password prompt when Hello
+  isn't set up. Chromium shows that over `GetLastActiveBrowser()`'s window, which in Ardia is a page window, so
+  `chromium-win-reauth-app-window.patch` gives it a hook and the engine host answers with the app window the user is
+  in. In Chrome that password prompt is modal on the browser UI thread, so other engine calls
+  and quitting wait on it (the old stall, when the prompt sat unseen on a page window); the patch runs it on a pool
+  thread that shutdown doesn't wait for. Every confirmation has a 110 s deadline, under the app's two-minute
+  timeout: at the deadline the export answers `reauthFailed`, the password prompt is closed, and a later answer is
+  dropped, so nothing is written after the app gave up. If either export has not answered
+  after `EXPORT_ANSWER_MS` (two minutes, enough for a large profile), it fails the way the Mac's does: the bookmark
+  export reports "Couldn't export" and the password export answers `writeFailed`.
 - `extensions.chooseFolder` and `extensions.inspectUnpacked`: `ArdiaDialogs.pickFolder`, then the Mac's
   `ReadManifest` in TypeScript over `ArdiaWindowsImport`'s file reads: the manifest (comments and trailing commas
   allowed, as Chrome does), its `_locales` messages (locale names only), the icons as data addresses, and the id from `key`.
@@ -662,6 +681,43 @@ that answers the same methods with the same result shapes, so the wizard (`compo
   real files there. Telemetry: `import_runs`, `import_kinds_done`, `import_kinds_failed` and
   `import_secrets_left` in the hourly `usage_counts` (`state/telemetry/importRuns.ts`, every platform): a rising share of
   failed kinds or secrets left on Windows is the sign to look at.
+
+## Sync
+
+Windows syncs with Macs through the same folder and the same vault: `folder\<chain tag>\<scope tag>\<file id>.nns`,
+sealed exactly as `packages/sync/ios/Core/SyncCrypto.swift` seals it. The engine (`state/sync`) is the Mac's;
+`ArdiaSync` is answered by `packages/expo-windows/src/sync` (layout, listing, QR code, Recovery Kit) over the native
+`ArdiaWindowsSync` (`SyncModule.h` and the `Sync*.h` headers next to it), which keeps every secret out of JS:
+
+- Keys: the 24 words are made and read natively (`SyncPhrase.h`, the Mac's wordlist in `SyncWordlist.h`), the entropy
+  is sealed with DPAPI for the current user into `<data folder>\Sync\sync-key-<device id>.dpapi` and wiped after the
+  four keys are derived (BCrypt HKDF, HMAC and AES-256-GCM in `SyncCrypto.h`). A failed unseal never makes a new key;
+  sync asks for the phrase. Each operation holds the keys it started with; `forget` bumps a generation, so a result or
+  an owner check that began before it is dropped.
+- Passwords are off on Windows (`PLATFORM_FEATURES.syncsPasswords`: no What Syncs row, the type never syncs, and
+  the Mac's synced passwords stay in the vault untouched). Chromium turns `kSkipUndecryptablePasswords` on by default
+  on Windows only, and with it `ac_passwords_logins` answers "partial password reads": a login list that may silently
+  leave out undecryptable passwords would look like deletions to sync. The engine needs to list every login on
+  Windows (#1425); the native side below is ready for it.
+- Passwords, once the engine lists them: `ac_passwords_logins` is called and its reply sealed in C++ (`SyncSystem.h`),
+  and a synced password is opened only to hand it to `ac_passwords_add`. The Mac's vault files carry plaintext `p` in `pw:` records, as the Mac
+  writes them; `SyncLogins.h` swaps them for sealed `s` before JS sees a document (escaped keys included; a login it
+  can't seal loses its `p`) and back when writing. Replacing a password reads the old one first and puts it back if
+  the add fails, because `ac_passwords_update` asks the user to sign in again.
+- Disclosure (Show Words, Copy Words, Show Code, the Recovery Kit): Windows Hello, else Windows' own password prompt
+  checked with `LogonUser` against this user's SID, valid for 60 seconds as on the Mac. A hidden test instance answers
+  from `ARDIA_TEST=reauth=granted`. Copied words are kept out of clipboard history and the cloud clipboard.
+- Files: written to a hidden staging file, flushed, then moved into place without replacing; read only when the size
+  and write time didn't change during the read. OneDrive's online-only files are never opened: they wait as pending
+  while a single background reader downloads them (one try per file a minute, at most 64 queued). A file another
+  program is writing waits too. Links where the vault's own folders belong are refused, and deleting the vault never
+  follows one. Like the Mac, sync polls every 15 seconds; it does not watch the folder.
+- The Recovery Kit is drawn in TypeScript (`kit.ts`, `pdf.ts`), with a QR code module for module CoreImage's
+  (`qr.ts`, `windows-interop/qr.txt`); the preview is the kit with masked words, rendered by `Windows.Data.Pdf`.
+
+Proof that the formats agree: `packages/sync/tests/WindowsInteropTests.swift` opens a vault written through the
+Windows code path (`fixtures/windows-interop/windows`), `state/sync/windowsVault.test.mjs` reads the vault the Mac's
+Swift core wrote (`fixtures/windows-interop/mac`), and the self-check opens that same Mac vault with the native code.
 
 ## Updates
 
