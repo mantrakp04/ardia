@@ -39,9 +39,17 @@ export function processInfo(pid) {
   const r = spawnSync("ps", ["-ww", "-p", String(pid), "-o", "lstart=", "-o", "command="], { encoding: "utf8", timeout: 5000 });
   return r.status === 0 ? parseProcessLine(r.stdout) : null;
 }
+export function processTable(columns, tries = 3) {
+  let r;
+  for (let attempt = 0; attempt < tries; attempt++) {
+    r = spawnSync("ps", ["-ww", "-ax", ...columns.flatMap((column) => ["-o", `${column}=`])], { encoding: "utf8", timeout: 20000, maxBuffer: 64 << 20 });
+    if (r.status === 0) return r;
+  }
+  return r;
+}
 export function binaryPids(binary) {
-  const r = spawnSync("ps", ["-ww", "-ax", "-o", "pid=", "-o", "command="], { encoding: "utf8", timeout: 5000, maxBuffer: 64 << 20 });
-  if (r.status !== 0) throw new Error(`ps failed: ${r.stderr}`);
+  const r = processTable(["pid", "command"]);
+  if (r.status !== 0) throw new Error(`ps failed: ${r.error?.code ?? r.signal ?? r.stderr}`);
   return new Set(r.stdout.split("\n").map((l) => /^\s*(\d+)\s+(.*)$/.exec(l))
     .filter((m) => m && commandIsBinary(m[2], binary)).map((m) => Number(m[1])));
 }
@@ -56,7 +64,7 @@ export function ownedCandidate(listeners, before, commandOf, binary) {
 }
 export const realPath = (path) => { try { return realpathSync(path); } catch { return path; } };
 export function spawnedPids(binary, before, port, dataDirs) {
-  const r = spawnSync("ps", ["-ww", "-ax", "-o", "pid=", "-o", "ppid=", "-o", "command="], { encoding: "utf8", timeout: 5000, maxBuffer: 64 << 20 });
+  const r = processTable(["pid", "ppid", "command"]);
   if (r.status !== 0) return [];
   const rows = r.stdout.split("\n").map((l) => /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(l)).filter(Boolean)
     .map((m) => ({ pid: Number(m[1]), ppid: Number(m[2]), command: m[3] }));
