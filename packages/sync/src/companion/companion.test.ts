@@ -5,7 +5,7 @@ import { Clock } from "../hlc.ts";
 import { compact, syncScope, visible } from "../scope.ts";
 import { emptyScope, type Adapter, type Listing, type LogFile, type ScopeState, type Transport } from "../scopeState.ts";
 import { companionAcknowledge, companionAddBookmark, companionRemoveBookmark, companionRemovalsDone, companionSend, runCompanionCycle, type CycleInput } from "./cycle.ts";
-import { companionLoad, type CompanionState, type Host } from "./state.ts";
+import { companionLoad, companionUnload, type CompanionState, type Host } from "./state.ts";
 import type { LocalTab, LocalVisit } from "./adapters.ts";
 
 const DAY = 86_400_000;
@@ -940,3 +940,138 @@ test("a phone that starts over under a new id deletes its old device and tabs re
   assert.ok(mac.store.app!.has(`dev:${fresh.id}`));
   assert.ok(mac.store[s1]!.has("bm:f1"));
 });
+
+type CrashStep = { call: "persistJournal" | "write" | "remove" | "saveState"; nth: number; moment: "before" | "after" | "beforePruning" };
+
+class KilledPhone extends Phone {
+  crash: CrashStep | null = null;
+  counts: Record<string, number> = {};
+  killed = false;
+  override host(): Host {
+    const real = super.host();
+    const reach = (call: CrashStep["call"]) => {
+      if (this.killed) throw new Error("the process is gone");
+      const nth = (this.counts[call] = (this.counts[call] ?? 0) + 1);
+      return this.crash && this.crash.call === call && this.crash.nth === nth ? this.crash.moment : null;
+    };
+    const kill = (): never => {
+      this.killed = true;
+      throw new Error("killed");
+    };
+    return {
+      chainStatus: () => {
+        if (this.killed) throw new Error("the process is gone");
+        return real.chainStatus();
+      },
+      read: (scope, known) => {
+        if (this.killed) throw new Error("the process is gone");
+        return real.read(scope, known);
+      },
+      write: (scope, payload) => {
+        const moment = reach("write");
+        if (moment === "before") kill();
+        const id = real.write(scope, payload);
+        if (moment === "after") kill();
+        return id;
+      },
+      remove: (scope, ids) => {
+        const moment = reach("remove");
+        if (moment === "before") kill();
+        const out = real.remove(scope, ids);
+        if (moment === "after") kill();
+        return out;
+      },
+      persistJournal: (scope, batches) => {
+        const moment = reach("persistJournal");
+        if (moment === "before") kill();
+        const out = real.persistJournal(scope, batches);
+        if (moment === "after") kill();
+        return out;
+      },
+      saveState: (json, seqs) => {
+        const moment = reach("saveState");
+        if (moment === "before") kill();
+        if (moment === "beforePruning") {
+          this.stateJSON = json;
+          kill();
+        }
+        const out = real.saveState(json, seqs);
+        if (moment === "after") kill();
+        return out;
+      },
+    };
+  }
+  restart() {
+    companionUnload();
+    this.killed = false;
+    this.crash = null;
+    return this.launch();
+  }
+}
+
+async function crashScenario(step: CrashStep | null) {
+  const folder = new Folder();
+  const mac = new Mac(folder);
+  seedMac(mac);
+  await mac.sync();
+  folder.now += 1000;
+  const phone = new KilledPhone(folder).launch();
+  phone.tabs = [{ u: "https://before.example/", t: "Before", at: folder.now }];
+  phone.visits = [{ u: "https://before.example/", t: "Before", vt: [folder.now] }];
+  await phone.cycle();
+  folder.now += 15_000;
+  phone.tabs = [
+    { u: "https://during.example/", t: "During", at: folder.now },
+    { u: "https://work.example/", t: "Work", at: folder.now, p: P2 },
+  ];
+  phone.visits = [...phone.visits, { u: "https://during.example/", t: "During", vt: [folder.now] }, { u: "https://work.example/", t: "Work", vt: [folder.now], p: P2 }];
+  phone.counts = {};
+  phone.crash = step;
+  await phone.cycle().catch(() => null);
+  const reached = phone.killed;
+  phone.restart();
+  for (let i = 0; i < 3; i++) {
+    folder.now += 15_000;
+    await phone.cycle();
+  }
+  await mac.sync();
+  return { folder, mac, phone, reached };
+}
+
+function assertNothingLostOrReused(folder: Folder, mac: Mac, label: string) {
+  const tabs = (mac.scopes[s1]!.records[`tabs:${PHONE}`]!.v as { tabs: { u: string }[] }).tabs.map((t) => t.u);
+  assert.deepEqual(tabs, ["https://during.example/"], `${label}: the Mac sees the phone's latest tabs`);
+  assert.deepEqual((mac.scopes[s2]!.records[`tabs:${PHONE}`]!.v as { tabs: { u: string }[] }).tabs.map((t) => t.u), ["https://work.example/"], `${label}: and its Work tabs`);
+  for (const url of ["https://before.example/", "https://during.example/"]) assert.ok(mac.history[s1]!.has(url), `${label}: the Mac has the visit to ${url}`);
+  assert.ok(mac.history[s2]!.has("https://work.example/"), `${label}: the Mac has the Work visit`);
+  const seen = new Map<string, string>();
+  for (const [scope, entries] of folder.scopes) {
+    for (const entry of entries.values()) {
+      const file = JSON.parse(entry.payload) as LogFile;
+      if (file.kind !== "log" || file.device !== PHONE) continue;
+      const key = `${scope}#${file.seq}`;
+      const body = canonical(file);
+      const before = seen.get(key);
+      assert.ok(before === undefined || before === body, `${label}: ${scope} sequence ${file.seq} was written twice with different contents`);
+      seen.set(key, body);
+    }
+  }
+}
+
+test("a phone killed at any durable step of a cycle loses no write and reuses no sequence after it restarts", async () => {
+  const calm = await crashScenario(null);
+  assertNothingLostOrReused(calm.folder, calm.mac, "without a crash");
+  const steps: CrashStep[] = [];
+  for (const call of ["persistJournal", "write", "remove"] as const) {
+    for (let nth = 1; nth <= 6; nth++) for (const moment of ["before", "after"] as const) steps.push({ call, nth, moment });
+  }
+  for (let nth = 1; nth <= 3; nth++) for (const moment of ["before", "beforePruning", "after"] as const) steps.push({ call: "saveState", nth, moment });
+  let reached = 0;
+  for (const step of steps) {
+    const run = await crashScenario(step);
+    if (run.reached) reached += 1;
+    assertNothingLostOrReused(run.folder, run.mac, `killed ${step.moment} ${step.call} #${step.nth}`);
+  }
+  assert.ok(reached >= 8, `only ${reached} crash points were reached in the cycle`);
+});
+

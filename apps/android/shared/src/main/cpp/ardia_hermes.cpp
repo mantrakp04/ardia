@@ -246,7 +246,11 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *) {
 }
 
 extern "C" JNIEXPORT jlong JNICALL Java_com_ardia_shared_ScriptEngine_nativeCreate(JNIEnv *env, jobject self) {
+#ifdef ARDIA_REACT_NATIVE_HERMES
+  auto config = ::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withEnableBlockScoping(true).withES6Class(true).build();
+#else
   auto config = ::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withES6BlockScoping(true).withEnableAsyncGenerators(true).build();
+#endif
   auto engine = std::make_unique<Engine>();
   try {
     engine->runtime = facebook::hermes::makeHermesRuntime(config);

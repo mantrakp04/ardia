@@ -6,28 +6,110 @@ plugins {
 group = 'com.ardia.phone'
 version = '0.0.0'
 
-def androidApp = file("${projectDir}/../../../apps/android")
+def repository = file("${projectDir}/../../..")
+def androidApp = file("${repository}/apps/android")
 def pageEngine = file("${androidApp}/browser/src/main")
 def contentBlocking = file("${androidApp}/blocking/src/main")
+def scriptRuntime = file("${androidApp}/shared/src/main")
+def syncEngine = file("${androidApp}/sync/src")
+def syncBundle = file("${repository}/apps/ios/Packages/ArdiaKit/Sources/ArdiaShared/Scripts/ardia-sync.js")
+def syncFixtures = file("${repository}/packages/sync/tests/fixtures")
 def pageEngineOutsideThisModule = ['**/Omnibox.kt', '**/PageSurface.kt']
 def kotlinVersion = org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapperKt.getKotlinPluginVersion(project)
+def architectures = (findProperty('reactNativeArchitectures') ?: 'arm64-v8a,x86_64').split(',').collect { it.trim() }
+def reactNative = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).parentFile
+def hermescPlatform = System.getProperty('os.name').toLowerCase().contains('mac') ? 'osx-bin' : (System.getProperty('os.name').toLowerCase().contains('win') ? 'win64-bin' : 'linux64-bin')
+def hermesc = new File(reactNative, "sdks/hermesc/${hermescPlatform}/hermesc")
+def syncBytecode = layout.buildDirectory.dir("generated/ardia-sync")
+
+def syncTranspiled = layout.buildDirectory.file("intermediates/ardia-sync/ardia-sync.js")
+def phoneApp = file("${repository}/apps/phone")
+
+def transpileSyncBundle = tasks.register('transpileSyncBundle', Exec) {
+  inputs.file(syncBundle)
+  inputs.file("${projectDir}/scripts/transpile-sync-bundle.mjs")
+  outputs.file(syncTranspiled)
+  commandLine 'node', "${projectDir}/scripts/transpile-sync-bundle.mjs", syncBundle.absolutePath, syncTranspiled.get().asFile.absolutePath, phoneApp.absolutePath
+}
+
+def checkSyncBundle = tasks.register('checkSyncBundle', Exec) {
+  dependsOn transpileSyncBundle
+  def stamp = layout.buildDirectory.file("intermediates/ardia-sync/checked.txt")
+  inputs.file(syncBundle)
+  inputs.file(syncTranspiled)
+  inputs.file("${projectDir}/scripts/check-sync-bundle.mjs")
+  outputs.file(stamp)
+  commandLine 'node', "${projectDir}/scripts/check-sync-bundle.mjs", syncBundle.absolutePath, syncTranspiled.get().asFile.absolutePath
+  doFirst { standardOutput = new FileOutputStream(stamp.get().asFile) }
+}
+
+def compileSyncBundle = tasks.register('compileSyncBundle', Exec) {
+  dependsOn checkSyncBundle
+  inputs.file(syncTranspiled)
+  inputs.file(hermesc)
+  outputs.dir(syncBytecode)
+  def out = syncBytecode.get().asFile
+  doFirst { out.mkdirs() }
+  commandLine hermesc.absolutePath, '-emit-binary', '-O', '-w', '-out', new File(out, 'ardia-sync.hbc').absolutePath, syncTranspiled.get().asFile.absolutePath
+}
 
 android {
   namespace "com.ardia.browser"
   defaultConfig {
     versionCode 1
     versionName "0.0.0"
+    externalNativeBuild {
+      cmake {
+        arguments "-DANDROID_STL=c++_shared", "-DARDIA_SCRIPT_SHIM=${scriptRuntime}/cpp/ardia_hermes.cpp"
+        abiFilters(*architectures)
+        targets "ardiahermes"
+      }
+    }
+  }
+  buildFeatures {
+    prefab true
+  }
+  externalNativeBuild {
+    cmake {
+      path "CMakeLists.txt"
+      version "3.22.1"
+    }
+  }
+  buildTypes {
+    debug {
+      externalNativeBuild {
+        cmake {
+          arguments "-DHERMES_ENABLE_DEBUGGER=1"
+        }
+      }
+    }
   }
   sourceSets {
     main {
-      java.srcDirs += ["${pageEngine}/kotlin", "${contentBlocking}/kotlin"]
-      assets.srcDirs += "${pageEngine}/assets"
+      java.srcDirs += ["${pageEngine}/kotlin", "${contentBlocking}/kotlin", "${scriptRuntime}/kotlin", "${syncEngine}/main/kotlin"]
+      assets.srcDirs += ["${pageEngine}/assets", syncBytecode.get().asFile]
       res.srcDirs += "${pageEngine}/res"
       resources.srcDirs += "${contentBlocking}/resources"
     }
+    test {
+      java.srcDirs += "${syncEngine}/test/kotlin"
+    }
+  }
+  packagingOptions {
+    excludes += [
+      "**/libc++_shared.so",
+      "**/libfbjni.so",
+      "**/libjsi.so",
+      "**/libhermes.so",
+      "**/libhermestooling.so",
+      "**/libreactnative.so",
+    ]
   }
   testOptions {
     unitTests.returnDefaultValues = true
+    unitTests.all { test ->
+      test.systemProperty("ardia.syncFixtures", syncFixtures.absolutePath)
+    }
   }
 }
 
@@ -35,10 +117,21 @@ tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
   exclude(pageEngineOutsideThisModule)
 }
 
+tasks.configureEach { task ->
+  if (task.name.startsWith('merge') && task.name.endsWith('Assets')) task.dependsOn(compileSyncBundle)
+  if (task.name.startsWith('package') && task.name.endsWith('Assets')) task.dependsOn(compileSyncBundle)
+  if (task.name.startsWith('generate') && task.name.endsWith('LintModel')) task.dependsOn(compileSyncBundle)
+  if (task.name.startsWith('lint')) task.dependsOn(compileSyncBundle)
+}
+
 dependencies {
   kotlinCompilerPluginClasspath "org.jetbrains.kotlin:kotlin-serialization-compiler-plugin-embeddable:${kotlinVersion}"
+  implementation "com.facebook.react:react-android"
+  implementation "com.facebook.react:hermes-android"
+  implementation "androidx.annotation:annotation:1.9.1"
   implementation "androidx.core:core:1.16.0"
   implementation "androidx.webkit:webkit:1.18.0"
+  implementation "androidx.work:work-runtime-ktx:2.10.5"
   implementation "com.squareup.okhttp3:okhttp:4.12.0"
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2"
   implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0"
