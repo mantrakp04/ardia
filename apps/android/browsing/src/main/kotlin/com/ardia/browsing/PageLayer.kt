@@ -61,6 +61,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.ardia.browser.NetworkFailure
+import com.ardia.browser.OnlineAgain
 import com.ardia.browser.Page
 import com.ardia.browser.PageLoadFailure
 import com.ardia.browser.PageState
@@ -468,16 +469,12 @@ private fun RetryWhenOnline(context: Context, onOnline: () -> Unit) {
     val view: View = LocalView.current
     DisposableEffect(context) {
         val connectivity = context.getSystemService(ConnectivityManager::class.java)
-        var sawOffline = connectivity?.activeNetwork == null
+        val online = OnlineAgain(startedOffline = connectivity?.activeNetwork == null)
         val listener = object : ConnectivityManager.NetworkCallback() {
-            override fun onLost(network: Network) {
-                sawOffline = true
-            }
+            override fun onLost(network: Network) = online.lost()
 
             override fun onAvailable(network: Network) {
-                if (!sawOffline) return
-                sawOffline = false
-                view.post { callback() }
+                if (online.available()) view.post { callback() }
             }
         }
         runCatching { connectivity?.registerDefaultNetworkCallback(listener) }
