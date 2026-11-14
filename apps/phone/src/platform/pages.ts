@@ -6,6 +6,7 @@ export type {
   PageNavigationState,
   PageRequest,
   PageRequestAnswer,
+  PageScrollPosition,
   PageSnapshot,
   PageState,
   PageTone,

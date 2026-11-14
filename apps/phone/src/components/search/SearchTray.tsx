@@ -115,14 +115,41 @@ function TrayRows() {
   const theme = useTrayTheme();
   const rows = useSearchRows();
   const typed = useSearchText();
+  const { keyboard } = useBottomLift();
+  const [room, setRoom] = useState(0);
+  const [bottoms, setBottoms] = useState<Record<string, number>>({});
   const refine = (row: TrayRow) => typeSearch(refinedText(row));
+  const shown = keyboard ? null : wholeRowsHeight(rows.map((row) => bottoms[row.key] ?? 0), room);
   return (
-    <ScrollView style={styles.rows} contentContainerStyle={styles.rowsContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="none">
-      {rows.map((row) => (
-        <SuggestionRow key={row.key} row={row} typed={typed} roles={theme} onActivate={activateRow} onRefine={refine} />
-      ))}
-    </ScrollView>
+    <View style={styles.rows} onLayout={(event) => setRoom(event.nativeEvent.layout.height)}>
+      <ScrollView
+        style={shown === null ? styles.rows : { height: shown, flexGrow: 0 }}
+        contentContainerStyle={styles.rowsContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="none"
+      >
+        {rows.map((row) => (
+          <View
+            key={row.key}
+            onLayout={(event) => {
+              const bottom = event.nativeEvent.layout.y + event.nativeEvent.layout.height;
+              setBottoms((known) => (known[row.key] === bottom ? known : { ...known, [row.key]: bottom }));
+            }}
+          >
+            <SuggestionRow row={row} typed={typed} roles={theme} onActivate={activateRow} onRefine={refine} />
+          </View>
+        ))}
+      </ScrollView>
+    </View>
   );
+}
+
+function wholeRowsHeight(bottoms: number[], room: number): number | null {
+  if (room <= 0 || bottoms.some((bottom) => bottom <= 0)) return null;
+  const last = bottoms[bottoms.length - 1] ?? 0;
+  if (last <= room) return null;
+  const fitting = bottoms.filter((bottom) => bottom <= room);
+  return fitting.length ? Math.max(...fitting) : null;
 }
 
 const styles = StyleSheet.create({

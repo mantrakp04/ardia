@@ -4,7 +4,6 @@ import { HISTORY_RETENTION_MS } from "../history/historySummary";
 import {
   livePageIds,
   listenToPages,
-  savePageState,
   snapshotPage,
   storeNavigation,
   storeTone,
@@ -13,7 +12,10 @@ import {
   type PageTone,
 } from "../pages/store";
 import type { VisitKind } from "../../platform/pages";
-import { showOnboarding } from "../onboarding/store";
+import { showOnboarding, useOnboarding } from "../onboarding/store";
+import { pageUi } from "../page/store";
+import { settingsNav } from "../settings/nav";
+import { forgetPosition, logRestore, saveTabPosition, watchFrontScroll } from "./positions";
 import { currentPreferences, loadPreferences } from "../settings/store";
 import type { VisitTransition, Visit } from "../store/browserDatabase";
 import { resolve, type TrayRow } from "../search/omnibox";
@@ -28,7 +30,6 @@ import {
   openNewTab,
   reopenClosedTab,
   restoreArchivedTab,
-  saveTabState,
   selectTabById,
   setIncognito,
   updateTabById,
@@ -47,6 +48,7 @@ export const useBrowse = create<BrowseState>()(() => ({ surface: "start", sheet:
 const lastVisits = new Map<string, Visit>();
 
 const SNAPSHOT_SETTLE_MS = 700;
+const SNAPSHOT_RETRIES = 30;
 const STATE_SAVE_DELAY_MS = 1500;
 const DECK_SNAPSHOT_WAIT_MS = 400;
 
@@ -61,17 +63,40 @@ export function startBrowser() {
   history().pruneBefore(Date.now() - HISTORY_RETENTION_MS);
   archiveDueTabs();
   listenToPages(pageEvent);
+  watchFrontScroll(frontPageId);
   if (!currentPreferences().hasFinishedOnboarding) showOnboarding();
   else if (currentPreferences().autoOpensKeyboard) presentSearch("home", "", useTabs.getState().incognito);
 }
 
+let appActive = true;
+
+function frontPageId() {
+  if (!appActive || useBrowse.getState().surface !== "browsing" || pageCovered()) return null;
+  return currentTabs().selectedId;
+}
+
+export function pageCovered() {
+  const ui = pageUi();
+  return (
+    searchState().open ||
+    ui.menuOpen ||
+    ui.readerTabId !== null ||
+    ui.press !== null ||
+    settingsNav().open ||
+    useOnboarding.getState().showing ||
+    useBrowse.getState().sheet !== null
+  );
+}
+
 export function appBecameActive() {
+  appActive = true;
   const selected = currentTabs().selectedId;
   if (selected) selectTabById(selected);
   archiveDueTabs();
 }
 
 export function appWillResignActive() {
+  appActive = false;
   const selected = currentTabs().selectedId;
   if (selected) selectTabById(selected);
   void savePageStates();
@@ -104,6 +129,8 @@ export function openTab(id: string) {
   setIncognito(isPrivateTab(currentTabs(), id));
   selectTabById(id);
   useBrowse.setState({ surface: "browsing", sheet: null });
+  const tab = findTab(currentTabs(), id);
+  if (tab && !tab.snapshotFileName && loading.get(id) === false) scheduleSnapshot(id);
 }
 
 function trayOrigin() {
@@ -140,8 +167,9 @@ export function cancelSearch() {
 export async function showDeck() {
   const { surface } = useBrowse.getState();
   const selected = currentTabs().selectedId;
+  const covered = pageCovered();
   dismissSearch();
-  if (surface === "browsing" && selected) {
+  if (surface === "browsing" && selected && !covered) {
     await Promise.race([captureSnapshot(selected), new Promise((done) => setTimeout(done, DECK_SNAPSHOT_WAIT_MS))]);
   }
   useBrowse.setState({ surface: "deck", deckEntrance: surface === "browsing" ? selected : null, frozenOrder: null });
@@ -212,16 +240,15 @@ function saveFrontTabSoon(id: string) {
   stateSave = setTimeout(() => {
     stateSave = null;
     if (!findTab(currentTabs(), id) || currentTabs().selectedId !== id) return;
-    void savePageState(id).then((saved) => {
-      if (saved) saveTabState(id, saved);
-    });
+    void saveTabPosition(id, "commit");
   }, STATE_SAVE_DELAY_MS);
 }
 
 function pageVisited(id: string, url: string, title: string, kind: VisitKind) {
   const tab = findTab(currentTabs(), id);
   if (!tab) return;
-  saveFrontTabSoon(id);
+  if (kind === "restored") logRestore(id);
+  else saveFrontTabSoon(id);
   if (isSyncableUrl(url)) updateTabById(id, { url, title: title.trim() ? title : undefined });
   const transition = transitions[kind];
   if (!transition || tab.isPrivate) return;
@@ -231,6 +258,7 @@ function pageVisited(id: string, url: string, title: string, kind: VisitKind) {
 
 function pageEvent(event: PageEngineEvent) {
   if (event.name === "page.visited") pageVisited(event.pageId, event.url, event.title, event.kind);
+  else if (event.name === "page.state" && currentTabs().selectedId !== event.pageId) backgroundPageState(event.pageId, event.state);
   else if (event.name === "page.closeRequested") closeTabById(event.pageId);
 }
 
@@ -244,19 +272,39 @@ export function captureCurrentCover() {
 }
 
 export async function captureSnapshot(id: string) {
+  if (!snapshotAllowed(id)) return;
   const snapshot = await snapshotPage(id);
   if (snapshot && findTab(currentTabs(), id)) updateTabById(id, { snapshotFileName: snapshot.uri });
 }
 
-function scheduleSnapshot(id: string) {
+function snapshotAllowed(id: string) {
+  if (currentTabs().selectedId !== id) return true;
+  return useBrowse.getState().surface === "browsing" && !pageCovered();
+}
+
+function scheduleSnapshot(id: string, tries = SNAPSHOT_RETRIES) {
   clearTimeout(snapshotTimers.get(id));
   snapshotTimers.set(
     id,
     setTimeout(() => {
       snapshotTimers.delete(id);
-      if (currentTabs().selectedId === id && useBrowse.getState().surface === "browsing") void captureSnapshot(id);
+      if (!findTab(currentTabs(), id)) return;
+      const selected = currentTabs().selectedId === id;
+      if (selected && useBrowse.getState().surface !== "browsing") return;
+      if (snapshotAllowed(id)) void captureSnapshot(id);
+      else if (tries > 0) scheduleSnapshot(id, tries - 1);
     }, SNAPSHOT_SETTLE_MS),
   );
+}
+
+function backgroundPageState(id: string, state: PageState) {
+  const tab = findTab(currentTabs(), id);
+  if (!tab) return;
+  const title = state.title.trim() ? state.title : null;
+  if (title && title !== tab.title) updateTabById(id, { title });
+  const wasLoading = loading.get(id);
+  loading.set(id, state.isLoading);
+  if (wasLoading && !state.isLoading) scheduleSnapshot(id);
 }
 
 export function pageStateChanged(id: string, state: PageState) {
@@ -280,7 +328,7 @@ export async function savePageStates() {
   const data = currentTabs();
   for (const tab of [...data.open, ...data.privates]) {
     if (!live.has(tab.id)) continue;
-    saveTabState(tab.id, await savePageState(tab.id));
+    await saveTabPosition(tab.id, "background");
   }
 }
 
@@ -289,6 +337,7 @@ useTabs.subscribe((tabs) => {
     if (findTab(tabs, id)) continue;
     lastVisits.delete(id);
     loading.delete(id);
+    forgetPosition(id);
     clearTimeout(snapshotTimers.get(id));
     snapshotTimers.delete(id);
   }

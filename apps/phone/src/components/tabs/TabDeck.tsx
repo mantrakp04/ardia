@@ -144,30 +144,36 @@ export function TabDeck() {
   const count = order.length;
   const startScroll = useSharedValue(0);
   const vertical = useSharedValue(false);
+  const touchDown = useSharedValue({ x: 0, y: 0, absoluteX: 0, absoluteY: 0 });
   const pan = Gesture.Pan()
     .minDistance(10)
+    .onBegin((e) => {
+      touchDown.value = { x: e.x, y: e.y, absoluteX: e.absoluteX, absoluteY: e.absoluteY };
+    })
     .onStart((e) => {
-      const card = deckCardAt(g, count, scroll.value, e.x - e.translationX, e.y - e.translationY);
-      if (deckDragKind(card, e.translationX, e.translationY) === "lift") {
+      const down = touchDown.value;
+      const card = deckCardAt(g, count, scroll.value, down.x, down.y);
+      startScroll.value = scroll.value;
+      if (deckDragKind(card, e.absoluteX - down.absoluteX, e.absoluteY - down.absoluteY) === "lift") {
         vertical.value = true;
         dragIndex.value = card;
-        dragLift.value = 0;
+        dragLift.value = deckLift(e.absoluteY - down.absoluteY);
         return;
       }
       vertical.value = false;
-      startScroll.value = scroll.value;
     })
     .onUpdate((e) => {
+      const down = touchDown.value;
       if (vertical.value) {
-        dragLift.value = deckLift(e.translationY);
+        dragLift.value = deckLift(e.absoluteY - down.absoluteY);
         return;
       }
-      scroll.value = deckScrollDuringDrag(g, startScroll.value, e.translationX, count);
+      scroll.value = deckScrollDuringDrag(g, startScroll.value, e.absoluteX - down.absoluteX, count);
     })
     .onEnd((e) => {
       if (vertical.value) {
         const card = dragIndex.value;
-        if (deckShouldClose(e.translationY, e.velocityY, g.cardHeight)) {
+        if (deckShouldClose(e.absoluteY - touchDown.value.absoluteY, e.velocityY, g.cardHeight)) {
           runOnJS(close)(card, dragLift.value);
         } else {
           dragLift.value = withSpring(0, tabsMotion.release, (finished) => {
@@ -219,7 +225,8 @@ export function TabDeck() {
                 key={id}
                 tab={tab}
                 index={index}
-                isLast={index === count - 1} role={roleOf(phase, id, index, order)}
+                isLast={index === count - 1}
+                role={roleOf(phase, id, index, order)}
                 geometry={g}
                 motion={motion}
                 shift={shift}

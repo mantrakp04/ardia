@@ -9,7 +9,7 @@ import { cancelSearch, closeArchive, leaveDeck, openTab, showDeck, useBrowse } f
 import { display } from "../search/omnibox";
 import { presentSearch, searchState } from "../search/store";
 import { setPreference } from "../settings/store";
-import { listenToPages, pageHandle, pageIsFullscreen, pageRequest, settled, storeFind, storeFullscreen, storeRequest, usePages } from "../pages/store";
+import { listenToPages, openPageInBackground, pageHandle, pageIsFullscreen, pageRequest, settled, storeFind, storeFullscreen, storeRequest, usePages } from "../pages/store";
 import { closeTabById, currentTabs, openNewTab, useTabs } from "../tabs/store";
 import { isSyncableUrl } from "../tabs/tabModels";
 import { findTab } from "../tabs/tabsState";
@@ -192,7 +192,8 @@ export function pressAction(press: Press, action: PressAction) {
   switch (plan.kind) {
     case "open": {
       const tab = openNewTab({ url: plan.url, origin: "link", after: plan.after, selecting: false, isPrivate: plan.isPrivate });
-      if (!plan.background) openTab(tab.id);
+      if (plan.background) void openPageInBackground(tab.id, plan.url, plan.isPrivate);
+      else openTab(tab.id);
       return;
     }
     case "copy":

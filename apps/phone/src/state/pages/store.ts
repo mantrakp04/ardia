@@ -6,13 +6,14 @@ import {
   type PageEngineEvent,
   type PageNavigationState,
   type PageRequest,
+  type PageScrollPosition,
   type PageSnapshot,
   type PageState,
   type PageTone,
   type PageViewHandle,
 } from "../../platform/pages";
 
-export type { FindResult, PageEngineEvent, PageNavigationState, PageRequest, PageSnapshot, PageState, PageTone, PageViewHandle };
+export type { FindResult, PageEngineEvent, PageNavigationState, PageRequest, PageScrollPosition, PageSnapshot, PageState, PageTone, PageViewHandle };
 
 type PagesState = {
   navigation: Record<string, PageState>;
@@ -89,6 +90,10 @@ export const endPrivateSession = () => void settled(() => pages.endPrivateSessio
 export const snapshotPage = (id: string): Promise<PageSnapshot | null> => settled(() => pages.snapshot(id, { maxWidth: 600, quality: 72 }), null);
 
 export const savePageState = (id: string): Promise<string | null> => settled(() => pages.saveState(id), null);
+
+export const pageScrollPosition = (id: string): Promise<PageScrollPosition | null> => settled(() => pages.scrollPosition(id), null);
+
+export const openPageInBackground = (id: string, url: string, isPrivate: boolean) => settled(() => pages.open(id, { url, isPrivate }), undefined);
 
 export const livePageIds = (): Promise<string[]> => settled(() => pages.ids(), []);
 
