@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BackHandler, Modal, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { tabsMotion } from "./motion";
@@ -60,9 +60,27 @@ export function Menu({ items, place, onDismiss }: Props) {
 }
 
 export function FloatingMenu(props: Props) {
+  const frame = useRef<View>(null);
+  const [origin, setOrigin] = useState<number | null>(null);
+  const place = props.place;
+  const shifted: ViewStyle =
+    origin === null
+      ? place
+      : {
+          ...place,
+          ...(typeof place.top === "number" ? { top: place.top - origin } : {}),
+          ...(typeof place.bottom === "number" ? { bottom: place.bottom + origin } : {}),
+        };
   return (
     <Modal transparent statusBarTranslucent navigationBarTranslucent animationType="none" onRequestClose={props.onDismiss}>
-      <Menu {...props} />
+      <View
+        ref={frame}
+        style={StyleSheet.absoluteFill}
+        collapsable={false}
+        onLayout={() => frame.current?.measureInWindow((_x, y) => setOrigin(y))}
+      >
+        {origin === null ? null : <Menu {...props} place={shifted} />}
+      </View>
     </Modal>
   );
 }
