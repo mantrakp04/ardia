@@ -335,6 +335,12 @@ is plain Chromium.
   rest of the Mac tab's methods, `tab_calls.cc`), `tab.discard`, `tabs.list`, `host.info`, `app.quit`. Events come as
   the topic `tab` with a key, a name and data (navigation, progress, favicon, find, zoom, security, media, pagePress,
   windowClose and more), and `tab.opened` for a tab Chromium made itself, with who opened it.
+- `tab.close` closes as the Mac's `TabBridge::CloseAfterUnloadHandlers` does: a page with `beforeunload` or `unload`
+  handlers gets `beforeunload` with its prompt cancelled (no "Leave site?" is ever shown for a tab the app closed), then
+  its unload handlers whatever it answered, each step with 2 seconds, and then the host deletes the tab
+  (`Host::DeleteClosedTab`, kept for Reopen Closed Tab unless it only ever showed its opening blank page). While
+  quitting, only the unload step runs. The closed tab gives up its key when `tab.close` answers: nothing it does
+  during its deadlines reaches the app, and the app may open a new tab under the same key at once.
 - The `ac_*` calls of `engine/chromium` build on Windows from the same sources: `series_win.py` makes the Windows
   build file from the Mac one, applies `ardia-layer-win.patch` (paths from UTF-8, a Mac-only string, and Windows absolute paths, a drive letter
   or UNC, accepted where the Mac asks for a leading `/`: extension installs, bookmark and password exports) and swaps in
