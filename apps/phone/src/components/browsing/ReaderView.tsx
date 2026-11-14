@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Platform, Pressable, StatusBar, StyleSheet, Text, useColorScheme, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Platform, Pressable, StyleSheet, Text, useColorScheme, View } from "react-native";
 import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSystemBars } from "../../state/app/systemBars";
 import { closeReader, readableContent, setReaderSerif, setReaderStep, setReaderTheme, type ReadableContent } from "../../state/page/actions";
 import { useReaderSettings } from "../../state/page/hooks";
 import {
@@ -31,6 +32,7 @@ export function ReaderView({ tabId }: { tabId: string }) {
   const ink = readerInk[shown];
   const [load, setLoad] = useState<Load>({ kind: "loading" });
   const [menu, setMenu] = useState(false);
+  useSystemBars(shown === "dark");
   useEffect(() => {
     let live = true;
     void readableContent(tabId).then((content) => {
@@ -59,7 +61,6 @@ export function ReaderView({ tabId }: { tabId: string }) {
   ];
   return (
     <Animated.View entering={rise} exiting={fall} style={[StyleSheet.absoluteFill, { backgroundColor: ink.background, paddingTop: insets.top }]}>
-      <StatusBar barStyle={shown === "dark" ? "light-content" : "dark-content"} />
       <View style={styles.top}>
         {load.kind === "loaded" ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Text Appearance" onPress={() => setMenu(true)} style={styles.topButton}>
@@ -93,6 +94,7 @@ export function ReaderView({ tabId }: { tabId: string }) {
           )}
         />
       )}
+      <View style={[styles.navigationBand, { height: insets.bottom, backgroundColor: ink.background }]} pointerEvents="none" />
       {menu ? <Menu items={items} place={{ top: insets.top + readerLayout.topBar, left: space.s }} onDismiss={() => setMenu(false)} /> : null}
     </Animated.View>
   );
@@ -114,8 +116,25 @@ function Header({ content, family, size, ink }: { content: ReadableContent; fami
         {content.title}
       </Text>
       <Text style={[font.subheadline, { color: ink.secondary }]}>{`${readingMinutes(content.wordCount)} min read`}</Text>
-      {content.leadImage ? <Image source={{ uri: content.leadImage }} style={styles.lead} resizeMode="cover" accessibilityIgnoresInvertColors /> : null}
+      {content.leadImage ? <LeadImage uri={content.leadImage} /> : null}
     </View>
+  );
+}
+
+function LeadImage({ uri }: { uri: string }) {
+  const [aspect, setAspect] = useState<number | null>(null);
+  return (
+    <Image
+      source={{ uri }}
+      accessibilityIgnoresInvertColors
+      resizeMode="cover"
+      onLoad={(event) => {
+        const { width, height } = event.nativeEvent.source;
+        if (width > 1 && height > 1) setAspect(Math.max(width / height, readerLayout.minLeadAspect));
+      }}
+      onError={() => setAspect(null)}
+      style={aspect ? [styles.lead, { aspectRatio: aspect }] : styles.leadPending}
+    />
   );
 }
 
@@ -129,5 +148,7 @@ const styles = StyleSheet.create({
   gap: { gap: space.m },
   header: { gap: space.s, paddingHorizontal: space.xl, paddingTop: space.s, maxWidth: readerLayout.maxWidth, alignSelf: "center", width: "100%" },
   paragraph: { paddingHorizontal: space.xl, maxWidth: readerLayout.maxWidth, alignSelf: "center", width: "100%" },
-  lead: { width: "100%", aspectRatio: 16 / 9, marginTop: space.s },
+  lead: { width: "100%", marginTop: space.s },
+  leadPending: { width: 1, height: 1, opacity: 0 },
+  navigationBand: { position: "absolute", left: 0, right: 0, bottom: 0 },
 });

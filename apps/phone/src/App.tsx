@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AppState, BackHandler, StatusBar, StyleSheet, useColorScheme } from "react-native";
+import { AppState, BackHandler, StyleSheet, useColorScheme } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { BrowsingScreen } from "./components/browsing/BrowsingScreen";
@@ -8,6 +8,7 @@ import { StartScreen } from "./components/search/StartScreen";
 import { ArchiveView } from "./components/tabs/ArchiveView";
 import { TabDeck } from "./components/tabs/TabDeck";
 import { ToastHost } from "./components/toasts/ToastHost";
+import { useBaseSystemBars } from "./state/app/systemBars";
 import { useSheet, useSurface } from "./state/browse/hooks";
 import { appBecameActive, appWillResignActive, goBackToStartIfEmpty, startBrowser } from "./state/browse/store";
 import { handleSystemBack, startPageUi } from "./state/page/actions";
@@ -22,6 +23,7 @@ export default function App() {
   const sheet = useSheet();
   const tab = useSelectedTab();
   const dark = useColorScheme() === "dark";
+  useBaseSystemBars(dark);
   useEffect(() => {
     const back = BackHandler.addEventListener("hardwareBackPress", handleSystemBack);
     const state = AppState.addEventListener("change", (next) => (next === "active" ? appBecameActive() : appWillResignActive()));
@@ -34,7 +36,6 @@ export default function App() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <StatusBar barStyle={dark ? "light-content" : "dark-content"} />
         {surface === "browsing" && tab ? <BrowsingScreen tab={tab} /> : null}
         {surface === "deck" ? <TabDeck /> : null}
         {surface === "start" ? <StartScreen /> : null}

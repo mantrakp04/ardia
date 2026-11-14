@@ -123,7 +123,7 @@ export const readerInk = {
   dark: { background: "#121214", ink: "#E3E3E6", secondary: "rgba(227,227,230,0.6)" },
 } as const;
 
-export const readerLayout = { maxWidth: 680, topBar: 52, lineHeight: 1.52, titleScale: 1.55, titleLine: 1.2, paragraphGap: 0.9, headerGap: 1.2 } as const;
+export const readerLayout = { minLeadAspect: 0.75, maxWidth: 680, topBar: 52, lineHeight: 1.52, titleScale: 1.55, titleLine: 1.2, paragraphGap: 0.9, headerGap: 1.2 } as const;
 
 export const dialogLayout = { width: 312, radius: 28, fieldHeight: 48 } as const;
 

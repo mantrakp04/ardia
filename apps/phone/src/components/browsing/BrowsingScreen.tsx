@@ -1,9 +1,10 @@
 import { useMemo } from "react";
-import { StatusBar, StyleSheet, useWindowDimensions, View } from "react-native";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { neighbours } from "../../lib/pagerPhysics";
+import { useSystemBars } from "../../state/app/systemBars";
 import { useFrozenOrder, useNavigation, usePageTone } from "../../state/browse/hooks";
 import { openPageMenu } from "../../state/page/actions";
 import { useFindOpen, useMenuOpen, useReaderTabId } from "../../state/page/hooks";
@@ -41,11 +42,11 @@ export function BrowsingScreen({ tab }: { tab: BrowserTab }) {
   const top = tone?.top ?? theme.surface;
   const bottom = tone?.bottom ?? theme.surface;
   const barDark = isDarkColor(bottom);
+  useSystemBars(isDarkColor(top), barDark);
   const statusStyle = useAnimatedStyle(() => ({ backgroundColor: withTiming(top, { duration: tabsMotion.barTone }) }), [top]);
   const barStyle = useAnimatedStyle(() => ({ backgroundColor: withTiming(bottom, { duration: tabsMotion.barTone }) }), [bottom]);
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.surface }]}>
-      <StatusBar barStyle={isDarkColor(top) ? "light-content" : "dark-content"} />
       <PagerBlack />
       <Animated.View style={[StyleSheet.absoluteFill, styles.outgoing, { backgroundColor: theme.surface }, pager.outgoing]}>
         <Animated.View style={[{ height: insets.top }, statusStyle]} />
