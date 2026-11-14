@@ -334,6 +334,7 @@ struct SyncModule {
 
   REACT_METHOD(selfTest)
   void selfTest(winrt::Microsoft::ReactNative::ReactPromise<winrt::Microsoft::ReactNative::JSValue> promise) noexcept {
+    if (!AppLaunch::Shared().testInstance) return promise.Reject("checks are for test instances only");
     SyncModuleParts::OnQueue(promise, [promise]() { promise.Resolve(SyncSelfTest::Primitives()); });
   }
 

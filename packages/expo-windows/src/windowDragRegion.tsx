@@ -7,13 +7,8 @@ import type { AppWindowsModule } from "./nativeModuleTypes";
 
 type Press = { nativeEvent: { pageX: number; pageY: number } };
 
-export type DragOptions = {
-  titleBarDoubleClick: boolean;
-  onRegionDoubleClick?: () => void;
-  clickable?: boolean;
-  onRegionClick?: () => void;
-  claims?: (press: Press) => boolean;
-};
+export type DragOptions = Pick<WindowDragRegionProps, "onRegionDoubleClick" | "clickable" | "onRegionClick"> &
+  Required<Pick<WindowDragRegionProps, "titleBarDoubleClick">> & { claims?: (press: Press) => boolean };
 
 type LatestOptions = { current: DragOptions };
 

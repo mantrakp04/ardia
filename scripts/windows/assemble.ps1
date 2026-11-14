@@ -53,6 +53,7 @@ $clashes = @()
 $appCount = 0
 foreach ($relative in (Get-RelativeFiles $appRoot)) {
   if ($relative -ieq $launcher) { continue }
+  if ($relative -ieq "Ardia.test-build") { continue }
   if ($notShipped -contains [System.IO.Path]::GetExtension($relative).ToLowerInvariant()) { continue }
   $source = Join-Path $appRoot $relative
   $target = Join-Path $outRoot $relative

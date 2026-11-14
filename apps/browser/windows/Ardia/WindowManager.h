@@ -23,6 +23,7 @@
 #include "Events.h"
 #include "Host.h"
 #include "LaunchLog.h"
+#include "LaunchConfig.h"
 #include "Paths.h"
 #include "WindowFade.h"
 
@@ -133,7 +134,7 @@ struct WindowManager {
   }
 
   static bool Background() noexcept {
-    static const bool background = Paths::Environment(L"ARDIA_BACKGROUND") == L"1";
+    static const bool background = AppLaunch::Background();
     return background;
   }
 
@@ -384,7 +385,7 @@ struct WindowManager {
   }
 
   bool DebugAvailable() const noexcept {
-    static const bool available = Paths::HasSwitch(L"--self-check") && Paths::HasCustomDataDirectory();
+    static const bool available = Paths::HasSwitch(L"--self-check") && AppLaunch::Shared().testInstance;
     return available;
   }
 

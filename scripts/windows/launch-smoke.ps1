@@ -8,6 +8,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
+$testBuild = Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $App).Path) "Ardia.test-build"
+New-Item -ItemType File -Force -Path $testBuild | Out-Null
 $log = Join-Path $Out "launch.log"
 $checkLog = Join-Path $Out "self-check.log"
 $shot = Join-Path $Out "window.png"
@@ -476,6 +478,7 @@ foreach ($fixture in @(@("firefox", "Firefox\Profiles\abcd1234.default-release")
 }
 $env:ARDIA_CONFIG_DIR = $env:ARDIA_DATA_DIR
 $env:ARDIA_BACKGROUND = "1"
+$env:ARDIA_TEST = "pipHover=first,pipHover=last"
 $leftover = Join-Path $env:ARDIA_DATA_DIR "Chromium\Ardia self-check-stuck (removing)"
 $held = $null
 $check = $null
@@ -483,6 +486,7 @@ try {
   New-Item -ItemType Directory -Force -Path $leftover | Out-Null
   $held = [System.IO.File]::Open((Join-Path $leftover "held.txt"), [System.IO.FileMode]::Create, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
   $check = Start-Process -FilePath $App -ArgumentList "--self-check", "--log-file=`"$checkLog`"" -PassThru
+  $env:ARDIA_TEST = ""
   if (-not $check.WaitForExit($SelfCheckSeconds * 1000)) { $failures += "the self-check did not finish within $SelfCheckSeconds s" }
   elseif ($check.ExitCode -ne 0) { $failures += "the self-check launch exited with code $($check.ExitCode)" }
 } finally {
@@ -508,6 +512,41 @@ if (Test-Path $checkLog) {
 } else {
   $failures += "the self-check wrote no log"
 }
+
+function Test-NotATestInstance([string]$DataDirectory, [string]$Case) {
+  $caseLog = Join-Path $Out "gate-$Case.log"
+  Remove-Item -Force -ErrorAction SilentlyContinue $caseLog
+  $env:ARDIA_DATA_DIR = $DataDirectory
+  $env:ARDIA_TEST = "appDialog"
+  $env:ARDIA_BACKGROUND = "1"
+  $run = Start-Process -FilePath $gateApp -ArgumentList "--log-file=`"$caseLog`"" -PassThru
+  $env:ARDIA_TEST = ""
+  $refused = $null
+  $deadline = (Get-Date).AddSeconds(40)
+  while ((Get-Date) -lt $deadline -and -not $refused -and -not $run.HasExited) {
+    Start-Sleep -Milliseconds 500
+    if (Test-Path -LiteralPath $caseLog) { $refused = Select-String -LiteralPath $caseLog -Pattern "not a test instance \(" | Select-Object -First 1 }
+  }
+  if (-not $run.HasExited) { Stop-Process -Id $run.Id -Force; $run.WaitForExit(10000) | Out-Null }
+  if ($refused) { Write-Host "test gate, $Case`: $($refused.Line)" } else { $script:failures += "ARDIA_TEST counted, or the launch said nothing, with $Case" }
+}
+
+$gateApp = (Resolve-Path -LiteralPath $App).Path
+$gateData = New-DataDirectory "gate-scratch"
+$marker = Join-Path (Split-Path -Parent $gateApp) "Ardia.test-build"
+Remove-Item -Force -LiteralPath $marker
+try { Test-NotATestInstance $gateData "no test-build marker" } finally { New-Item -ItemType File -Force -Path $marker | Out-Null }
+Test-NotATestInstance "gate-relative" "a relative ARDIA_DATA_DIR"
+if ($env:GITHUB_ACTIONS -eq "true") {
+  $realProfile = Join-Path $env:LOCALAPPDATA "Ardia"
+  New-Item -ItemType Directory -Force -Path $realProfile | Out-Null
+  Test-NotATestInstance $realProfile "the real profile folder"
+  $junction = Join-Path (New-DataDirectory "gate-junction") "profile"
+  New-Item -ItemType Junction -Path $junction -Target $realProfile | Out-Null
+  try { Test-NotATestInstance $junction "a junction to the real profile folder" } finally { (Get-Item -LiteralPath $junction).Delete() }
+}
+$env:ARDIA_DATA_DIR = ""
+$env:ARDIA_BACKGROUND = ""
 
 if ($failures.Count) {
   $failures | ForEach-Object { Write-Host "::error::$_" }

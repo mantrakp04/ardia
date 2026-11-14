@@ -9,6 +9,7 @@
 #include "Events.h"
 #include "LaunchLog.h"
 #include "NotificationCenter.h"
+#include "LaunchConfig.h"
 #include "Paths.h"
 
 #pragma comment(lib, "shell32.lib")
@@ -56,7 +57,7 @@ struct NotificationsModule {
 
   REACT_METHOD(openNotificationSettings)
   void openNotificationSettings(winrt::Microsoft::ReactNative::ReactPromise<void> promise) noexcept {
-    if (Paths::Environment(L"ARDIA_BACKGROUND") == L"1") {
+    if (AppLaunch::Background()) {
       LaunchLog::Write(L"info", L"ArdiaNotifications.openNotificationSettings (not shown): ms-settings:notifications");
       promise.Resolve();
       return;

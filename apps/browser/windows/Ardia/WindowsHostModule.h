@@ -8,6 +8,7 @@
 
 #include "Events.h"
 
+#include "LaunchConfig.h"
 #include "Paths.h"
 #include "PointerLatch.h"
 
@@ -83,7 +84,7 @@ struct WindowsHostModule {
   static constexpr double kAwaySeconds = 3600;
 
   REACT_CONSTANT(selfCheck)
-  const bool selfCheck = Paths::HasSwitch(L"--self-check") && Paths::HasCustomDataDirectory();
+  const bool selfCheck = Paths::HasSwitch(L"--self-check") && AppLaunch::Shared().testInstance;
 
   REACT_INIT(Initialize)
   void Initialize(winrt::Microsoft::ReactNative::ReactContext const &context) noexcept {

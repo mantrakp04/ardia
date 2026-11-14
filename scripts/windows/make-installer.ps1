@@ -42,6 +42,7 @@ function Install-Compiler([string]$installed, [string]$scratch) {
 if (-not (Test-Path -LiteralPath (Join-Path $Source "Ardia.exe") -PathType Leaf)) { throw "'$Source' has no Ardia.exe" }
 if (-not (Test-Path -LiteralPath (Join-Path $Source "chrome.dll") -PathType Leaf)) { throw "'$Source' has no chrome.dll: the installer ships the app assembled with the engine" }
 $sourceRoot = (Resolve-Path -LiteralPath $Source).Path
+if (Get-ChildItem -LiteralPath $sourceRoot -Recurse -File -Force -Filter "Ardia.test-build" | Select-Object -First 1) { throw "'$Source' holds an Ardia.test-build marker: an installer never ships it, so a build people install ignores test keys" }
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
 $outRoot = (Resolve-Path -LiteralPath $Out).Path
 if (-not $Version) { $Version = & (Join-Path $PSScriptRoot "project-version.ps1") }
