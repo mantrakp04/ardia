@@ -43,8 +43,6 @@ object TabsMotion {
     val fade = ArdiaTween(200, SwiftEasing.easeOut)
     const val poofDurationMillis = 420
     const val flyAwayMillis = 200
-    const val backdropSlowLoopMillis = 10_000
-    const val backdropFastLoopMillis = 7_000
     val settle = ArdiaSpring.withBounce(duration = 0.4f, bounce = 0f)
 
     fun settleVelocity(distance: Double, velocity: Double): Double {

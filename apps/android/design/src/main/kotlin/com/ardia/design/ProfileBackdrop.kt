@@ -20,14 +20,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 
-object ProfileBackdropStyle {
-    const val LIGHT_GRAIN = 0.06f
-    const val DARK_GRAIN = 0.03f
-    val softening = adaptive(Color.White.copy(alpha = 0.72f), Color.Black.copy(alpha = 0.55f))
-
-    fun grainOpacity(dark: Boolean): Float = if (dark) DARK_GRAIN else LIGHT_GRAIN
-}
-
 fun Modifier.profileBackdrop(look: ProfileLook, dark: Boolean, themed: Boolean = false, softened: Boolean = false): Modifier {
     val colors = look.backdropColors(dark, themed)
     val diagonal = look.showsTheme(dark, themed)

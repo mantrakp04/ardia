@@ -1,10 +1,13 @@
 package com.ardia.design
 
 object TabsBackdropMotion {
+    const val SLOW_LOOP_MILLIS = 10_000
+    const val FAST_LOOP_MILLIS = 7_000
+
     val loopsMillis = intArrayOf(
-        TabsMotion.backdropSlowLoopMillis,
-        TabsMotion.backdropFastLoopMillis,
-        (TabsMotion.backdropSlowLoopMillis * 1.3).toInt(),
+        SLOW_LOOP_MILLIS,
+        FAST_LOOP_MILLIS,
+        (SLOW_LOOP_MILLIS * 1.3).toInt(),
     )
     val anchors = floatArrayOf(0.42f, 0.38f, 0.6f, 0.58f, 0.5f, 0.45f)
     val placements = floatArrayOf(0.18f, 0.22f, 0.86f, 0.5f, 0.3f, 0.86f)
