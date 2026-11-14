@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { activateRow, cancelSearch, submitSearch, toggleTrayIncognito } from "../../state/browse/store";
 import { menuOpenedHaptic, trayRowActions } from "../../state/browse/tabMenus";
 import { useSearchFieldVersion, useSearchInitialText, useSearchOpen, useSearchOrigin, useSearchRows, useSearchSession, useSearchText } from "../../state/search/hooks";
+import { wholeRowsHeight } from "../../lib/trayRows";
 import { refinedText, type TrayRow } from "../../state/search/omnibox";
 import { searchState, setSearchText, typeSearch } from "../../state/search/store";
 import { useIncognito } from "../../state/tabs/hooks";
@@ -178,7 +179,6 @@ function TrayRows() {
   const rows = useSearchRows();
   const typed = useSearchText();
   const incognito = useIncognito();
-  const { keyboard } = useBottomLift();
   const [room, setRoom] = useState(0);
   const [bottoms, setBottoms] = useState<number[]>([]);
   const refine = useCallback((row: TrayRow) => setSearchText(refinedText(row)), []);
@@ -189,12 +189,10 @@ function TrayRows() {
     menuOpenedHaptic();
     setMenu({ row, y });
   }, []);
-  const shown = keyboard
-    ? null
-    : wholeRowsHeight(
-        rows.map((_row, index) => bottoms[index] ?? 0),
-        room,
-      );
+  const shown = wholeRowsHeight(
+    rows.map((_row, index) => bottoms[index] ?? 0),
+    room,
+  );
   if (incognito && !typed.trim()) {
     return (
       <View style={[styles.rows, styles.incognitoNote]}>
@@ -213,14 +211,10 @@ function TrayRows() {
         {rows.map((row, index) => (
           <View
             key={index}
-            onLayout={
-              keyboard
-                ? undefined
-                : (event) => {
-                    const bottom = event.nativeEvent.layout.y + event.nativeEvent.layout.height;
-                    setBottoms((known) => (known[index] === bottom ? known : Object.assign([...known], { [index]: bottom })));
-                  }
-            }
+            onLayout={(event) => {
+              const bottom = event.nativeEvent.layout.y + event.nativeEvent.layout.height;
+              setBottoms((known) => (known[index] === bottom ? known : Object.assign([...known], { [index]: bottom })));
+            }}
           >
             <SuggestionRow row={row} typed={typed} roles={theme} onActivate={activateRow} onRefine={refine} onMenu={showMenu} />
           </View>
@@ -241,13 +235,6 @@ function TrayRows() {
   );
 }
 
-function wholeRowsHeight(bottoms: number[], room: number): number | null {
-  if (room <= 0 || bottoms.some((bottom) => bottom <= 0)) return null;
-  const last = bottoms[bottoms.length - 1] ?? 0;
-  if (last <= room) return null;
-  const fitting = bottoms.filter((bottom) => bottom <= room);
-  return fitting.length ? Math.max(...fitting) : null;
-}
 
 const styles = StyleSheet.create({
   sheet: {
