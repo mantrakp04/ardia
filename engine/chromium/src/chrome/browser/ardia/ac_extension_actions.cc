@@ -109,11 +109,6 @@ class ActionWatch : public ProfileState,
     registry_observation_.Reset();
   }
 
-  // The app keeps one extension list per profile. Pins in a list built before
-  // the toolbar model was ready come from the saved pin list, which leaves out
-  // force-pinned actions, so a "registry" change asks for a fresh list once the
-  // model is ready. Pins changed natively (by sync, by policy, or outside the
-  // app's own pin control) reach the app the same way.
   void OnToolbarModelInitialized() override { Changed({}, "registry"); }
 
   void OnToolbarPinnedActionsChanged() override { Changed({}, "registry"); }
