@@ -3,12 +3,18 @@ package com.ardia.design
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.colorspace.ColorSpaces
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.sign
+
+val LocalArdiaDarkTheme = staticCompositionLocalOf { false }
+val LocalReduceMotion = staticCompositionLocalOf { false }
+val LocalReduceTransparency = staticCompositionLocalOf { false }
+val LocalIncreasedContrast = staticCompositionLocalOf { false }
 
 fun ardiaColor(hex: Long, alpha: Float = 1f): Color =
     Color(red = channel(hex, 16), green = channel(hex, 8), blue = channel(hex, 0), alpha = alpha)

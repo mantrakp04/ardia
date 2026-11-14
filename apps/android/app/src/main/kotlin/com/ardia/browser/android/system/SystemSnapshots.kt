@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import com.ardia.browser.BrowserUrl
-import com.ardia.store.BrowserUrl as StoreUrl
 import com.ardia.sync.SyncSnapshot
 import com.ardia.sync.SyncState
 import com.ardia.sync.SyncedDevice
@@ -16,6 +15,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 object SystemSnapshots {
+    private fun isSyncable(url: String): Boolean {
+        val lower = url.lowercase()
+        return lower.startsWith("https://") || lower.startsWith("http://")
+    }
+
     fun of(sync: SyncState, snapshot: SyncSnapshot, selected: SyncedProfile?, colorChoice: String?): SystemSnapshot {
         val profile = selected ?: snapshot.profile(sync.selectedProfileId)
         if (!sync.isEnabled || profile == null) return SystemSnapshot(isSyncEnabled = sync.isEnabled, color = colorChoice)
@@ -29,7 +33,7 @@ object SystemSnapshots {
                 SystemDeviceTabs(
                     device = SystemDevice(group.deviceId, group.deviceName, SystemDevice.MAC),
                     tabs = group.tabs
-                        .filter { StoreUrl.isSyncable(it.url) }
+                        .filter { isSyncable(it.url) }
                         .take(SystemSnapshot.TAB_LIMIT_PER_DEVICE)
                         .map { tab -> SystemTab(tab.title, tab.url, BrowserUrl.host(tab.url)?.let(SystemStore::faviconName)) },
                 )
