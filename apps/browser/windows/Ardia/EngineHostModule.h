@@ -127,18 +127,10 @@ inline bool Gone(std::filesystem::path const &path) noexcept {
   return !std::filesystem::exists(path, error) && !error;
 }
 
-inline std::wstring WithoutTrailingSeparators(std::wstring path) {
-  while (!path.empty() && (path.back() == L'\\' || path.back() == L'/')) path.pop_back();
-  return path;
-}
-
 inline std::filesystem::path ProfileDataRoot() noexcept {
   try {
-    std::wstring scratch = WithoutTrailingSeparators(Paths::Environment(L"ARDIA_DATA_DIR"));
-    if (!scratch.empty()) return std::filesystem::path{scratch} / L"Chromium";
-    std::wstring localAppData = WithoutTrailingSeparators(Paths::Environment(L"LOCALAPPDATA"));
-    if (localAppData.empty()) return {};
-    return std::filesystem::path{localAppData} / L"Ardia" / L"User Data";
+    if (Paths::HasCustomDataDirectory()) return Paths::DataDirectory() / L"Chromium";
+    return Paths::UserFolder(FOLDERID_LocalAppData, L"LOCALAPPDATA") / L"Ardia" / L"User Data";
   } catch (...) {
     return {};
   }

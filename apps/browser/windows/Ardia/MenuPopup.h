@@ -16,6 +16,7 @@
 #include "MenuKeys.h"
 #include "MenuStore.h"
 #include "NativeModules.h"
+#include "LaunchConfig.h"
 #include "Paths.h"
 
 namespace Ardia::Menus {
@@ -145,22 +146,7 @@ inline void WriteItemsJson(std::vector<PopupItem> const &items, std::string &out
 }
 
 inline bool TestFlag(std::wstring_view flag) noexcept {
-  if (!Paths::HasCustomDataDirectory()) return false;
-  std::wstring requested = Paths::Environment(L"ARDIA_TEST");
-  size_t start = 0;
-  while (start <= requested.size()) {
-    size_t comma = requested.find(L',', start);
-    std::wstring_view token = std::wstring_view{requested}.substr(start, comma == std::wstring::npos ? std::wstring::npos : comma - start);
-    size_t equals = token.find(L'=');
-    std::wstring_view name = token.substr(0, equals);
-    if (name == flag) {
-      std::wstring_view value = equals == std::wstring_view::npos ? std::wstring_view{} : token.substr(equals + 1);
-      return value != L"0" && value != L"off" && value != L"false";
-    }
-    if (comma == std::wstring::npos) break;
-    start = comma + 1;
-  }
-  return false;
+  return AppLaunch::TestFlag(Paths::Utf8(flag));
 }
 
 inline std::optional<std::string> TestPick(std::vector<PopupItem> const &items) noexcept {

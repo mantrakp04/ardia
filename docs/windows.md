@@ -565,7 +565,7 @@ Answered on Windows since the engine took Windows paths (`windows-engine-2026111
     the Mac.
   - **Self-check** (`selfCheck/externalApps.ts`): `describe` names no handler and `open` opens nothing for browser,
     one-letter, path, file-type (`txtfile`) and unknown schemes. It launches nothing unless the test instance sets
-    `ARDIA_TEST=externalAppLaunch=1` (read from the launch config, so only in a test instance with its own data folder;
+    `ARDIA_TEST=externalAppLaunch=1` (read from the launch config, so only in a test instance, see Test instances;
     it lifts only the background instance's refusal to launch): then each link in the data folder's `external-app-links.txt` goes through the
     real gate and launch, which must name a handler, open nothing on no and open on yes (a line starting `! ` must
     stay refused). The VM run uses that with a throwaway handler registered under `HKCU`.
@@ -619,7 +619,7 @@ that answers the same methods with the same result shapes, so the wizard (`compo
 `ImportFiles.h`, `ImportSecrets.h`, `ImportNss.h`, `ImportFirefox.h`, `ImportFirefoxCookies.h`, `ImportAutofill.h`).
 
 - Native primitives: the two data folders (`localAppData`, `roamingAppData`, or `<importSourceDir>\Local` and `\Roaming`
-  when `ARDIA_INSTANCE=importSourceDir=<dir>` is set in an instance with its own data folder), `list` a folder,
+  when `ARDIA_INSTANCE=importSourceDir=<dir>` is set in a test instance), `list` a folder,
   `readText` and `readBase64` a file up to a size, and `query` a SQLite file: it is copied with its `-wal` and
   `-journal` to `%TEMP%\ardia-import-<pid>-<random>` (leftovers over an hour old go at the next launch), opened with
   Windows' own `winsqlite3.dll` with ATTACH off, and only statements SQLite calls read-only run. The browsers' secret
@@ -733,12 +733,55 @@ Swift core wrote (`fixtures/windows-interop/mac`), and the self-check opens that
 - `packages/expo-windows/src/updater` is the app's `ArdiaUpdater` on Windows. It reads the feed, offers a higher
   build for this CPU, downloads it, and asks before installing; with automatic downloads on it downloads first and
   asks once. It checks 30 s after launch and every 6 hours, never in a hidden instance, and in an instance with its
-  own data folder only when `ARDIA_INSTANCE=updateFeed=<url>` names a feed (then installers must sit beside it).
+  own data folder only when a test instance names a feed with `ARDIA_INSTANCE=updateFeed=<url>` (then installers must
+  sit beside it).
 - The native half (`UpdateModule.h`, `ArdiaWindowsUpdate`) only fetches from the release's address, checks the
   download's size and SHA-256 against the feed, and runs the installer from the Updates folder in the data folder
   after hashing it again while holding it open. The installer runs silently, closes what is left of the app and
   opens it again (`/relaunch=1`). Nothing is signed yet, so what stands behind an update is GitHub's HTTPS and the
   release's write access.
+
+## Test instances
+
+`LaunchConfig.h` (`AppLaunch::Shared()`) reads the environment once at launch; `Paths.h` holds the one raw reader and
+the data folder, and `TestGate.h` decides whether this launch is a test instance. No other Windows native file reads
+the environment (`platform/windowsLaunchConfig.test.mjs` fails if one does). The one exception is the small
+`ArdiaLauncher`, which runs before the DLL loads and reads `ARDIA_BACKGROUND` only to keep a failed launch quiet.
+
+A test instance needs all of:
+
+- an absolute `ARDIA_DATA_DIR` (not `C:foo` or `\foo`);
+- that folder and its `Chromium` folder, compared by their final paths on a local volume (junctions, `subst` drives and
+  8.3 names resolved), are not, inside or around the real `%LOCALAPPDATA%\Ardia` or `%APPDATA%\Ardia`;
+- a test build: an `Ardia.test-build` file beside `Ardia.exe`.
+
+Windows builds are not signed yet, and the alpha publishes the exact installer CI built and tested, so no build flag
+can tell a published build from a tested one. The marker does instead: `launch-smoke.ps1` and `tour.ps1` write it
+beside the app they run, `assemble.ps1` never copies it, `make-installer.ps1` refuses a folder that holds it and
+`installer-check.ps1` fails when an install carries it. So a build installed from the alpha, or updated to by the
+app, ignores test keys. A VM script that tests an installed build with test keys writes the marker into the install
+folder first. That folder is the user's to write, like the Mac's app bundle: anyone who can drop the marker can also
+replace `ArdiaApp.dll`, and on the Mac a changed bundle is likewise no longer signed for distribution.
+
+What it guards: the unmodified build people install can't be switched into test behaviour by the environment alone,
+and a test instance never runs on the real profile folders by mistake. What it doesn't: code already running as the
+user, which can plant the marker, race the folder check with a junction, or hard-link a scratch file to a real one.
+That code can also decrypt the real profile's DPAPI secrets directly, without Ardia; the Mac's keychain ties its items
+to the signed app, and Windows has nothing like it until builds are signed or installed per machine. `ARDIA_CONFIG_DIR`
+gets the same folder check, and a folder that can't be resolved on a local volume doesn't count.
+
+Secrets stay apart the way the Mac's mock keychain keeps them: Credential Manager targets are named after the data
+folder, Chromium's key sits in the data folder's `Local State`, and the Sync key (`SyncSecrets.h`) lives in
+`<data folder>\Sync`, which the folder check covers too, sealed by DPAPI under a purpose a test instance never shares
+(`ardia-sync-key/v1/test-instance/<account>`). A real key copied or hard-linked into a test instance doesn't unseal
+there, and one sealed in a test instance can't stand in for the real one. `reauth=granted` skips Windows Hello only
+for that test key. A test key sealed by a build before this rule doesn't unseal any more and counts as no key, so
+the scratch instance makes a new one. Sync's `selfTest`, which seals and removes a probe key, needs a test instance.
+
+Outside a test instance the launch config drops `ARDIA_TEST`, `ARDIA_TRACE`, `ARDIA_CONFIG_DIR` and the test-only
+`ARDIA_INSTANCE` keys (`updateFeed`, `importSourceDir`, `importSafariHome`), and the launch log says once why. The other
+`ARDIA_INSTANCE` keys and `ARDIA_BACKGROUND` stay instance settings, as on the Mac. The engine reads its own
+switches before the app loads; its side of the rule is #1663.
 
 ## Checks
 
@@ -765,7 +808,7 @@ Swift core wrote (`fixtures/windows-interop/mac`), and the self-check opens that
   panel must be drawn whole below its field, with the window buttons on the bare bar (screen brightness where the
   panel used to be cut off, and under the buttons). In Settings › Appearance it clicks the Light tile's picture, found by UI Automation,
   and then Automatic's, and each must change `appearance` in `session.json`.
-- The self-check (`--self-check`, only in an instance with its own `ARDIA_DATA_DIR`) runs
+- The self-check (`--self-check`, only in a test instance, see Test instances; so are the file-drop fixtures it uses) runs
   `packages/expo-windows/src/selfCheck`: each area exercises its native code from inside the real app, and the
   launch fails if any check does. A new native method gets a check there. It also renders every view drawn in JS
   in the window (`selfCheck/stage.tsx`), writes `config.json` and waits for the watcher's `onChange`

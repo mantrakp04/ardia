@@ -26,6 +26,7 @@
 #include "Host.h"
 #include "LaunchLog.h"
 #include "NotificationJson.h"
+#include "LaunchConfig.h"
 #include "Paths.h"
 #include "WindowManager.h"
 
@@ -309,7 +310,7 @@ struct NotificationHub {
   void Install() noexcept {
     if (m_installed) return;
     m_installed = true;
-    bool background = Paths::Environment(L"ARDIA_BACKGROUND") == L"1";
+    bool background = AppLaunch::Background();
     try {
       using winrt::Microsoft::Windows::AppNotifications::AppNotificationManager;
       if (!AppNotificationManager::IsSupported()) {
@@ -372,7 +373,7 @@ struct NotificationHub {
 
   void Received(NotificationResponse const &response, bool coldStart) noexcept {
     LaunchLog::Write(L"info", coldStart ? L"notifications: the app was launched by a toast click" : L"notifications: a toast was clicked");
-    if (!coldStart && Paths::Environment(L"ARDIA_BACKGROUND") != L"1") BringAppForward();
+    if (!coldStart && !AppLaunch::Background()) BringAppForward();
     m_pending.push_back(response);
     if (!Flush()) ScheduleFlush();
   }

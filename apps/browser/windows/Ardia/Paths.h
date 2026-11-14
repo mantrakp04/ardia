@@ -56,24 +56,28 @@ inline std::filesystem::path Ensured(std::filesystem::path directory) noexcept {
   return directory;
 }
 
+inline std::wstring OneDriveFolder() noexcept {
+  for (wchar_t const *variable : {L"OneDrive", L"OneDriveConsumer", L"OneDriveCommercial"}) {
+    std::wstring folder = Environment(variable);
+    DWORD attributes = folder.empty() ? INVALID_FILE_ATTRIBUTES : GetFileAttributesW(folder.c_str());
+    if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY)) return folder;
+  }
+  return {};
+}
+
+inline std::wstring const &RequestedDataDirectory() noexcept {
+  static const std::wstring requested = Environment(L"ARDIA_DATA_DIR");
+  return requested;
+}
+
 inline bool HasCustomDataDirectory() noexcept {
-  return !Environment(L"ARDIA_DATA_DIR").empty();
+  return !RequestedDataDirectory().empty();
 }
 
 inline const std::filesystem::path &DataDirectory() noexcept {
   static const std::filesystem::path directory = [] {
-    std::wstring chosen = Environment(L"ARDIA_DATA_DIR");
+    std::wstring const &chosen = RequestedDataDirectory();
     return Ensured(chosen.empty() ? UserFolder(FOLDERID_LocalAppData, L"LOCALAPPDATA") / L"Ardia" : std::filesystem::path(chosen));
-  }();
-  return directory;
-}
-
-inline const std::filesystem::path &ConfigDirectory() noexcept {
-  static const std::filesystem::path directory = [] {
-    std::wstring chosen = Environment(L"ARDIA_CONFIG_DIR");
-    if (!chosen.empty()) return Ensured(std::filesystem::path(chosen));
-    if (HasCustomDataDirectory()) return Ensured(DataDirectory() / L"config");
-    return Ensured(UserFolder(FOLDERID_RoamingAppData, L"APPDATA") / L"Ardia");
   }();
   return directory;
 }

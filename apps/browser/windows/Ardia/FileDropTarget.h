@@ -16,6 +16,7 @@
 #include "Events.h"
 #include "FileDropItems.h"
 #include "LaunchLog.h"
+#include "LaunchConfig.h"
 #include "Paths.h"
 #include "WindowManager.h"
 
@@ -85,7 +86,7 @@ struct DropHub {
 #if _DEBUG
     return true;
 #else
-    static const bool available = Paths::HasSwitch(L"--self-check") && Paths::HasCustomDataDirectory();
+    static const bool available = Paths::HasSwitch(L"--self-check") && AppLaunch::Shared().testInstance;
     return available;
 #endif
   }

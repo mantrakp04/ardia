@@ -28,6 +28,7 @@ namespace Ardia::SyncSecrets {
 using SyncCrypto::WipedBytes;
 
 constexpr std::string_view KeyPurpose = "ardia-sync-key/v1";
+constexpr std::string_view TestInstancePurpose = "/test-instance";
 
 inline bool IsAccountName(std::string const &account) noexcept {
   if (account.empty() || account.size() > 64) return false;
@@ -42,7 +43,12 @@ inline std::filesystem::path KeyFolder() noexcept { return Paths::DataDirectory(
 
 inline std::filesystem::path KeyPath(std::string const &account) { return KeyFolder() / (L"sync-key-" + Paths::Wide(account) + L".dpapi"); }
 
-inline std::string Purpose(std::string const &account) { return std::string{KeyPurpose} + "/" + account; }
+inline std::string PurposeFor(std::string const &account, bool testInstance) {
+  std::string_view instance = testInstance ? TestInstancePurpose : std::string_view{};
+  return std::string{KeyPurpose} + std::string{instance} + "/" + account;
+}
+
+inline std::string Purpose(std::string const &account) { return PurposeFor(account, AppLaunch::Shared().testInstance); }
 
 inline bool SaveKey(std::string const &account, WipedBytes const &entropy) noexcept {
   try {
@@ -109,9 +115,10 @@ inline bool ProtectedStorageRoundTrip() noexcept {
   std::optional<std::string> stored = StoredKey(account);
   bool hidden = stored && stored->find(probe.view()) == std::string::npos;
   bool boundToPurpose = stored && !Unprotect(*stored, Purpose(account + "-other"));
+  bool apartFromOtherInstances = stored && !Unprotect(*stored, PurposeFor(account, !AppLaunch::Shared().testInstance));
   DeleteKey(account);
   std::error_code error;
-  return saved && same && hidden && boundToPurpose && !std::filesystem::exists(KeyPath(account), error);
+  return saved && same && hidden && boundToPurpose && apartFromOtherInstances && !std::filesystem::exists(KeyPath(account), error);
 }
 
 namespace OwnerParts {

@@ -1565,6 +1565,7 @@ if (-not (Test-Path -LiteralPath $App)) {
   exit 0
 }
 $App = (Resolve-Path -LiteralPath $App).Path
+New-Item -ItemType File -Force -Path (Join-Path (Split-Path -Parent $App) "Ardia.test-build") | Out-Null
 
 $tours = @(
   @{ Name = "onboarding"; Run = { Invoke-OnboardingTour } },
