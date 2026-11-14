@@ -33,14 +33,13 @@ export async function openReadyUpdateMenu(windowId: string | null) {
 }
 
 let started = false;
-let shownBuild: string | null = null;
+const countedBuilds = new Set<string>();
 
 function setReady(ready: ReadyUpdate | null) {
-  if (ready && ready.build !== shownBuild) {
-    shownBuild = ready.build;
-    noteReadyUpdate("shown");
-  }
   useReadyUpdateState.setState({ ready });
+  if (!ready || ready.build === useReadyUpdateState.getState().onQuitBuild || countedBuilds.has(ready.build)) return;
+  countedBuilds.add(ready.build);
+  noteReadyUpdate("shown");
 }
 
 export function startReadyUpdate() {

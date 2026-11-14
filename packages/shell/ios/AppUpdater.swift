@@ -271,6 +271,7 @@ public final class AppUpdater: NSObject {
     guard started, readiness.ready(allowed: allowedChannels) != nil, !userDriver.installPending else { return }
     if userDriver.retryTermination() { return }
     guard readiness.requestInstall(allowed: allowedChannels, at: Date()) else { return }
+    userDriver.quietCheck = false
     guard updater.canCheckForUpdates else {
       return NSLog("Ardia: an update check is under way; it resumes the staged update and restarts")
     }
